@@ -44,32 +44,51 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         if (!email || !password) return null
 
         // >>> PLUGUE O BANCO AQUI <<<
-        // Hoje: comparamos com o único usuário vindo do ambiente.
-        const expectedEmail = (process.env.AUTH_LOGIN_EMAIL || '').trim().toLowerCase()
-        const passwordHash = process.env.AUTH_LOGIN_PASSWORD_HASH || ''
+        // Resolução do usuário, em ordem:
+        //   1) AUTH_USERS  -> lista JSON de usuários (múltiplos usuários)
+        //      Ex.: AUTH_USERS=[{"email":"a@x.com","name":"A","passwordHash":"$2a$..."}]
+        //   2) AUTH_LOGIN_* -> usuário único (compatibilidade)
+        let user = null
 
-        if (!expectedEmail || !passwordHash) {
-          // Sem variáveis configuradas: falha "fechada" (nega o acesso).
-          console.error(
-            '[auth] AUTH_LOGIN_EMAIL ou AUTH_LOGIN_PASSWORD_HASH não definidos no .env.local'
-          )
+        const usersRaw = process.env.AUTH_USERS
+        if (usersRaw) {
+          let list = []
+          try {
+            list = JSON.parse(usersRaw)
+          } catch {
+            console.error('[auth] AUTH_USERS não é um JSON válido.')
+          }
+          const found = Array.isArray(list)
+            ? list.find(u => String(u?.email || '').trim().toLowerCase() === email)
+            : null
+          if (found?.passwordHash) {
+            user = { email, name: found.name || email.split('@')[0], hash: found.passwordHash }
+          }
+        }
+
+        if (!user) {
+          // Fallback: usuário único por variáveis separadas.
+          const expectedEmail = (process.env.AUTH_LOGIN_EMAIL || '').trim().toLowerCase()
+          const passwordHash = process.env.AUTH_LOGIN_PASSWORD_HASH || ''
+          if (expectedEmail && passwordHash && email === expectedEmail) {
+            user = { email: expectedEmail, name: process.env.AUTH_LOGIN_NAME || expectedEmail.split('@')[0], hash: passwordHash }
+          }
+        }
+
+        if (!user) {
+          // E-mail desconhecido OU nenhuma config presente: falha "fechada".
+          if (!usersRaw && !process.env.AUTH_LOGIN_EMAIL) {
+            console.error('[auth] Nenhum usuário configurado (AUTH_USERS ou AUTH_LOGIN_*).')
+          }
           return null
         }
 
-        if (email !== expectedEmail) return null
-
         // Compara a senha digitada com o hash. bcrypt já lida com o "salt"
-        // embutido no hash — pensa nele como um cofre que confere a digital
-        // sem nunca guardar a digital original.
-        const ok = await bcrypt.compare(password, passwordHash)
+        // embutido no hash — como um cofre que confere a digital sem guardá-la.
+        const ok = await bcrypt.compare(password, user.hash)
         if (!ok) return null
 
-        // Objeto do usuário que vira a sessão.
-        return {
-          id: '1',
-          email: expectedEmail,
-          name: process.env.AUTH_LOGIN_NAME || expectedEmail.split('@')[0],
-        }
+        return { id: user.email, email: user.email, name: user.name }
       },
     }),
   ],

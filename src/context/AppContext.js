@@ -12,7 +12,8 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   // Auth NÃO vive mais aqui — quem cuida do login é o Auth.js (useSession).
   // Este context guarda só preferências de UI e o estado da conexão Datadog.
-  const [theme, setTheme] = useState('light');
+  // theme = escolha do usuário: 'light' | 'dark' | 'system'
+  const [theme, setTheme] = useState('system');
   const [datadogSite, setDatadogSite] = useState('datadoghq.com');
 
   // Flag: as chaves da sessão estão configuradas? (item 5)
@@ -25,16 +26,29 @@ export function AppProvider({ children }) {
   // Lido em efeito de propósito: o localStorage não existe no SSR, então fazer
   // isso no mount evita divergência de hidratação.
   useEffect(() => {
-    const savedTheme = localStorage.getItem('dd_theme') || 'light';
+    const savedTheme = localStorage.getItem('dd_theme') || 'system';
     const savedSite = localStorage.getItem('dd_site') || 'datadoghq.com';
     setTheme(savedTheme);
     setDatadogSite(savedSite);
   }, []);
 
-  // Aplica o tema no <html> e persiste
+  // Aplica o tema no <html> e persiste. Quando a escolha é 'system',
+  // resolvemos pela preferência do SO (prefers-color-scheme) e reagimos
+  // a mudanças do sistema em tempo real.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('dd_theme', theme);
+
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const resolved = theme === 'system' ? (mql.matches ? 'dark' : 'light') : theme;
+      document.documentElement.setAttribute('data-theme', resolved);
+    };
+    apply();
+
+    if (theme === 'system') {
+      mql.addEventListener('change', apply);
+      return () => mql.removeEventListener('change', apply);
+    }
   }, [theme]);
 
   // Pergunta ao servidor se as chaves da sessão estão configuradas

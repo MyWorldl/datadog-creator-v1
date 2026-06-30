@@ -4,6 +4,7 @@
 'use client'
 
 import { useState } from 'react'
+import DiscoveryPersonalize from '@/components/discovery/DiscoveryPersonalize'
 
 const s = {
   card: {
@@ -107,6 +108,9 @@ const s = {
 export default function StepPersonalize({ config, setConfig, onNext, onBack }) {
   const [tagInput, setTagInput] = useState('')
   const [errors, setErrors]     = useState({})
+
+  if (config.mode === 'discovery')
+    return <DiscoveryPersonalize config={config} setConfig={setConfig} onNext={onNext} onBack={onBack} />
 
   function validate() {
     const e = {}

@@ -16,8 +16,11 @@ export const authConfig = {
   // (sessões em banco não funcionam com Credentials).
   session: { strategy: 'jwt' },
 
-  // Para onde mandar quem não está logado. No nosso app o login é
-  // renderizado "inline" pela AppShell, mas deixamos '/' como destino.
+  // Confia no host atual. Necessário para self-host fora da Vercel
+  // (sem isto, o Auth.js v5 pode lançar "UntrustedHost" em produção).
+  trustHost: true,
+
+  // O login é renderizado "inline" pela AppShell em qualquer rota.
   pages: {
     signIn: '/',
   },
@@ -27,23 +30,18 @@ export const authConfig = {
   providers: [],
 
   callbacks: {
-    // Controle de acesso central. Roda no proxy (edge) e decide quem entra.
-    // IMPORTANTE: por causa da CVE-2025-29927, NÃO confiamos só nisto —
-    // as rotas de API também validam a sessão com auth() no servidor.
-    authorized({ auth, request }) {
-      const isLoggedIn = !!auth?.user
-      const { pathname } = request.nextUrl
-
-      // /api/* se autoprotege com auth() dentro de cada rota (defesa em
-      // profundidade). Deixamos passar aqui para a rota responder o status
-      // correto (401 JSON) em vez de um redirect HTML.
-      if (pathname.startsWith('/api')) return true
-
-      // Assets internos do Next
-      if (pathname.startsWith('/_next') || pathname === '/favicon.ico') return true
-
-      // Páginas exigem login
-      return isLoggedIn
+    // PASS-THROUGH proposital. Este app usa login "inline": a AppShell mostra
+    // a tela de login em QUALQUER rota quando não há sessão. Se o proxy
+    // redirecionasse páginas para '/', entraria em loop com a raiz, que
+    // redireciona para o dashboard (protegido) -> '/' -> dashboard -> ...
+    //
+    // A proteção real está em duas camadas que NÃO dependem deste callback:
+    //   1) AppShell (UX): sem sessão => renderiza o Login, não o conteúdo.
+    //   2) Rotas /api: revalidam a sessão com auth() no servidor (inclusive
+    //      por causa da CVE-2025-29927). Nada sensível é renderizado no
+    //      HTML das páginas — segredos vivem em cookies httpOnly lidos só lá.
+    authorized() {
+      return true
     },
   },
 }

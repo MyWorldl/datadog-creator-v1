@@ -4,6 +4,7 @@
 'use client'
 
 import { useState } from 'react'
+import DiscoveryConfigure from '@/components/discovery/DiscoveryConfigure'
 
 const s = {
   card: {
@@ -106,6 +107,8 @@ function buildQueryPreview(config) {
 
 export default function StepConfigure({ config, setConfig, onNext, onBack }) {
   const [errors, setErrors] = useState({})
+  const mode = config.mode || 'anomaly'
+  const setMode = (m) => setConfig(c => ({ ...c, mode: m }))
 
   function validate() {
     const e = {}
@@ -127,8 +130,31 @@ export default function StepConfigure({ config, setConfig, onNext, onBack }) {
     return e => setConfig(c => ({ ...c, [key]: e.target.value }))
   }
 
+  const tab = (active) => ({
+    flex: 1, padding: '9px 12px', cursor: 'pointer', fontSize: 13,
+    borderRadius: 8, textAlign: 'center', fontWeight: active ? 600 : 400,
+    background: active ? 'var(--accent-light)' : 'var(--bg-surface-2)',
+    border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
+  })
+
   return (
-    <div style={s.card}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* Seletor de modo */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button style={tab(mode === 'anomaly')} onClick={() => setMode('anomaly')}>
+          Monitor de anomalia
+        </button>
+        <button style={tab(mode === 'discovery')} onClick={() => setMode('discovery')}>
+          🔎 Descoberta de serviços
+        </button>
+      </div>
+
+      {mode === 'discovery' ? (
+        <DiscoveryConfigure config={config} setConfig={setConfig} onNext={onNext} onBack={onBack} />
+      ) : (
+        <div style={s.card}>
 
       {/* Métrica + Filtro */}
       <div style={s.row2}>
@@ -248,6 +274,8 @@ export default function StepConfigure({ config, setConfig, onNext, onBack }) {
         <button style={s.btnPrimary} onClick={handleNext}>Continuar →</button>
       </div>
 
+        </div>
+      )}
     </div>
   )
 }
