@@ -19,6 +19,7 @@ const navItems = [
     section: 'Sistema',
     items: [
       { href: '/configuracoes', label: 'Configurações', icon: '⚙' },
+      { href: '/sistema/sobre', label: 'Sobre', icon: 'ⓘ' },
     ],
   },
 ]
@@ -51,7 +52,7 @@ export default function Sidebar() {
         padding: '1.25rem 1rem',
         borderBottom: '1px solid rgba(255,255,255,0.15)',
       }}>
-        <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--sidebar-text-active)', margin: '1px 0 0' }}>
+        <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--sidebar-logo)', margin: '1px 0 0' }}>
           Datadog Creator
         </p>
         <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--sidebar-text)',

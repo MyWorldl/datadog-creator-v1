@@ -4,6 +4,7 @@
 'use client'
 
 import { useState } from 'react'
+import { initialDiscovery } from '@/lib/discovery'
 import Stepper          from '@/components/Stepper'
 import StepConnect      from '@/components/StepConnect'
 import StepConfigure    from '@/components/StepConfigure'
@@ -20,10 +21,11 @@ const STEPS = ['Conectar', 'Configurar', 'Personalizar', 'Revisar', 'Criar']
 // Estado inicial de todas as configurações
 // ─────────────────────────────────────────────
 const INITIAL_CONFIG = {
-  // Step 1 — Conexão
-  site:   'datadoghq.com',
-  apiKey: '',
-  appKey: '',
+  // Modo do wizard: 'anomaly' (monitor único) ou 'discovery' (serviços).
+  mode: 'anomaly',
+
+  // Estado do fluxo de descoberta de serviços (Etapas 2→5).
+  discovery: initialDiscovery(),
 
   // Step 2 — Anomaly Detection
   metric:      'system.cpu.user',

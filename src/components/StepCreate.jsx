@@ -10,6 +10,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useApp } from '@/context/AppContext'
+import DiscoveryCreate from '@/components/discovery/DiscoveryCreate'
 
 // ─────────────────────────────────────────────
 // Ícones inline (SVG simples, sem dependência)
@@ -136,11 +138,15 @@ function buildQueryPreview(config) {
 // Componente principal
 // ─────────────────────────────────────────────
 export default function StepCreate({ config, onBack }) {
+  const { datadogSite } = useApp()
   // Estados possíveis: 'idle' | 'loading' | 'success' | 'error'
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)   // resposta de sucesso
   const [error, setError] = useState(null)     // mensagem de erro
   const [copied, setCopied] = useState(false)  // feedback do botão copiar
+
+  if (config.mode === 'discovery')
+    return <DiscoveryCreate config={config} onBack={onBack} />
 
   const query = buildQueryPreview(config)
 
@@ -241,7 +247,7 @@ export default function StepCreate({ config, onBack }) {
             Resumo da configuração
           </p>
 
-          <SummaryRow label="Site"       value={config.site} />
+          <SummaryRow label="Site"       value={datadogSite} />
           <SummaryRow label="Métrica"    value={config.metric} mono />
           <SummaryRow label="Algoritmo"  value={`${config.algorithm} · ${config.seasonality} · ${config.deviations} desvios`} />
           <SummaryRow label="Direção"    value={config.direction} />
@@ -323,7 +329,7 @@ export default function StepCreate({ config, onBack }) {
                 Criando monitor no Datadog...
               </p>
               <p style={{ fontSize: 12, color: 'var(--accent-hover)', margin: '2px 0 0' }}>
-                Conectando a api.{config.site}
+                Conectando a api.{datadogSite}
               </p>
             </div>
           </div>

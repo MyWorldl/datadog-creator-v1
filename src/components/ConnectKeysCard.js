@@ -42,6 +42,25 @@ export default function ConnectKeysCard() {
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null) // {ok, msg}
+
+  async function testConnection() {
+    setTesting(true); setTestResult(null)
+    try {
+      const r = await fetch('/api/datadog/validate')
+      const data = await r.json()
+      if (data.valid) {
+        setTestResult({ ok: true, msg: `Conexão válida com ${data.site}.` })
+      } else {
+        setTestResult({ ok: false, msg: data.reason || data.error || 'Credenciais inválidas.' })
+      }
+    } catch (e) {
+      setTestResult({ ok: false, msg: 'Falha de rede: ' + e.message })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   async function save() {
     setError('')
@@ -84,15 +103,27 @@ export default function ConnectKeysCard() {
       {keysLoading ? (
         <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Verificando…</p>
       ) : keysConfigured && !editing ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={s.badge}>● Conectado</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-            Site: <strong>{datadogSite}</strong>
-          </span>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button style={s.btn} onClick={() => setEditing(true)}>Reconfigurar</button>
-            <button style={s.btnGhost} onClick={disconnect}>Desconectar</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={s.badge}>● Conectado</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Site: <strong>{datadogSite}</strong>
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button style={s.btn} onClick={() => { setTestResult(null); setEditing(true) }}>Reconfigurar</button>
+              <button style={s.btnGhost} onClick={testConnection} disabled={testing}>
+                {testing ? 'Testando…' : 'Testar conexão'}
+              </button>
+              <button style={s.btnGhost} onClick={disconnect}>Desconectar</button>
+            </div>
           </div>
+          {testResult && (
+            <div style={testResult.ok
+              ? { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '8px 12px' }
+              : s.err}>
+              {testResult.ok ? '✓ ' : '✗ '}{testResult.msg}
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

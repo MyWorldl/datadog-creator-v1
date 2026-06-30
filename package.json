@@ -1,6 +1,6 @@
 {
   "name": "datadog-creator",
-  "version": "0.1.0",
+  "version": "1.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev --port 9999",
@@ -10,6 +10,7 @@
     "gen:credentials": "node scripts/generate-credentials.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.3",
     "next": "16.2.9",
     "next-auth": "^5.0.0-beta.31",

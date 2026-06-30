@@ -4,6 +4,8 @@
 'use client'
 
 import { useState } from 'react'
+import { useApp } from '@/context/AppContext'
+import DiscoveryReview from '@/components/discovery/DiscoveryReview'
 
 const s = {
   card: {
@@ -138,8 +140,12 @@ function SummaryRow({ label, value, mono = false }) {
 }
 
 export default function StepReview({ config, onNext, onBack }) {
+  const { datadogSite } = useApp()
   const [copied, setCopied] = useState(false)
   const [showJson, setShowJson] = useState(false)
+
+  if (config.mode === 'discovery')
+    return <DiscoveryReview config={config} onNext={onNext} onBack={onBack} />
 
   const payload = buildPayload(config)
   const json    = JSON.stringify(payload, null, 2)
@@ -166,9 +172,8 @@ export default function StepReview({ config, onNext, onBack }) {
         {/* Conexão */}
         <div style={s.section}>
           <p style={s.sectionTitle}>Conexão</p>
-          <SummaryRow label="Site"   value={config.site} mono />
-          <SummaryRow label="API Key" value={`••••••${(config.apiKey || '').slice(-4)}`} />
-          <SummaryRow label="App Key" value={`••••••${(config.appKey || '').slice(-4)}`} />
+          <SummaryRow label="Site"        value={datadogSite} mono />
+          <SummaryRow label="Credenciais" value="definidas na sessão (cookie httpOnly)" />
         </div>
 
         {/* Anomaly Detection */}

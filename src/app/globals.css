@@ -9,6 +9,7 @@
   --bg-sidebar: #534AB7;
   --sidebar-text: #EDEBFA;
   --sidebar-text-active: #534AB7;
+  --sidebar-logo: #FFFFFF;
   --sidebar-active-bg: #FFFFFF;
   --sidebar-accent: #632CA6;
   --text-primary: #111111;
@@ -35,6 +36,7 @@
   --bg-sidebar: #0A0A14;
   --sidebar-text: #9090AA;
   --sidebar-text-active: #FFFFFF;
+  --sidebar-logo: #FFFFFF;
   --sidebar-active-bg: #2A1A45;
   --sidebar-accent: #7B35CC;
   --text-primary: #E8E8F0;
