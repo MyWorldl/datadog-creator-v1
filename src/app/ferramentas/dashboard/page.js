@@ -3,8 +3,6 @@
 
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
-import { useApp } from '@/context/AppContext'
-import ConnectKeysCard from '@/components/ConnectKeysCard'
 
 const cards = [
   {
@@ -17,9 +15,9 @@ const cards = [
   {
     href: '/ferramentas/analise',
     icon: '◎',
-    title: 'Análise do Ambiente',
-    desc: 'Inspecione e investigue o estado do seu ambiente Datadog.',
-    cta: 'Analisar',
+    title: 'ScopeMaturity',
+    desc: 'Score de maturidade (0–100) do ambiente por governança e cobertura.',
+    cta: 'Ver score',
   },
   {
     href: '/configuracoes',
@@ -43,7 +41,6 @@ const s = {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
-  const { datadogSite, keysConfigured } = useApp()
   const name = session?.user?.name || 'de volta'
 
   return (
@@ -60,15 +57,6 @@ export default function DashboardPage() {
             <span style={s.cCta}>{c.cta} →</span>
           </Link>
         ))}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, maxWidth: 560 }}>
-        <ConnectKeysCard />
-        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-          Status: {keysConfigured
-            ? <>conectado ao <strong>{datadogSite}</strong>.</>
-            : <>sem conexão Datadog ativa nesta sessão.</>}
-        </div>
       </div>
     </div>
   )

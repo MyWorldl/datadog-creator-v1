@@ -25,17 +25,10 @@ export default function DiscoveryCreate({ config, onBack }) {
   async function create() {
     setError(''); setResults(null); setCreating(true)
     try {
-      const services = Object.entries(d.selected).map(([name, meta]) => ({ name, operation: meta.operation }))
       const r = await fetch('/api/datadog/service-monitors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          services,
-          env: d.env,
-          groupBy: d.groupBy,
-          alerts: d.alerts,
-          messages: d.messages,
-        }),
+        body: JSON.stringify({ discovery: d }),
       })
       const data = await r.json()
       if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
@@ -62,7 +55,7 @@ export default function DiscoveryCreate({ config, onBack }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
             {results.results.map((r, i) => (
               <div key={i} style={{ ...s.resItem, color: r.ok ? 'var(--success)' : 'var(--danger)', borderColor: r.ok ? 'var(--success)' : 'var(--danger)' }}>
-                {r.ok ? '✓' : '✗'} {r.service} · {r.kind}{r.id ? ` · id ${r.id}` : ''}{r.error ? ` · ${r.error}` : ''}
+                {r.ok ? '✓' : '✗'} {r.service} · {r.operation} · {r.kind}{r.id ? ` · id ${r.id}` : ''}{r.error ? ` · ${r.error}` : ''}
               </div>
             ))}
           </div>
