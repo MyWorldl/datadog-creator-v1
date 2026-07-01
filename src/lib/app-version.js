@@ -15,6 +15,14 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.3.1',
+    date: '2026-06-30',
+    title: 'Correção: criação de monitores de anomalia',
+    notes: [
+      'Corrigido erro do Datadog "alert window query arg must match trigger window": o payload usava a chave errada (alert_window) em vez de trigger_window nas opções do monitor.',
+    ],
+  },
+  {
     version: '1.3.0',
     date: '2026-06-30',
     title: 'Anomaly detection, ScopeMaturity e correções',
