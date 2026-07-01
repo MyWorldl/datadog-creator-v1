@@ -149,10 +149,11 @@ function buildPayload(config) {
     tags: Array.isArray(tags) ? tags : [],
     priority: Number(priority),
     options: {
-      // Janelas exclusivas de anomaly detection
+      // Janelas exclusivas de anomaly detection.
+      // A chave correta é trigger_window e deve casar com o alert_window da query.
       threshold_windows: {
-        alert_window: alertWindow,
-        recovery_window: 'last_15m',
+        trigger_window: alertWindow,
+        recovery_window: alertWindow,
       },
       thresholds: {
         critical: 1.0, // >= 1 ponto anomalous dispara alerta

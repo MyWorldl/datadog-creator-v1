@@ -111,7 +111,13 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
     message: message || ALERT_BY_KEY[kind]?.message || '',
     tags: baseTags,
     options: {
-      threshold_windows: { alert_window: alertWindow || 'last_15m', recovery_window: 'last_15m' },
+      // Anomaly detection: a chave é trigger_window (não alert_window) e ela
+      // DEVE ser igual ao alert_window usado na query. Doc:
+      // https://docs.datadoghq.com/monitors/types/anomaly/
+      threshold_windows: {
+        trigger_window: alertWindow || 'last_15m',
+        recovery_window: alertWindow || 'last_15m',
+      },
       thresholds: { critical: 1.0 },
       notify_no_data: false,
       notify_audit: false,
