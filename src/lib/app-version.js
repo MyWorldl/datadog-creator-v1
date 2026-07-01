@@ -15,6 +15,20 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.3.0',
+    date: '2026-06-30',
+    title: 'Anomaly detection, ScopeMaturity e correções',
+    notes: [
+      'Descoberta agora cria monitores de ANOMALY DETECTION (latência, erro, alto/baixo volume).',
+      'Seleção de múltiplas operations por serviço.',
+      'Etapa 3: nome do monitor (prefixo) e Tags dos monitores.',
+      'ScopeMaturity (ex-"Análise do Ambiente"): score 0–100 calculado no servidor.',
+      'Corrigido "Failed to fetch": a análise agora coleta no servidor (sem CORS).',
+      'Dashboard: removido o card de Conexão Datadog.',
+      'Adicionados Vercel Analytics e Speed Insights.',
+    ],
+  },
+  {
     version: '1.2.0',
     date: '2026-06-30',
     title: 'Descoberta por serviço + wizard completo',

@@ -12,7 +12,7 @@ const navItems = [
     items: [
       { href: '/ferramentas/dashboard', label: 'Dashboard', icon: '▦' },
       { href: '/monitor', label: 'MonitorsCreator', icon: '◈' },
-      { href: '/ferramentas/analise', label: 'Análise do Ambiente', icon: '◎' },
+      { href: '/ferramentas/analise', label: 'ScopeMaturity', icon: '◎' },
     ],
   },
   {
