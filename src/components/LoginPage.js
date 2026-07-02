@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,15 +13,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
-      setError('Preencha e-mail e senha.');
+    if (!username || !password) {
+      setError('Preencha usuário e senha.');
       return;
     }
 
     setLoading(true);
     // Auth.js: login por Credentials. redirect:false => tratamos o erro aqui.
     const res = await signIn('credentials', {
-      email,
+      username,
       password,
       redirect: false,
     });
@@ -87,13 +87,13 @@ export default function LoginPage() {
               fontWeight: 600,
               color: 'var(--text-secondary)',
               marginBottom: 6,
-            }}>E-mail</label>
+            }}>Usuário</label>
             <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="voce@empresa.com"
-              autoComplete="email"
+              type="text"
+              value={username}
+              onChange={e => setUsername(e.target.value)}
+              placeholder="seu.usuario"
+              autoComplete="username"
               style={{
                 width: '100%',
                 padding: '0.65rem 0.875rem',
