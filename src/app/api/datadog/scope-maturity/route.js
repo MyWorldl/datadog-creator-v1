@@ -11,6 +11,7 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
+import { ctxFrom, logsCount, sloBudget, alertEvents } from '@/lib/datadog-server'
 
 const REQUIRED_TAGS = ['env', 'service', 'team']
 
@@ -81,6 +82,17 @@ export async function GET() {
   const dims = []
   const add = (key, label, measured, score, detail) => dims.push({ key, label, measured, score: measured ? clamp(score) : null, detail })
 
+  // Coletas adicionais (logs, SLO history, eventos) para evoluir os N/D.
+  const ctx = ctxFrom({ apiKey, appKey, site })
+  const toMs = Date.now(), fromMs = toMs - 24 * 3600 * 1000
+  const [logsTotal, logsTrace, logsWithSvc, budget, ev] = await Promise.all([
+    logsCount(ctx, '*', fromMs, toMs),
+    logsCount(ctx, '@dd.trace_id:*', fromMs, toMs),
+    logsCount(ctx, 'service:*', fromMs, toMs),
+    sloBudget(ctx),
+    alertEvents(ctx, 7),
+  ])
+
   // 1. Tag Compliance (hosts com env/service/team)
   if (hostsR.ok && hosts.length) {
     const per = REQUIRED_TAGS.map(k => pct(hosts.filter(h => hasTagKey(hostTags(h), k)).length, hosts.length))
@@ -103,7 +115,14 @@ export async function GET() {
   } else add('apm', 'Aplicações com APM', false, 0, 'apm_read indisponível na App key.')
 
   // 4. Logs Correlacionados — requer análise de logs (não coletado aqui)
-  add('logsCorrelated', 'Logs Correlacionados', false, 0, 'Requer análise de logs (não avaliado nesta versão).')
+  // 4. Logs Correlacionados (com trace_id) — via Logs Analytics
+  if (logsTotal != null && logsTotal > 0 && logsTrace != null) {
+    add('logsCorrelated', 'Logs Correlacionados', true, (logsTrace / logsTotal) * 100, `${logsTrace} de ${logsTotal} logs (24h) com @dd.trace_id (correlação APM).`)
+  } else if (logsTotal === 0) {
+    add('logsCorrelated', 'Logs Correlacionados', false, 0, 'Nenhum log no período (24h).')
+  } else {
+    add('logsCorrelated', 'Logs Correlacionados', false, 0, 'Requer Logs Analytics (logs_read).')
+  }
 
   // 5. Monitores com Owner (tag team:/owner: ou creator)
   if (monitorsR.ok && monitors.length) {
@@ -139,10 +158,31 @@ export async function GET() {
   } else add('requiredTags', 'Tags Obrigatórias', false, 0, 'Sem dados de hosts.')
 
   // 11-14. Dependem de logs/histórico — não avaliados nesta versão
-  add('highCardinality', 'Alta Cardinalidade', false, 0, 'Requer dados de cardinalidade de métricas.')
-  add('logsNoService', 'Logs sem Service', false, 0, 'Requer análise de logs.')
-  add('falseAlerts', 'Alertas Falsos', false, 0, 'Requer histórico de estados dos monitores.')
-  add('errorBudget', 'Error Budget respeitado', false, 0, 'Requer histórico de SLO.')
+  // 11. Alta Cardinalidade — segue N/D (requer dados de cardinalidade de métricas)
+  add('highCardinality', 'Alta Cardinalidade', false, 0, 'Requer dados de cardinalidade de métricas (não exposto pela API padrão).')
+
+  // 12. Logs sem Service (score = % COM service) — via Logs Analytics
+  if (logsTotal != null && logsTotal > 0 && logsWithSvc != null) {
+    add('logsNoService', 'Logs sem Service', true, (logsWithSvc / logsTotal) * 100, `${logsTotal - logsWithSvc} de ${logsTotal} logs (24h) sem tag service.`)
+  } else if (logsTotal === 0) {
+    add('logsNoService', 'Logs sem Service', false, 0, 'Nenhum log no período (24h).')
+  } else {
+    add('logsNoService', 'Logs sem Service', false, 0, 'Requer Logs Analytics (logs_read).')
+  }
+
+  // 13. Alertas Falsos (score = 100 - flapping) — via Events (auto-recuperação rápida)
+  if (ev.measured && ev.flappingRate != null) {
+    add('falseAlerts', 'Alertas Falsos', true, 100 - ev.flappingRate, `${ev.flapping} de ${ev.cycles} ciclos recuperaram em <10min (flapping, 7d).`)
+  } else {
+    add('falseAlerts', 'Alertas Falsos', false, 0, ev.measured ? 'Sem ciclos de alerta pareáveis no período.' : 'Requer Events API.')
+  }
+
+  // 14. Error Budget respeitado — via SLO history
+  if (budget.measured) {
+    add('errorBudget', 'Error Budget respeitado', true, budget.pct, budget.detail)
+  } else {
+    add('errorBudget', 'Error Budget respeitado', false, 0, budget.detail || 'Requer histórico de SLO.')
+  }
 
   const measured = dims.filter(d => d.measured)
   const score = measured.length ? clamp(measured.reduce((a, d) => a + d.score, 0) / measured.length) : 0

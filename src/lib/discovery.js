@@ -16,21 +16,25 @@
 export const ALERT_TYPES = [
   {
     key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m',
     hint: 'Anomalia na latência p95 (desvio do padrão histórico).',
     message: '🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).\n@equipe-ops',
   },
   {
     key: 'errorRate', label: 'Taxa de Erro', direction: 'above', def: 2,
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m',
     hint: 'Anomalia na taxa de erros (erros/requisições).',
     message: '🔴 [Anomalia · Taxa de Erro] {{service.name}} — erros fora do padrão (atual: {{value}}%).\n@equipe-ops',
   },
   {
     key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 2,
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m',
     hint: 'Anomalia de pico: requisições acima do padrão histórico.',
     message: '⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.\n@equipe-ops',
   },
   {
     key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 2,
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m',
     hint: 'Anomalia de queda: requisições abaixo do padrão histórico.',
     message: '⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.\n@equipe-ops',
   },
@@ -45,17 +49,23 @@ export function initialDiscovery() {
     services: [],   // nomes descobertos
     selected: {},   // { svc: { opsCount, operations:[], chosen:[] } }
     alerts: Object.fromEntries(
-      ALERT_TYPES.map(a => [a.key, { enabled: a.key === 'latency' || a.key === 'errorRate', deviations: a.def }])
+      ALERT_TYPES.map(a => [a.key, {
+        enabled: a.key === 'latency' || a.key === 'errorRate',
+        deviations: a.def,
+        direction: a.direction,
+        algorithm: a.algorithm,
+        seasonality: a.seasonality,
+        alertWindow: a.alertWindow,
+      }])
     ),
     groupBy: [...DEFAULT_GROUP_BY],
     messages: Object.fromEntries(ALERT_TYPES.map(a => [a.key, a.message])),
     // Personalização (Etapas 3)
     namePrefix: '[MonitorsCreator]',
     tags: [],
-    // Parâmetros do anomaly detection
-    algorithm: 'agile',       // basic | agile | robust
+    // Janela de avaliação global (o alert_window/algoritmo/sazonalidade/direção
+    // agora são POR TIPO de alerta — veja "alerts" acima).
     queryWindow: 'last_4h',
-    alertWindow: 'last_15m',
   }
 }
 
@@ -83,21 +93,22 @@ function metricExpr(kind, op, sc, by) {
   }
 }
 
-export function buildAnomalyQuery({ kind, service, env, operation, deviations, groupBy, algorithm = 'agile', queryWindow = 'last_4h', alertWindow = 'last_15m' }) {
+export function buildAnomalyQuery({ kind, service, env, operation, deviations, groupBy, direction, algorithm = 'agile', seasonality = 'daily', queryWindow = 'last_4h', alertWindow = 'last_15m' }) {
   const sc = scopeOf(service, env)
   const by = byClauseOf(groupBy)
   const op = operation || 'http.request'
-  const dir = ALERT_BY_KEY[kind]?.direction || 'above'
-  const seasonality = algorithm !== 'basic' ? `, seasonality='daily'` : ''
+  const dir = direction || ALERT_BY_KEY[kind]?.direction || 'above'
+  // seasonality só se aplica a algoritmos != basic
+  const seas = algorithm !== 'basic' ? `, seasonality='${seasonality}'` : ''
   const m = metricExpr(kind, op, sc, by)
   return (
     `avg(${queryWindow}):anomalies(${m}, '${algorithm}', ${deviations}, ` +
     `direction='${dir}', alert_window='${alertWindow}', interval=60, ` +
-    `count_default_zero='true'${seasonality}) >= 1`
+    `count_default_zero='true'${seas}) >= 1`
   )
 }
 
-export function buildMonitorPayload({ kind, service, env, operation, deviations, groupBy, message, tags, namePrefix, algorithm, queryWindow, alertWindow }) {
+export function buildMonitorPayload({ kind, service, env, operation, deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow }) {
   const label = ALERT_BY_KEY[kind]?.label || kind
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${service} · ${label}`.trim()
   const baseTags = ['created_by:monitorscreator', `service:${service}`]
@@ -107,7 +118,7 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
   return {
     name,
     type: 'query alert',
-    query: buildAnomalyQuery({ kind, service, env, operation, deviations, groupBy, algorithm, queryWindow, alertWindow }),
+    query: buildAnomalyQuery({ kind, service, env, operation, deviations, direction, groupBy, algorithm, seasonality, queryWindow, alertWindow }),
     message: message || ALERT_BY_KEY[kind]?.message || '',
     tags: baseTags,
     options: {
@@ -132,8 +143,7 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
 export function planPreview(discovery) {
   const d = discovery || {}
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
-    namePrefix = '[MonitorsCreator]', tags = [], algorithm = 'agile',
-    queryWindow = 'last_4h', alertWindow = 'last_15m' } = d
+    namePrefix = '[MonitorsCreator]', tags = [], queryWindow = 'last_4h' } = d
 
   const plan = []
   for (const [service, meta] of Object.entries(selected)) {
@@ -144,9 +154,13 @@ export function planPreview(discovery) {
         if (!cfg?.enabled) continue
         const payload = buildMonitorPayload({
           kind: a.key, service, env, operation,
-          deviations: cfg.deviations, groupBy,
+          deviations: cfg.deviations, direction: cfg.direction, groupBy,
           message: messages[a.key], tags, namePrefix,
-          algorithm, queryWindow, alertWindow,
+          // Parâmetros de anomalia POR TIPO (com fallback para o default do tipo)
+          algorithm: cfg.algorithm || a.algorithm,
+          seasonality: cfg.seasonality || a.seasonality,
+          alertWindow: cfg.alertWindow || a.alertWindow,
+          queryWindow,
         })
         plan.push({ kind: a.key, label: a.label, service, operation, name: payload.name, query: payload.query, message: payload.message, payload })
       }

@@ -21,28 +21,9 @@ const STEPS = ['Conectar', 'Configurar', 'Personalizar', 'Revisar', 'Criar']
 // Estado inicial de todas as configurações
 // ─────────────────────────────────────────────
 const INITIAL_CONFIG = {
-  // Modo do wizard: 'anomaly' (monitor único) ou 'discovery' (serviços).
-  mode: 'anomaly',
-
-  // Estado do fluxo de descoberta de serviços (Etapas 2→5).
+  // O wizard opera somente no modo de descoberta de serviços.
+  mode: 'discovery',
   discovery: initialDiscovery(),
-
-  // Step 2 — Anomaly Detection
-  metric:      'system.cpu.user',
-  filter:      '*',
-  algorithm:   'agile',
-  deviations:  2,
-  seasonality: 'daily',
-  direction:   'both',
-  alertWindow: 'last_15m',
-  queryWindow: 'last_4h',
-
-  // Step 3 — Personalização
-  name:        '',
-  message:     '',
-  tags:        ['env:prod'],
-  priority:    3,
-  notifyNoData: false,
 }
 
 export default function Home() {

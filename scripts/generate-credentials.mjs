@@ -1,37 +1,38 @@
 // scripts/generate-credentials.mjs
-//
-// Gera valores para o .env.local:
-//   - AUTH_SECRET (segredo aleatório para assinar a sessão)
-//   - hash bcrypt da senha
-//   - (se você passar e-mail/nome) uma entrada pronta para AUTH_USERS
+// Gera AUTH_SECRET e o hash bcrypt, mostrando as DUAS formas do $:
+//   • LOCAL (.env.local): $ escapado (\$)   • VERCEL (painel): $ cru
 //
 // Uso:
-//   npm run gen:credentials                              -> só AUTH_SECRET
-//   npm run gen:credentials -- "minha-senha"             -> AUTH_SECRET + hash
-//   npm run gen:credentials -- "minha-senha" a@x.com Ana -> + entrada AUTH_USERS
+//   npm run gen:credentials
+//   npm run gen:credentials -- "MinhaSenha" usuario "Nome"
 
 import bcrypt from 'bcryptjs'
 import crypto from 'node:crypto'
 
-const [, , password, email, name] = process.argv
+const [, , password, username, name] = process.argv
+const esc = (h) => h.replace(/\$/g, '\\$')
 
-const secret = crypto.randomBytes(32).toString('base64')
-console.log('\nAUTH_SECRET=' + secret)
+console.log('\n# AUTH_SECRET (igual em local e Vercel)')
+console.log('AUTH_SECRET=' + crypto.randomBytes(32).toString('base64'))
 
 if (password) {
   const hash = bcrypt.hashSync(password, 12)
-  console.log('AUTH_LOGIN_PASSWORD_HASH=' + hash)
+  console.log('\n# Hash bcrypt:')
+  console.log('#   LOCAL (.env.local): ' + esc(hash))
+  console.log('#   VERCEL (painel):    ' + hash)
 
-  if (email) {
-    const entry = { email, name: name || email.split('@')[0], passwordHash: hash }
-    console.log('\n# Entrada para AUTH_USERS (múltiplos usuários):')
-    console.log(JSON.stringify(entry))
-    console.log('\n# Exemplo com vários:')
-    console.log('AUTH_USERS=' + JSON.stringify([entry]))
+  if (username) {
+    const entry = { username, name: name || username, passwordHash: hash }
+    const json = JSON.stringify([entry])
+    console.log('\n# AUTH_USERS')
+    console.log('#   LOCAL (.env.local):')
+    console.log('AUTH_USERS=' + esc(json))
+    console.log('#   VERCEL (painel):')
+    console.log('AUTH_USERS=' + json)
+    console.log('\n# Vários usuários: junte as entradas dentro de [ ... ] separadas por vírgula.')
   }
   console.log('\n(senha usada: "' + password + '" — o hash não é reversível)')
 } else {
-  console.log('\nDica: passe uma senha (e opcionalmente e-mail e nome):')
-  console.log('  npm run gen:credentials -- "MinhaSenha123" voce@empresa.com "Seu Nome"')
+  console.log('\nDica: npm run gen:credentials -- "MinhaSenha123" seu.usuario "Seu Nome"')
 }
 console.log('')

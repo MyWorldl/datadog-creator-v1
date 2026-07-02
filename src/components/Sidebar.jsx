@@ -5,21 +5,24 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useApp } from '@/context/AppContext'
+import { IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics, IconFinops, IconSettings, IconInfo, IconLogout } from '@/components/Icons'
 
 const navItems = [
   {
     section: 'Ferramentas',
     items: [
-      { href: '/ferramentas/dashboard', label: 'Dashboard', icon: '▦' },
-      { href: '/monitor', label: 'MonitorsCreator', icon: '◈' },
-      { href: '/ferramentas/analise', label: 'ScopeMaturity', icon: '◎' },
+      { href: '/ferramentas/dashboard', label: 'Dashboard', Icon: IconDashboard },
+      { href: '/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
+      { href: '/ferramentas/analytics', label: 'MonitorsAnalytics', Icon: IconAnalytics },
+      { href: '/ferramentas/analise', label: 'ScopeMaturity', Icon: IconScope },
+      { href: '/ferramentas/finops', label: 'FinOps Insights', Icon: IconFinops },
     ],
   },
   {
     section: 'Sistema',
     items: [
-      { href: '/configuracoes', label: 'Configurações', icon: '⚙' },
-      { href: '/sistema/sobre', label: 'Sobre', icon: 'ⓘ' },
+      { href: '/configuracoes', label: 'Configurações', Icon: IconSettings },
+      { href: '/sistema/sobre', label: 'Sobre', Icon: IconInfo },
     ],
   },
 ]
@@ -72,7 +75,7 @@ export default function Sidebar() {
             }}>
               {section}
             </p>
-            {items.map(({ href, label, icon }) => {
+            {items.map(({ href, label, Icon }) => {
               const isActive = pathname === href ||
                 (href !== '/' && pathname.startsWith(href))
               return (
@@ -94,7 +97,7 @@ export default function Sidebar() {
                     transition: 'background 0.1s',
                   }}
                 >
-                  <span style={{ fontSize: 15 }}>{icon}</span>
+                  <span style={{ display: 'inline-flex' }}><Icon size={17} /></span>
                   {label}
                 </Link>
               )
@@ -136,9 +139,10 @@ export default function Sidebar() {
             border: '1px solid rgba(255,255,255,0.25)',
             color: 'var(--sidebar-text)',
             borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 11,
+            display: 'inline-flex', alignItems: 'center', gap: 5,
           }}
         >
-          Sair
+          <IconLogout size={13} /> Sair
         </button>
       </div>
     </aside>

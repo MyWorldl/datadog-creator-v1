@@ -1,23 +1,15 @@
 // src/auth.js
 //
-// Configuração principal do Auth.js (NextAuth v5).
-// Aqui mora o provider Credentials (usuário + senha) com verificação por
-// hash bcrypt. Exporta as funções que o app inteiro usa:
-//   - handlers : rotas GET/POST de /api/auth/[...nextauth]
-//   - auth     : lê a sessão no servidor (rotas, server components)
-//   - signIn   : login programático
-//   - signOut  : logout
+// Configuração principal do Auth.js (NextAuth v5) — login por USUÁRIO + senha,
+// com verificação por hash bcrypt. Exporta handlers, auth, signIn, signOut.
 //
 // MODELO DE USUÁRIO (sem banco de dados):
-// Para uma ferramenta de SE não vale a pena subir um Postgres só pro login,
-// então usamos UM usuário definido por variáveis de ambiente:
-//   AUTH_LOGIN_EMAIL          -> e-mail/usuário de login
-//   AUTH_LOGIN_PASSWORD_HASH  -> hash bcrypt da senha (NUNCA a senha pura)
-//   AUTH_LOGIN_NAME           -> (opcional) nome exibido
+//   AUTH_USERS  -> lista JSON de usuários (múltiplos):
+//       [{"username":"gabriel","name":"Gabriel","passwordHash":"$2b$12$..."}]
+//   (fallback) usuário único:
+//       AUTH_LOGIN_USER, AUTH_LOGIN_NAME, AUTH_LOGIN_PASSWORD_HASH
 //
-// Quando precisar de múltiplos usuários, troque o bloco "authorize" por uma
-// consulta a um banco (Prisma, Drizzle, etc.) — o resto continua igual.
-// Veja o ponto marcado com ">>> PLUGUE O BANCO AQUI".
+// Para trocar por um banco depois, substitua o bloco ">>> PLUGUE O BANCO AQUI".
 
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
@@ -29,79 +21,64 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
   providers: [
     Credentials({
-      // Campos do formulário (usados pela tela de login)
+      // Campos do formulário de login (agora usuário + senha).
       credentials: {
-        email: { label: 'E-mail', type: 'email' },
+        username: { label: 'Usuário', type: 'text' },
         password: { label: 'Senha', type: 'password' },
       },
 
-      // Coração da autenticação: recebe o que o usuário digitou e decide
-      // se é válido. Retornar um objeto = autenticado; retornar null = recusado.
       async authorize(credentials) {
-        const email = String(credentials?.email || '').trim().toLowerCase()
+        const username = String(credentials?.username || '').trim().toLowerCase()
         const password = String(credentials?.password || '')
-
-        if (!email || !password) return null
+        if (!username || !password) return null
 
         // >>> PLUGUE O BANCO AQUI <<<
-        // Resolução do usuário, em ordem:
-        //   1) AUTH_USERS  -> lista JSON de usuários (múltiplos usuários)
-        //      Ex.: AUTH_USERS=[{"email":"a@x.com","name":"A","passwordHash":"$2a$..."}]
-        //   2) AUTH_LOGIN_* -> usuário único (compatibilidade)
         let user = null
 
         const usersRaw = process.env.AUTH_USERS
         if (usersRaw) {
           let list = []
-          try {
-            list = JSON.parse(usersRaw)
-          } catch {
-            console.error('[auth] AUTH_USERS não é um JSON válido.')
-          }
+          try { list = JSON.parse(usersRaw) }
+          catch { console.error('[auth] AUTH_USERS não é um JSON válido.') }
           const found = Array.isArray(list)
-            ? list.find(u => String(u?.email || '').trim().toLowerCase() === email)
+            ? list.find(u => String(u?.username || '').trim().toLowerCase() === username)
             : null
           if (found?.passwordHash) {
-            user = { email, name: found.name || email.split('@')[0], hash: found.passwordHash }
+            user = { username, name: found.name || username, hash: found.passwordHash }
           }
         }
 
         if (!user) {
           // Fallback: usuário único por variáveis separadas.
-          const expectedEmail = (process.env.AUTH_LOGIN_EMAIL || '').trim().toLowerCase()
+          const expectedUser = (process.env.AUTH_LOGIN_USER || '').trim().toLowerCase()
           const passwordHash = process.env.AUTH_LOGIN_PASSWORD_HASH || ''
-          if (expectedEmail && passwordHash && email === expectedEmail) {
-            user = { email: expectedEmail, name: process.env.AUTH_LOGIN_NAME || expectedEmail.split('@')[0], hash: passwordHash }
+          if (expectedUser && passwordHash && username === expectedUser) {
+            user = { username: expectedUser, name: process.env.AUTH_LOGIN_NAME || expectedUser, hash: passwordHash }
           }
         }
 
         if (!user) {
-          // E-mail desconhecido OU nenhuma config presente: falha "fechada".
-          if (!usersRaw && !process.env.AUTH_LOGIN_EMAIL) {
-            console.error('[auth] Nenhum usuário configurado (AUTH_USERS ou AUTH_LOGIN_*).')
+          if (!usersRaw && !process.env.AUTH_LOGIN_USER) {
+            console.error('[auth] Nenhum usuário configurado (AUTH_USERS ou AUTH_LOGIN_USER).')
           }
           return null
         }
 
-        // Compara a senha digitada com o hash. bcrypt já lida com o "salt"
-        // embutido no hash — como um cofre que confere a digital sem guardá-la.
+        // bcrypt confere a senha contra o hash (o salt está embutido no hash).
         const ok = await bcrypt.compare(password, user.hash)
         if (!ok) return null
 
-        return { id: user.email, email: user.email, name: user.name }
+        return { id: user.username, name: user.name }
       },
     }),
   ],
 
   callbacks: {
     ...authConfig.callbacks,
-
-    // Coloca o id do usuário no token JWT...
     async jwt({ token, user }) {
       if (user) token.id = user.id
       return token
     },
-    // ...e expõe na sessão lida pelo client (useSession).
     async session({ session, token }) {
       if (token?.id && session.user) session.user.id = token.id
       return session
