@@ -1,13 +1,14 @@
 {
   "name": "datadog-creator",
-  "version": "1.7.0",
+  "version": "1.12.1",
   "private": true,
   "scripts": {
     "dev": "next dev --port 9999",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:credentials": "node scripts/generate-credentials.mjs"
+    "gen:credentials": "node scripts/generate-credentials.mjs",
+    "test": "node --test"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
@@ -24,5 +25,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4"
-  }
+  },
+  "type": "module"
 }

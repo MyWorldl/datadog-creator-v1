@@ -7,6 +7,7 @@
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planPreview } from '@/lib/discovery'
+import { ctxFrom, ddPost } from '@/lib/datadog-server'
 
 export async function POST(request) {
   const session = await auth()
@@ -28,30 +29,16 @@ export async function POST(request) {
     return Response.json({ error: 'Nada a criar: selecione serviço(s), operação(ões) e tipo(s) de alerta.' }, { status: 400 })
   }
 
-  const monitorUrl = `https://api.${site}/api/v1/monitor`
+  const ctx = ctxFrom({ apiKey, appKey, site })
   const results = []
 
   for (const item of plan) {
-    try {
-      const r = await fetch(monitorUrl, {
-        method: 'POST',
-        headers: {
-          'DD-API-KEY': apiKey,
-          'DD-APPLICATION-KEY': appKey,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(item.payload),
-        cache: 'no-store',
-      })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok) {
-        results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: false, error: (j?.errors && j.errors.join('; ')) || `HTTP ${r.status}`, query: item.query })
-      } else {
-        results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, id: j.id, name: item.name })
-      }
-    } catch (e) {
-      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: false, error: e.message, query: item.query })
+    const r = await ddPost(ctx, '/api/v1/monitor', item.payload)
+    if (!r.ok) {
+      const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
+      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: false, error: errMsg, query: item.query })
+    } else {
+      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, id: r.json.id, name: item.name })
     }
   }
 

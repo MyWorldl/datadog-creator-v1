@@ -11,22 +11,11 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, logsCount, sloBudget, alertEvents } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors } from '@/lib/datadog-server'
+import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 
 const REQUIRED_TAGS = ['env', 'service', 'team']
-
-async function ddGet(site, apiKey, appKey, path) {
-  try {
-    const r = await fetch(`https://api.${site}${path}`, {
-      headers: { 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey, 'Accept': 'application/json' },
-      cache: 'no-store',
-    })
-    if (!r.ok) return { ok: false, status: r.status }
-    return { ok: true, json: await r.json() }
-  } catch (e) {
-    return { ok: false, error: e.message }
-  }
-}
+const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min — suficiente pra absorver refreshes/múltiplos usuários
 
 function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0 }
 function clamp(n) { return Math.max(0, Math.min(100, Math.round(n))) }
@@ -39,18 +28,25 @@ export async function GET() {
   if (!apiKey || !appKey || !site) {
     return Response.json({ error: 'Sessão sem credenciais do Datadog. Conecte-se primeiro.' }, { status: 412 })
   }
+  const ctx = ctxFrom({ apiKey, appKey, site })
+
+  // Cache curto: essa rota faz ~14 chamadas ao Datadog por carregamento.
+  // Evita refazer tudo em refreshes seguidos ou várias pessoas na mesma conta.
+  const key = cacheKey(['scope-maturity', site, apiKey, appKey])
+  const cached = await cacheGet(key)
+  if (cached) return Response.json({ ...cached, cached: true })
 
   // Coletas (em paralelo)
   const [monitorsR, hostsR, totalsR, apmR, dashR, sloR, awsR, gcpR, azureR] = await Promise.all([
-    ddGet(site, apiKey, appKey, '/api/v1/monitor?page_size=1000'),
-    ddGet(site, apiKey, appKey, '/api/v1/hosts?count=1000'),
-    ddGet(site, apiKey, appKey, '/api/v1/hosts/totals'),
-    ddGet(site, apiKey, appKey, '/api/v2/apm/services?filter[env]=*'),
-    ddGet(site, apiKey, appKey, '/api/v1/dashboard'),
-    ddGet(site, apiKey, appKey, '/api/v1/slo?limit=1000'),
-    ddGet(site, apiKey, appKey, '/api/v1/integration/aws'),
-    ddGet(site, apiKey, appKey, '/api/v1/integration/gcp'),
-    ddGet(site, apiKey, appKey, '/api/v1/integration/azure'),
+    listMonitors(ctx),
+    ddGet(ctx, '/api/v1/hosts?count=1000'),
+    ddGet(ctx, '/api/v1/hosts/totals'),
+    ddGet(ctx, '/api/v2/apm/services?filter[env]=*'),
+    ddGet(ctx, '/api/v1/dashboard'),
+    ddGet(ctx, '/api/v1/slo?limit=1000'),
+    ddGet(ctx, '/api/v1/integration/aws'),
+    ddGet(ctx, '/api/v1/integration/gcp'),
+    ddGet(ctx, '/api/v1/integration/azure'),
   ])
 
   // Se nem os monitores nem os hosts vierem, provavelmente é auth/site.
@@ -83,7 +79,6 @@ export async function GET() {
   const add = (key, label, measured, score, detail) => dims.push({ key, label, measured, score: measured ? clamp(score) : null, detail })
 
   // Coletas adicionais (logs, SLO history, eventos) para evoluir os N/D.
-  const ctx = ctxFrom({ apiKey, appKey, site })
   const toMs = Date.now(), fromMs = toMs - 24 * 3600 * 1000
   const [logsTotal, logsTrace, logsWithSvc, budget, ev] = await Promise.all([
     logsCount(ctx, '*', fromMs, toMs),
@@ -93,12 +88,15 @@ export async function GET() {
     alertEvents(ctx, 7),
   ])
 
-  // 1. Tag Compliance (hosts com env/service/team)
+  // 1. Tag Compliance (hosts com env/service/team) — detalhe por tag (item 7)
   if (hostsR.ok && hosts.length) {
-    const per = REQUIRED_TAGS.map(k => pct(hosts.filter(h => hasTagKey(hostTags(h), k)).length, hosts.length))
-    const avg = per.reduce((a, b) => a + b, 0) / per.length
-    add('tagCompliance', 'Tag Compliance', true, avg, `Cobertura média de ${REQUIRED_TAGS.join(', ')} em ${hosts.length} hosts.`)
-  } else add('tagCompliance', 'Tag Compliance', false, 0, 'Sem dados de hosts.')
+    const per = REQUIRED_TAGS.map(k => ({ tag: k, pct: pct(hosts.filter(h => hasTagKey(hostTags(h), k)).length, hosts.length) }))
+    const avg = per.reduce((a, b) => a + b.pct, 0) / per.length
+    const worst = per.reduce((a, b) => b.pct < a.pct ? b : a, per[0])
+    const breakdown = per.map(p => `${p.tag} ${p.pct}%`).join(', ')
+    add('tagCompliance', 'Tag Compliance', true, avg,
+      `Infra (${hosts.length} hosts): ${breakdown}. Gargalo: tag "${worst.tag}" (${worst.pct}%) — priorize corrigi-la para subir o score.`)
+  } else add('tagCompliance', 'Tag Compliance', false, 0, 'Sem dados de hosts (requer leitura de infraestrutura).')
 
   // 2. Hosts Monitorados
   if (totalsR.ok && (totals.total_active || totals.total_up)) {
@@ -111,7 +109,7 @@ export async function GET() {
   // 3. Aplicações com APM (heurística por contagem)
   if (apmR.ok) {
     const score = servicesCount === 0 ? 0 : servicesCount >= 6 ? 100 : servicesCount >= 3 ? 70 : 40
-    add('apm', 'Aplicações com APM', true, score, `${servicesCount} serviço(s) com APM.`)
+    add('apm', 'Aplicações com APM', true, score, `${servicesCount} serviço(s) com APM (faixas: 0→0, 1-2→40, 3-5→70, ≥6→100). Instrumente mais serviços para subir.`)
   } else add('apm', 'Aplicações com APM', false, 0, 'apm_read indisponível na App key.')
 
   // 4. Logs Correlacionados — requer análise de logs (não coletado aqui)
@@ -143,19 +141,13 @@ export async function GET() {
   } else add('servicesSLO', 'Serviços com SLO', false, 0, 'Sem dados de SLO.')
 
   // 8. Cloud Integrations
-  add('cloud', 'Cloud Integrations', true, cloudCount === 0 ? 0 : Math.min(100, cloudCount * 40), `${cloudCount} provedor(es) de nuvem integrado(s).`)
+  add('cloud', 'Cloud Integrations', true, cloudCount === 0 ? 0 : Math.min(100, cloudCount * 40), `${cloudCount} provedor(es) de nuvem integrado(s) — AWS/GCP/Azure (cada um vale +40, máx. 100).`)
 
   // 9. Hosts sem Agent (score = % COM agent)
   if (hostsR.ok && hosts.length) {
     const withAgent = hosts.filter(h => (h.sources || []).includes('agent')).length
     add('hostsAgent', 'Hosts com Agent', true, pct(withAgent, hosts.length), `${withAgent} de ${hosts.length} hosts com Agent instalado.`)
   } else add('hostsAgent', 'Hosts com Agent', false, 0, 'Sem dados de hosts.')
-
-  // 10. Tags Obrigatórias (hosts com TODAS as required)
-  if (hostsR.ok && hosts.length) {
-    const full = hosts.filter(h => { const t = hostTags(h); return REQUIRED_TAGS.every(k => hasTagKey(t, k)) }).length
-    add('requiredTags', 'Tags Obrigatórias', true, pct(full, hosts.length), `${full} de ${hosts.length} hosts com todas (${REQUIRED_TAGS.join(', ')}).`)
-  } else add('requiredTags', 'Tags Obrigatórias', false, 0, 'Sem dados de hosts.')
 
   // 11-14. Dependem de logs/histórico — não avaliados nesta versão
   // 11. Alta Cardinalidade — segue N/D (requer dados de cardinalidade de métricas)
@@ -187,12 +179,14 @@ export async function GET() {
   const measured = dims.filter(d => d.measured)
   const score = measured.length ? clamp(measured.reduce((a, d) => a + d.score, 0) / measured.length) : 0
 
-  return Response.json({
+  const payload = {
     score,
     site,
     generatedAt: new Date().toISOString(),
     measuredCount: measured.length,
     totalDimensions: dims.length,
     dimensions: dims,
-  })
+  }
+  await cacheSet(key, payload, CACHE_TTL_MS)
+  return Response.json(payload)
 }

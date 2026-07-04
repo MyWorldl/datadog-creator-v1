@@ -66,9 +66,13 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
 
   const selectedNames = Object.keys(d.selected)
 
-  // Serviços filtrados por busca + chips de ambiente
+  // Serviços filtrados por busca + chips de ambiente.
+  // Busca aceita VÁRIOS termos separados por vírgula (OU lógico):
+  // "svc1, svc2, svc3" casa serviços que contenham qualquer um dos termos.
+  const searchTerms = svcSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
   const filtered = d.services.filter(svc => {
-    if (svcSearch && !svc.toLowerCase().includes(svcSearch.toLowerCase())) return false
+    const name = svc.toLowerCase()
+    if (searchTerms.length > 0 && !searchTerms.some(t => name.includes(t))) return false
     if (envFilter.length > 0) { const e = envOf(svc); if (!e || !envFilter.includes(e)) return false }
     return true
   })
@@ -166,12 +170,6 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   return (
     <div style={s.card}>
       <div>
-        <label style={s.label}>Ambiente (env)</label>
-        <input style={s.input} value={d.env} onChange={e => setDisc({ env: e.target.value })} placeholder="prod (vazio = todos)" />
-        <p style={s.hint}>Filtro de descoberta. Vazio = todos os ambientes.</p>
-      </div>
-
-      <div>
         <button style={s.btn} onClick={discover} disabled={loading}>
           {loading ? 'Descobrindo…' : '🔎 Descobrir serviços'}
         </button>
@@ -188,7 +186,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
           </div>
 
           <div style={s.toolbar}>
-            <input style={s.search} value={svcSearch} onChange={e => setSvcSearch(e.target.value)} placeholder="Buscar serviço…" />
+            <input style={s.search} value={svcSearch} onChange={e => setSvcSearch(e.target.value)} placeholder="Buscar serviço(s)… ex.: svc1, svc2, svc3" />
             {['dev', 'hml', 'prd'].map(e => (
               <button key={e} style={s.chip(envFilter.includes(e), ENV_META[e].c, ENV_META[e].bg)} onClick={() => toggleEnv(e)}>
                 {ENV_META[e].label}

@@ -1,16 +1,16 @@
-// src/app/page.js
-// Página principal — orquestra os 5 steps do Monitor Wizard
+// src/app/monitor/page.js
+// Página do MonitorsCreator — orquestra os 5 steps do wizard
 
 'use client'
 
 import { useState } from 'react'
 import { initialDiscovery } from '@/lib/discovery'
-import Stepper          from '@/components/Stepper'
-import StepConnect      from '@/components/StepConnect'
-import StepConfigure    from '@/components/StepConfigure'
-import StepPersonalize  from '@/components/StepPersonalize'
-import StepReview       from '@/components/StepReview'
-import StepCreate       from '@/components/StepCreate'
+import Stepper from '@/components/Stepper'
+import StepConnect from '@/components/StepConnect'
+import DiscoveryConfigure from '@/components/discovery/DiscoveryConfigure'
+import DiscoveryPersonalize from '@/components/discovery/DiscoveryPersonalize'
+import DiscoveryReview from '@/components/discovery/DiscoveryReview'
+import DiscoveryCreate from '@/components/discovery/DiscoveryCreate'
 
 // ─────────────────────────────────────────────
 // Labels da barra de progresso
@@ -79,7 +79,7 @@ export default function Home() {
         )}
 
         {step === 1 && (
-          <StepConfigure
+          <DiscoveryConfigure
             config={config}
             setConfig={setConfig}
             onNext={goNext}
@@ -88,7 +88,7 @@ export default function Home() {
         )}
 
         {step === 2 && (
-          <StepPersonalize
+          <DiscoveryPersonalize
             config={config}
             setConfig={setConfig}
             onNext={goNext}
@@ -97,7 +97,7 @@ export default function Home() {
         )}
 
         {step === 3 && (
-          <StepReview
+          <DiscoveryReview
             config={config}
             onNext={goNext}
             onBack={goBack}
@@ -105,7 +105,7 @@ export default function Home() {
         )}
 
         {step === 4 && (
-          <StepCreate
+          <DiscoveryCreate
             config={config}
             onBack={goBack}
           />

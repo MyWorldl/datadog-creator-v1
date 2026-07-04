@@ -11,6 +11,7 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
+import { ctxFrom, ddPost } from '@/lib/datadog-server'
 
 const ALGORITHMS = ['basic', 'agile', 'robust']
 const SEASONS = ['hourly', 'daily', 'weekly']
@@ -59,19 +60,13 @@ export async function POST(request) {
     },
   }
 
-  try {
-    const r = await fetch(`https://api.${site}/api/v1/monitor`, {
-      method: 'POST',
-      headers: { 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey, 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(payload),
-      cache: 'no-store',
-    })
-    const json = await r.json().catch(() => ({}))
-    if (!r.ok) {
-      return Response.json({ error: json?.errors?.join('; ') || `Falha ao criar monitor (${r.status}).`, query }, { status: 502 })
+  const ctx = ctxFrom({ apiKey, appKey, site })
+  const r = await ddPost(ctx, '/api/v1/monitor', payload)
+  if (!r.ok) {
+    if (!r.status) {
+      return Response.json({ error: 'Falha de rede: ' + r.error, query }, { status: 502 })
     }
-    return Response.json({ ok: true, id: json.id, name: payload.name, query, url: `https://app.${site}/monitors/${json.id}` })
-  } catch (e) {
-    return Response.json({ error: 'Falha de rede: ' + e.message, query }, { status: 502 })
+    return Response.json({ error: r.json?.errors?.join('; ') || `Falha ao criar monitor (${r.status}).`, query }, { status: 502 })
   }
+  return Response.json({ ok: true, id: r.json.id, name: payload.name, query, url: `https://app.${site}/monitors/${r.json.id}` })
 }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
+import CollapsibleCard from '@/components/CollapsibleCard'
 
 function ScoreRing({ value, color, size = 120, stroke = 10 }) {
   const r = (size / 2) - stroke
@@ -24,7 +25,7 @@ const s = {
   card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginTop: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 12, marginTop: 16 },
   dim: { border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)' },
   dimHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   dimName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
@@ -89,15 +90,15 @@ export default function ScopeMaturityPage() {
           {data && (
             <div style={s.grid}>
               {data.dimensions.map(dim => (
-                <div key={dim.key} style={s.dim}>
-                  <div style={s.dimHead}>
-                    <span style={s.dimName}>{dim.label}</span>
-                    {dim.measured
-                      ? <span style={s.dimVal(scoreColor(dim.score))}>{dim.score}</span>
-                      : <span style={s.na}>n/d</span>}
-                  </div>
+                <CollapsibleCard
+                  key={dim.key}
+                  title={dim.label}
+                  score={dim.measured ? dim.score : 'N/D'}
+                  scoreColor={dim.measured ? scoreColor(dim.score) : 'var(--text-muted)'}
+                  accentColor={dim.measured ? scoreColor(dim.score) : 'var(--border)'}
+                >
                   <p style={s.dimDetail}>{dim.detail}</p>
-                </div>
+                </CollapsibleCard>
               ))}
             </div>
           )}

@@ -12,6 +12,7 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
+import { ctxFrom, ddGet } from '@/lib/datadog-server'
 
 // Escolhe a operation "primária" para os monitores (preferindo entradas web).
 function pickPrimary(ops) {
@@ -20,19 +21,13 @@ function pickPrimary(ops) {
   return ops[0] || 'http.request'
 }
 
-async function operationsForService(site, apiKey, appKey, service) {
+async function operationsForService(ctx, service) {
   const tag = `service:${service}`
-  const url = `https://api.${site}/api/v2/metrics?filter[tags]=${encodeURIComponent(tag)}&window[seconds]=86400`
-  const r = await fetch(url, {
-    headers: { 'DD-API-KEY': apiKey, 'DD-APPLICATION-KEY': appKey, 'Accept': 'application/json' },
-    cache: 'no-store',
-  })
+  const r = await ddGet(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(tag)}&window[seconds]=86400`)
   if (!r.ok) {
-    const text = await r.text().catch(() => '')
-    return { error: `Datadog respondeu ${r.status}`, status: r.status, detail: text.slice(0, 200) }
+    return { error: r.status ? `Datadog respondeu ${r.status}` : (r.error || 'Falha de rede'), status: r.status, detail: r.detail }
   }
-  const json = await r.json().catch(() => null)
-  const names = Array.isArray(json?.data) ? json.data.map(d => d?.id).filter(Boolean) : []
+  const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter(Boolean) : []
 
   // trace.<op>.hits  -> <op>
   const ops = new Set()
@@ -52,6 +47,7 @@ export async function GET(request) {
   if (!apiKey || !appKey || !site) {
     return Response.json({ error: 'Sessão sem credenciais do Datadog.' }, { status: 412 })
   }
+  const ctx = ctxFrom({ apiKey, appKey, site })
 
   const { searchParams } = new URL(request.url)
   const services = (searchParams.get('services') || '')
@@ -64,7 +60,7 @@ export async function GET(request) {
   const results = {}
   for (const svc of services) {
     try {
-      results[svc] = await operationsForService(site, apiKey, appKey, svc)
+      results[svc] = await operationsForService(ctx, svc)
     } catch (e) {
       results[svc] = { error: e.message }
     }

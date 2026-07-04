@@ -37,10 +37,6 @@ const s = {
   scoreLabel: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   scoreSub: { fontSize: 12, color: 'var(--text-muted)', margin: '3px 0 0', lineHeight: 1.5 },
   scoreLink: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 8, display: 'inline-block' },
-  stats: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 22 },
-  stat: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '0.9rem 1rem', boxShadow: 'var(--card-shadow)' },
-  statNum: { fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 },
-  statLabel: { fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
   card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.1rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
@@ -112,13 +108,6 @@ export default function DashboardPage() {
           </div>
 
           {error && <div style={{ ...s.panel, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}
-
-          <div style={s.stats}>
-            <div style={s.stat}><div style={s.statNum}>{ma ? ma.monitorsCount : '—'}</div><div style={s.statLabel}>Monitores</div></div>
-            <div style={s.stat}><div style={s.statNum}>{ma ? `${ma.measuredCount}/${ma.totalDimensions}` : '—'}</div><div style={s.statLabel}>KPIs medidos (Analytics)</div></div>
-            <div style={s.stat}><div style={s.statNum}>{sm ? `${sm.measuredCount}/${sm.totalDimensions}` : '—'}</div><div style={s.statLabel}>Dimensões (ScopeMaturity)</div></div>
-            <div style={s.stat}><div style={s.statNum}>{datadogSite}</div><div style={s.statLabel}>Datadog site</div></div>
-          </div>
         </>
       )}
 

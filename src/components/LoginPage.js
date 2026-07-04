@@ -28,7 +28,11 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res?.error) {
-      setError('Credenciais inválidas. Verifique usuário e senha.');
+      if (res?.code === 'rate_limited') {
+        setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
+      } else {
+        setError('Credenciais inválidas. Verifique usuário e senha.');
+      }
       return;
     }
     // Sucesso: a sessão atualiza e a AppShell re-renderiza automaticamente.

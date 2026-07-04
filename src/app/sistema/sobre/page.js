@@ -73,7 +73,7 @@ export default function SobrePage() {
       <p style={s.sectionTitle}>Histórico</p>
       <div>
         {VERSION_HISTORY.map((entry, i) => (
-          <div key={entry.version} style={{ ...s.item, borderLeft: i === VERSION_HISTORY.length - 1 ? '2px solid transparent' : s.item.borderLeft }}>
+          <div key={`${entry.version}-${i}`} style={{ ...s.item, borderLeft: i === VERSION_HISTORY.length - 1 ? '2px solid transparent' : s.item.borderLeft }}>
             <span style={s.dot} />
             <div style={s.itemHead}>
               <span style={s.ver}>v{entry.version}</span>

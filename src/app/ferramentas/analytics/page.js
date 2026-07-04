@@ -3,12 +3,16 @@
 
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
+import CollapsibleCard from '@/components/CollapsibleCard'
 
 const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
-// cor do KPI conforme "maior é melhor" ou não
+// cor do KPI conforme o goodness (0-100, maior=melhor); cai para value se ausente
 const kpiColor = (dim) => {
-  if (!dim.measured || dim.value == null) return 'var(--text-muted)'
-  const g = dim.higherIsBetter ? dim.value : 100 - dim.value
+  if (!dim.measured) return 'var(--text-muted)'
+  const g = typeof dim.goodness === 'number'
+    ? dim.goodness
+    : (dim.value == null ? null : (dim.higherIsBetter === false ? 100 - dim.value : dim.value))
+  if (g == null) return 'var(--text-muted)'
   return g >= 70 ? 'var(--success)' : g >= 40 ? 'var(--warning)' : 'var(--danger)'
 }
 
@@ -28,7 +32,7 @@ const s = {
   card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12, marginTop: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 12, marginTop: 16 },
   dim: { border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', background: 'var(--bg-surface)' },
   dimHead: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   dimName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
@@ -92,16 +96,16 @@ export default function MonitorsAnalyticsPage() {
           {data && (
             <div style={s.grid}>
               {data.dimensions.map(dim => (
-                <div key={dim.key} style={s.dim}>
-                  <div style={s.dimHead}>
-                    <span style={s.dimName}>{dim.label}</span>
-                    {dim.measured && dim.value != null
-                      ? <span style={s.bigVal(kpiColor(dim))}>{dim.value}%</span>
-                      : <span style={s.na}>N/D</span>}
-                  </div>
+                <CollapsibleCard
+                  key={dim.key}
+                  title={dim.label}
+                  score={dim.measured && dim.value != null ? (dim.display ?? `${dim.value}%`) : 'N/D'}
+                  scoreColor={dim.measured && dim.value != null ? kpiColor(dim) : 'var(--text-muted)'}
+                  accentColor={dim.measured && dim.value != null ? kpiColor(dim) : 'var(--border)'}
+                >
                   <p style={s.detail}>{dim.detail}</p>
                   <span style={s.weight}>peso {dim.weight}{dim.higherIsBetter === false ? ' · menor é melhor' : ''}</span>
-                </div>
+                </CollapsibleCard>
               ))}
             </div>
           )}

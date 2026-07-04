@@ -15,6 +15,119 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.12.1',
+    date: '2026-07-04',
+    title: 'FinOps: detecta summary parcial de Sub-Org e cai para métricas',
+    notes: [
+      'Corrige o caso em que o usage/summary volta incompleto (ex.: só Custom Metrics) numa Sub-Org: antes, como vinha 1 produto, o app não caía para as métricas estimated_usage.* e mostrava só aquele produto.',
+      'Agora o fallback dispara também quando o summary não traz os agregados principais (infra/APM/logs), passando a usar as métricas por org (que funcionam em Sub-Org).',
+    ],
+  },
+  {
+    version: '1.12.0',
+    date: '2026-07-03',
+    title: 'FinOps: agregação correta do consumo por licenciamento',
+    notes: [
+      'Containers passam a ser agregados por média do mês (como o Datadog fatura), não por pico.',
+      'Hosts (infra/APM/DBM/profiler/network) usam high-water mark do p99 em vez do máximo absoluto — não estoura com picos pontuais.',
+      'Queries de métricas de uso agora usam rollup explícito por hora (soma/pico/média), tornando o total do mês determinístico.',
+      'Nova seção Diagnóstico na aba Consumo: mostra a query, o nº de pontos e o valor de cada métrica estimated_usage retornada pela Metrics API.',
+    ],
+  },
+  {
+    version: '1.11.2',
+    date: '2026-07-03',
+    title: 'Ajuste de layout dos cards (fim do corte de título)',
+    notes: [
+      'Colunas mais largas nos cards de ScopeMaturity e MonitorsAnalytics (minmax 300px com guard min(100%,300px)).',
+      'Título passa a quebrar em até 2 linhas (line-clamp) em vez de cortar em 1; alinhamento ao topo.',
+      'Score com fonte adaptativa: valores longos como "3,1 disp./mon" encolhem para não roubar espaço do título.',
+    ],
+  },
+  {
+    version: '1.11.1',
+    date: '2026-07-03',
+    title: 'Cards com borda de acento lateral (status)',
+    notes: [
+      'CollapsibleCard ganhou uma faixa colorida de 3px à esquerda indicando o status (verde/amarelo/vermelho) — aplicada no ScopeMaturity e no MonitorsAnalytics.',
+      'A cor é redundante com o score e o detalhe (atende ao WCAG 1.4.1 — não depende só de cor); N/D usa cor neutra.',
+    ],
+  },
+  {
+    version: '1.11.0',
+    date: '2026-07-03',
+    title: 'Cards colapsáveis em ScopeMaturity e MonitorsAnalytics',
+    notes: [
+      'Novo componente CollapsibleCard (React + Tailwind): por padrão mostra só título e score; ao clicar, revela a descrição com transição suave de altura.',
+      'Animação via CSS Grid (grid-template-rows 0fr → 1fr) — anima até a altura natural do conteúdo sem altura fixa nem JS medindo.',
+      'Acessível: cabeçalho é um <button> com aria-expanded/aria-controls e chevron que gira.',
+      'Aplicado às dimensões do ScopeMaturity e aos KPIs do MonitorsAnalytics.',
+    ],
+  },
+  {
+    version: '1.10.0',
+    date: '2026-07-03',
+    title: 'Ajustes de KPIs, ScopeMaturity e UX do wizard',
+    notes: [
+      'MonitorsAnalytics: "Tempo de Resolução por Severidade" virou "Densidade de Alertas por Monitor" (disparos ÷ monitores, expõe vizinhos barulhentos).',
+      'MonitorsAnalytics: "Taxa de Ação por Alerta" virou "Taxa de Alertas Auto-Resolvidos" (recuperação <2min; threshold sensível demais). Removida a dependência de Incidents.',
+      'ScopeMaturity: removida a dimensão "Tags Obrigatórias" (redundante com Tag Compliance).',
+      'ScopeMaturity: detalhes agora explicam o porquê do score — ex.: Tag Compliance mostra a cobertura por tag e aponta o gargalo.',
+      'Dashboard: removida a faixa de stat cards (Monitores/KPIs/Dimensões/site).',
+      'MonitorsCreator: removido o filtro de Ambiente (env); busca de serviços agora aceita vários termos por vírgula (svc1, svc2, svc3).',
+    ],
+  },
+  {
+    version: '1.9.1',
+    date: '2026-07-02',
+    title: 'FinOps: corrige Sub-Org que responde 200 vazio',
+    notes: [
+      'A Usage Metering pública, em Sub-Org, costuma responder HTTP 200 sem os campos de consumo (em vez de 403). Agora o fallback para métricas datadog.estimated_usage.* também dispara nesse caso (200 sem nenhum produto reconhecido), não só em erro HTTP.',
+      'Subcaso raro (summary vazio + métricas sem pontos) passa a informar via aviso, sem estourar erro 502.',
+    ],
+  },
+  {
+    version: '1.9.0',
+    date: '2026-07-02',
+    title: 'FinOps: consumo em contas não-parent (Sub-Org)',
+    notes: [
+      'FinOps agora funciona sem parent-org: quando a Usage Metering API falha (403/vazio), cai automaticamente para as métricas datadog.estimated_usage.* via Metrics Query API, que respondem em qualquer org.',
+      'Cada produto é agregado como o Datadog fatura: hosts pelo pico (rollup max), custom metrics pela média, e logs/RUM/synthetics pela soma (.as_count()).',
+      'Nomes de métricas corrigidos conforme a doc oficial (ex.: apm_hosts, metrics.custom) — o que também melhora o alarme de anomalia de consumo.',
+      'A tela indica a fonte usada (Usage Metering oficial × Métricas estimadas) e alerta sobre a margem de ~10–20% do uso estimado.',
+    ],
+  },
+  {
+    version: '1.8.1',
+    date: '2026-07-02',
+    title: 'Limpeza — remoção dos wrappers finos do wizard',
+    notes: [
+      'O MonitorsCreator passou a importar os componentes de descoberta (DiscoveryConfigure/Personalize/Review/Create) diretamente.',
+      'Removidos 4 wrappers que só repassavam props (StepConfigure/StepPersonalize/StepReview/StepCreate); Stepper e StepConnect permanecem por serem componentes reais.',
+    ],
+  },
+  {
+    version: '1.8.0',
+    date: '2026-07-02',
+    title: 'Upgrades — paginação, cache distribuído, testes e robustez',
+    notes: [
+      'Listagem de monitores agora é paginada (evita timeout 504 em orgs grandes) — aplicada em MonitorsAnalytics e ScopeMaturity.',
+      'MonitorsAnalytics passou a usar cache curto de rota (consistência com ScopeMaturity e FinOps), reduzindo risco de 429.',
+      'Rate-limit de login e cache de rotas ganharam backend opcional em Redis (Upstash via REST, sem dependência): estado compartilhado entre instâncias serverless quando UPSTASH_REDIS_REST_URL/TOKEN estão definidos; caem para memória caso contrário.',
+      'Testes automatizados (node --test, sem dependências) para as funções puras de anomaly (discovery) e de custo (FinOps).',
+      'Robustez: comentado o comportamento do aggregation_key de eventos (mudança do Datadog em mar/2025) no pareamento de flapping.',
+    ],
+  },
+  {
+    version: '1.7.1',
+    date: '2026-07-02',
+    title: 'Manutenção — correção de bug e limpeza de código',
+    notes: [
+      'Corrige o erro de chave duplicada na tela Sobre (havia duas entradas de versão 1.7.0 no histórico).',
+      'Remove código morto: componente ServiceDiscovery.jsx (órfão) e a rota /api/create-monitor (não utilizada).',
+    ],
+  },
+  {
     version: '1.7.0',
     date: '2026-07-02',
     title: 'Bloco C — redesenho de Serviços, Alertas e Dashboard',
@@ -22,16 +135,6 @@ export const VERSION_HISTORY = [
       'Lista de Serviços com busca, chips de ambiente (dev/hml/prd), seleção em massa dos filtrados, contador e tag de ambiente por linha.',
       'Cartões de alerta viraram accordion: cada tipo mostra um resumo em pílulas (algoritmo · sazonalidade · janela · direção · desvios) e expande para editar.',
       'Dashboard redesenhado: faixa com os dois scores (ScopeMaturity + MonitorsAnalytics) lado a lado, stat cards, atalhos das ferramentas e saudação personalizada.',
-    ],
-  },
-  {
-    version: '1.7.0',
-    date: '2026-07-02',
-    title: 'Bloco C — redesigns (Serviços, cartões de alerta e Dashboard)',
-    notes: [
-      'Lista de Serviços com busca, chips de ambiente (dev/hml/prd), seleção em massa e contador de selecionados.',
-      'Cartões de alerta viraram accordion com pílulas-resumo (algoritmo · sazonalidade · janela · direção · desvios).',
-      'Dashboard reformulado: ScopeMaturity e MonitorsAnalytics lado a lado, stat cards e atalhos das ferramentas.',
     ],
   },
   {
