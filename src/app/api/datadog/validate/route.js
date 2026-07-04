@@ -10,6 +10,7 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
+import { ctxFrom, ddGet } from '@/lib/datadog-server'
 
 export async function GET() {
   const session = await auth()
@@ -25,24 +26,16 @@ export async function GET() {
     )
   }
 
-  const url = `https://api.${site}/api/v2/validate_keys`
-
-  let r
-  try {
-    r = await fetch(url, {
-      headers: {
-        'DD-API-KEY': apiKey,
-        'DD-APPLICATION-KEY': appKey,
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-    })
-  } catch (e) {
-    return Response.json({ valid: false, reason: 'Falha de rede: ' + e.message }, { status: 502 })
-  }
+  const ctx = ctxFrom({ apiKey, appKey, site })
+  const r = await ddGet(ctx, '/api/v2/validate_keys')
 
   if (r.ok) {
     return Response.json({ valid: true, site })
+  }
+
+  // Falha de rede (sem status HTTP do Datadog)
+  if (!r.status) {
+    return Response.json({ valid: false, reason: 'Falha de rede: ' + (r.error || 'desconhecida') }, { status: 502 })
   }
 
   // Mensagem amigável por status

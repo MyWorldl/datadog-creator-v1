@@ -1,14 +1,22 @@
 // src/app/api/datadog/monitors-analytics/route.js
 //
 // Analisa a maturidade dos monitores e calcula um score 0-100 ponderado.
-// KPIs (peso): Falsos Positivos (0.35) · Ação por Alerta (0.20) ·
-//   Cobertura de Ativos Críticos (0.20) · Padronização de Tags (0.15) ·
-//   Tempo de Resolução por Severidade (0.10).
+// KPIs (peso): Falsos Positivos (0.35) · Cobertura de Ativos Críticos (0.20) ·
+//   Alertas Auto-Resolvidos (0.20) · Padronização de Tags (0.15) ·
+//   Densidade de Alertas por Monitor (0.10).
 // O que não dá pra medir com confiança fica "N/D" e sai do cálculo do score.
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet, alertEvents, incidents } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, listMonitors, alertEvents } from '@/lib/datadog-server'
+import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
+
+const CACHE_TTL_MS = 60 * 1000 // 1 min: alivia refresh repetido / uso simultâneo
+
+// Densidade "cheia de ruído": nº de disparos por monitor (7d) a partir do qual
+// o score de densidade zera. Heurística ajustável — a ideia é expor "vizinhos
+// barulhentos" (poucos monitores mal configurados geram a maior parte do spam).
+const NOISY_DENSITY = 10
 
 const REQUIRED_TAGS = ['env', 'service', 'team']
 const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)))
@@ -41,11 +49,14 @@ export async function GET() {
   }
   const ctx = ctxFrom({ apiKey, appKey, site })
 
-  const [monitorsR, apmR, evR, incR] = await Promise.all([
-    ddGet(ctx, '/api/v1/monitor?page_size=1000'),
+  const key = cacheKey(['monitors-analytics', site, apiKey, appKey])
+  const cached = await cacheGet(key)
+  if (cached) return Response.json({ ...cached, cached: true })
+
+  const [monitorsR, apmR, evR] = await Promise.all([
+    listMonitors(ctx),
     ddGet(ctx, '/api/v2/apm/services?filter[env]=*'),
     alertEvents(ctx, 7),
-    incidents(ctx),
   ])
 
   if (!monitorsR.ok) {
@@ -87,42 +98,20 @@ export async function GET() {
     }
   }
 
-  // 3. Tempo de Resolução por Severidade (peso 0.10)
+  // 3. Densidade de Alertas por Monitor (peso 0.10) — disparos / nº de monitores
+  //    Expõe "vizinhos barulhentos": poucos monitores mal configurados costumam
+  //    concentrar a maior parte do spam. Menor é melhor.
   {
-    let done = false
-    if (incR.measured && Array.isArray(incR.data) && incR.data.length) {
-      const groups = {}
-      for (const inc of incR.data) {
-        const a = inc?.attributes || {}
-        const sev = a?.fields?.severity?.value || a?.severity || null
-        const created = a?.created ? Date.parse(a.created) : null
-        const resolved = a?.resolved ? Date.parse(a.resolved) : null
-        if (!sev || !created || !resolved || resolved < created) continue
-        const hrs = (resolved - created) / 3600000
-        ;(groups[sev] = groups[sev] || []).push(hrs)
-      }
-      const sevKeys = Object.keys(groups)
-      if (sevKeys.length >= 1) {
-        const avg = (arr) => arr.reduce((x, y) => x + y, 0) / arr.length
-        const crit = [...(groups['SEV-1'] || []), ...(groups['SEV-2'] || [])]
-        const low = [...(groups['SEV-3'] || []), ...(groups['SEV-4'] || []), ...(groups['SEV-5'] || [])]
-        let goodness, detail
-        if (crit.length && low.length) {
-          const ac = avg(crit), al = avg(low)
-          // proporcional: crítico deve ser mais rápido. score alto se ac<<al.
-          goodness = ac <= al ? 100 : clamp((al / ac) * 100)
-          detail = `Crítico (SEV-1/2) ~${ac.toFixed(1)}h vs baixo (SEV-3+) ~${al.toFixed(1)}h.`
-        } else {
-          // só um grupo: reporta o MTTR médio, sem score de proporção
-          const all = avg(Object.values(groups).flat())
-          goodness = null
-          detail = `MTTR médio ~${all.toFixed(1)}h (severidades insuficientes p/ proporção).`
-        }
-        add({ key: 'mttrSeverity', label: 'Tempo de Resolução por Severidade', measured: goodness != null, value: goodness, goodness, weight: 0.10, higherIsBetter: true, detail })
-        done = true
-      }
+    if (evR.measured && total > 0) {
+      const density = evR.triggers / total // disparos por monitor (7d)
+      const goodness = clamp(100 * (1 - Math.min(density / NOISY_DENSITY, 1)))
+      add({ key: 'alertDensity', label: 'Densidade de Alertas por Monitor', measured: true,
+        value: Math.round(density * 10) / 10, display: `${(Math.round(density * 10) / 10).toLocaleString('pt-BR')} disp./mon`,
+        goodness, weight: 0.10, higherIsBetter: false,
+        detail: `${evR.triggers} disparos em ${total} monitores nos últimos 7 dias (${(Math.round(density * 10) / 10).toLocaleString('pt-BR')} por monitor). Alta densidade sugere poucos monitores gerando muito ruído.` })
+    } else {
+      add({ key: 'alertDensity', label: 'Densidade de Alertas por Monitor', measured: false, value: null, weight: 0.10, higherIsBetter: false, detail: 'Requer Events API (disparos) e ao menos um monitor.' })
     }
-    if (!done) add({ key: 'mttrSeverity', label: 'Tempo de Resolução por Severidade', measured: false, value: null, weight: 0.10, higherIsBetter: true, detail: 'Requer Incidents com severidade e horário de resolução.' })
   }
 
   // 4. Taxa de Falsos Positivos (peso 0.35) — flapping = auto-recuperação rápida
@@ -136,19 +125,16 @@ export async function GET() {
     }
   }
 
-  // 5. Taxa de Ação por Alerta (peso 0.20) — incidentes (7d) / disparos (7d)
+  // 5. Taxa de Alertas Auto-Resolvidos (peso 0.20) — disparo→recuperação
+  //    "quase instantânea" (<2min). Se resolve sozinho em segundos, o threshold
+  //    está sensível demais (falta avg()/janela maior). Menor é melhor.
   {
-    if (evR.measured && evR.triggers > 0 && incR.measured) {
-      const cutoff = Date.now() - 7 * 24 * 3600 * 1000
-      const inc7d = (incR.data || []).filter(i => {
-        const c = i?.attributes?.created ? Date.parse(i.attributes.created) : null
-        return c != null && c >= cutoff
-      }).length
-      const rate = clamp((inc7d / evR.triggers) * 100)
-      add({ key: 'actionRate', label: 'Taxa de Ação por Alerta', measured: true, value: rate, goodness: rate, weight: 0.20, higherIsBetter: true,
-        detail: `${inc7d} incidentes para ${evR.triggers} disparos (7d). Baixo = ruído/monitoramento imaturo.` })
+    if (evR.measured && evR.instantRate != null) {
+      const ar = clamp(evR.instantRate)
+      add({ key: 'autoResolved', label: 'Taxa de Alertas Auto-Resolvidos', measured: true, value: ar, goodness: 100 - ar, weight: 0.20, higherIsBetter: false,
+        detail: `${evR.instant} de ${evR.cycles} ciclos recuperaram em <2min (auto-resolvidos, 7d). Alto = threshold sensível demais; considere avg() ou 'for X minutes'.` })
     } else {
-      add({ key: 'actionRate', label: 'Taxa de Ação por Alerta', measured: false, value: null, weight: 0.20, higherIsBetter: true, detail: 'Requer Events API e Incident Management.' })
+      add({ key: 'autoResolved', label: 'Taxa de Alertas Auto-Resolvidos', measured: false, value: null, weight: 0.20, higherIsBetter: false, detail: evR.measured ? 'Sem ciclos de alerta pareáveis no período.' : 'Requer acesso à Events API.' })
     }
   }
 
@@ -157,7 +143,7 @@ export async function GET() {
   const wsum = measured.reduce((a, d) => a + d.weight, 0)
   const score = wsum > 0 ? clamp(measured.reduce((a, d) => a + d.goodness * d.weight, 0) / wsum) : null
 
-  return Response.json({
+  const payload = {
     site,
     generatedAt: new Date().toISOString(),
     monitorsCount: total,
@@ -165,5 +151,7 @@ export async function GET() {
     measuredCount: measured.length,
     totalDimensions: dims.length,
     dimensions: dims,
-  })
+  }
+  await cacheSet(key, payload, CACHE_TTL_MS)
+  return Response.json(payload)
 }

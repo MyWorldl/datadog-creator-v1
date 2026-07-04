@@ -27,7 +27,7 @@ export const cookieOpts = {
   path: '/',
 }
 
-// Lê as chaves no servidor (usada pela rota create-monitor).
+// Lê as chaves no servidor (usada pelas rotas /api/datadog/* e /api/session/keys).
 export async function readSessionKeys() {
   const jar = await cookies()
   return {

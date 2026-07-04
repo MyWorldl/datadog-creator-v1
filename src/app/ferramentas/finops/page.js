@@ -114,8 +114,19 @@ export default function FinOpsPage() {
               {loading ? 'Carregando…' : data ? 'Recarregar' : 'Carregar consumo'}
             </button>
             {data && <span style={s.note}>Mês {data.month}{data.startDate ? ` · desde ${data.startDate.slice(0, 10)}` : ''}</span>}
+            {data && (
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 999,
+                border: '1px solid var(--border)',
+                color: data.source === 'usage_summary' ? 'var(--success)' : 'var(--warning)',
+                background: data.source === 'usage_summary' ? 'var(--success-bg)' : 'var(--warning-bg)',
+              }}>
+                {data.source === 'usage_summary' ? 'Usage Metering (oficial)' : 'Métricas estimadas (Sub-Org)'}
+              </span>
+            )}
           </div>
           {error && <div style={s.err}>{error}</div>}
+          {data?.warning && <div style={s.warn}>⚠️ {data.warning}</div>}
           {data && (
             <>
               <table style={s.table}>
@@ -134,6 +145,33 @@ export default function FinOpsPage() {
               </table>
               {data.products.length === 0 && <p style={{ ...s.note, marginTop: 12 }}>Nenhum campo de consumo reconhecido no retorno (org sem uso ou App key sem escopo).</p>}
               {data.missing.length > 0 && <p style={{ ...s.note, marginTop: 10 }}>Sem dados para: {data.missing.join(', ')} (produto não usado ou campo ausente no seu plano).</p>}
+              {Array.isArray(data.diagnostics) && data.diagnostics.length > 0 && (
+                <details style={{ marginTop: 16 }}>
+                  <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>Diagnóstico das métricas (query, pontos e valor)</summary>
+                  <div style={{ overflowX: 'auto', marginTop: 10 }}>
+                    <table style={{ ...s.table, fontSize: 11.5 }}>
+                      <thead>
+                        <tr>
+                          <th style={s.th}>Métrica</th><th style={s.th}>Agg</th>
+                          <th style={s.thR}>Pontos</th><th style={s.thR}>Valor</th><th style={s.th}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.diagnostics.map(dg => (
+                          <tr key={dg.key} title={dg.query || ''}>
+                            <td style={{ ...s.td, fontFamily: 'var(--font-geist-mono), monospace' }}>{dg.metric || '—'}</td>
+                            <td style={s.td}>{dg.agg || '—'}</td>
+                            <td style={s.tdR}>{dg.points}</td>
+                            <td style={s.tdR}>{dg.value == null ? '—' : fmtNum(dg.value)}</td>
+                            <td style={{ ...s.td, color: dg.status === 'ok' ? 'var(--success)' : 'var(--text-muted)' }}>{dg.status}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p style={{ ...s.note, marginTop: 8 }}>Passe o mouse sobre a linha para ver a query completa enviada à Metrics API.</p>
+                  </div>
+                </details>
+              )}
             </>
           )}
         </div>

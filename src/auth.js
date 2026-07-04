@@ -12,9 +12,17 @@
 // Para trocar por um banco depois, substitua o bloco ">>> PLUGUE O BANCO AQUI".
 
 import NextAuth from 'next-auth'
+import { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { authConfig } from './auth.config'
+import { getClientIp, checkLoginRateLimit, recordFailedLogin, resetLoginAttempts } from './lib/rate-limit'
+
+// Erro customizado: sinaliza pro client (via res.code no signIn) que o
+// bloqueio foi por excesso de tentativas, não por credencial errada.
+class TooManyAttemptsError extends CredentialsSignin {
+  code = 'rate_limited'
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -27,10 +35,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: 'Senha', type: 'password' },
       },
 
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const username = String(credentials?.username || '').trim().toLowerCase()
         const password = String(credentials?.password || '')
         if (!username || !password) return null
+
+        // Rate limit por IP: bloqueia após várias tentativas falhas seguidas.
+        const ip = getClientIp(request)
+        const rl = await checkLoginRateLimit(ip)
+        if (!rl.allowed) {
+          console.warn(`[auth] IP ${ip} bloqueado por excesso de tentativas (${rl.retryAfterSeconds}s restantes).`)
+          throw new TooManyAttemptsError()
+        }
 
         // >>> PLUGUE O BANCO AQUI <<<
         let user = null
@@ -61,13 +77,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           if (!usersRaw && !process.env.AUTH_LOGIN_USER) {
             console.error('[auth] Nenhum usuário configurado (AUTH_USERS ou AUTH_LOGIN_USER).')
           }
+          await recordFailedLogin(ip)
           return null
         }
 
         // bcrypt confere a senha contra o hash (o salt está embutido no hash).
         const ok = await bcrypt.compare(password, user.hash)
-        if (!ok) return null
+        if (!ok) {
+          await recordFailedLogin(ip)
+          return null
+        }
 
+        // Login certo: limpa o histórico de tentativas falhas desse IP.
+        await resetLoginAttempts(ip)
         return { id: user.username, name: user.name }
       },
     }),
