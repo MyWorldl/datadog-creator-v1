@@ -1,0 +1,42 @@
+name: CI
+
+# Roda a verificação em todo push na main e em todo Pull Request para a main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Menor privilégio: o job só precisa ler o código.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências (do package-lock)
+        run: npm ci
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Testes (node --test)
+        run: npm test
+
+      - name: Build de produção
+        run: npm run build
+        env:
+          # O build não usa um segredo real; um valor qualquer evita que o
+          # Auth.js reclame de AUTH_SECRET ausente durante o next build.
+          AUTH_SECRET: ci-placeholder-not-a-real-secret

@@ -175,14 +175,6 @@ export async function alertEvents(ctx, days = 7) {
   return { measured: true, total: events.length, triggers, recoveries, cycles, flapping, flappingRate, instant, instantRate }
 }
 
-// ── Incidentes (Incident Management) ──
-export async function incidents(ctx) {
-  const r = await ddGet(ctx, '/api/v2/incidents?page[size]=100')
-  if (!r.ok) return { measured: false, status: r.status }
-  const data = Array.isArray(r.json?.data) ? r.json.data : []
-  return { measured: true, data }
-}
-
 // ── Metrics Query API: pontos de uma métrica no intervalo ──
 // GET /api/v1/query?from=<unix_s>&to=<unix_s>&query=<query>
 // Funciona em QUALQUER org (escopo timeseries_query) — base do FinOps quando
