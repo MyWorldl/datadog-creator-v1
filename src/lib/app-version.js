@@ -15,6 +15,16 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.12.2',
+    date: '2026-07-04',
+    title: 'Reanálise: README atualizado, CI e limpeza',
+    notes: [
+      'README reescrito para o modelo atual de login por usuário (AUTH_USERS), com a regra de escape do $ e as ferramentas atuais.',
+      'Adicionado CI no GitHub Actions (.github/workflows/ci.yml): lint + testes + build em cada push/PR na main.',
+      'Removido export órfão incidents() de datadog-server.js (sobrou da troca de KPIs do MonitorsAnalytics).',
+    ],
+  },
+  {
     version: '1.12.1',
     date: '2026-07-04',
     title: 'FinOps: detecta summary parcial de Sub-Org e cai para métricas',
