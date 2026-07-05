@@ -1,82 +1,90 @@
 // src/components/CollapsibleCard.jsx
 //
-// Card colapsável/expansível reutilizável (React + Tailwind).
+// Card colapsável/expansível reutilizável (React + Tailwind) — visual "Modelo E":
+// acento em GRADIENTE sutil da cor de status + ÍCONE de status + número grande.
 //
-// Visual "borda de acento lateral" (Modelo 3): uma faixa colorida de 3px à
-// esquerda indica o status (verde/amarelo/vermelho) via prop accentColor —
-// facilita varrer a lista e achar os problemas. A cor é REDUNDANTE (o score e
-// o texto de detalhe carregam a mesma informação), então atende ao WCAG 1.4.1
-// (não depender só de cor). https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html
-//
-// Por padrão (defaultOpen=false) mostra só o título e o score; o conteúdo
+// Por padrão (defaultOpen=false) mostra só ícone + título + score; o conteúdo
 // descritivo (children) fica escondido e é revelado ao clicar, com transição
-// SUAVE de altura.
+// suave de altura (CSS Grid: grid-template-rows 0fr -> 1fr + overflow hidden).
 //
-// Técnica de animação: CSS Grid com grid-template-rows 0fr → 1fr + um wrapper
-// interno com overflow hidden. O browser interpola entre 0 e a altura natural
-// do conteúdo, sem precisar de altura fixa nem de JS medindo o height.
-// Ref.: https://www.stefanjudis.com/snippets/how-to-animate-height-with-css-grid/
-//       https://css-tricks.com/css-grid-can-do-auto-height-transitions/
-// Acessibilidade (aria-expanded/controls/hidden): o cabeçalho é um <button>.
+// Acessibilidade: o status é transmitido por FORMA (ícone) + COR + NÚMERO, não
+// só por cor — atende ao WCAG 1.4.1. https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html
+// Cabeçalho é um <button> com aria-expanded/aria-controls; corpo com aria-hidden.
 
 'use client'
 
 import { useId, useState } from 'react'
 
-export default function CollapsibleCard({
-  title,
-  score,
-  scoreColor = 'var(--text-primary)',
-  accentColor = 'var(--border)',
-  defaultOpen = false,
-  children,
-}) {
+// status -> cor do texto/ícone + tint (fundo do gradiente e do quadrado do ícone)
+const STATUS = {
+  good: { color: 'var(--success)', tint: 'var(--success-bg)' },
+  warn: { color: 'var(--warning)', tint: 'var(--warning-bg)' },
+  bad: { color: 'var(--danger)', tint: 'var(--danger-bg)' },
+  nd: { color: 'var(--text-muted)', tint: null },
+}
+
+function StatusIcon({ status }) {
+  const p = {
+    width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true',
+  }
+  if (status === 'good') return <svg {...p}><path d="M20 6 9 17l-5-5" /></svg>
+  if (status === 'warn') return <svg {...p}><path d="M12 3 21 19H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+  if (status === 'bad') return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>
+  return <svg {...p}><path d="M5 12h14" /></svg>
+}
+
+export default function CollapsibleCard({ title, score, status = 'nd', defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen)
   const bodyId = useId()
+  const st = STATUS[status] || STATUS.nd
   const scoreStr = String(score ?? '')
-  const scoreFontPx = scoreStr.length > 5 ? 15 : 20
+  const scoreFontPx = scoreStr.length > 5 ? 20 : 30 // valores longos (ex.: "3,1 disp./mon") encolhem
+  const iconBg = st.tint || 'rgba(148,163,184,0.14)'
+  const background = st.tint
+    ? `linear-gradient(135deg, ${st.tint} 0%, transparent 55%), var(--bg-surface)`
+    : 'var(--bg-surface)'
 
   return (
     <div
-      className="overflow-hidden rounded-[10px] border transition-shadow hover:shadow-md"
-      style={{
-        borderColor: 'var(--border)',
-        background: 'var(--bg-surface)',
-        borderLeft: `3px solid ${accentColor}`,
-        minWidth: 0,
-      }}
+      className="overflow-hidden rounded-[14px] border transition-shadow hover:shadow-lg"
+      style={{ borderColor: 'var(--border)', background, minWidth: 0 }}
     >
-      {/* Cabeçalho sempre visível: título + score + chevron */}
+      {/* Cabeçalho sempre visível: ícone + título + score + chevron */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={bodyId}
-        className="flex w-full cursor-pointer items-start justify-between gap-2 bg-transparent px-4 py-3 text-left"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 bg-transparent px-5 py-4 text-left"
       >
-        <span className="flex min-w-0 items-start gap-2">
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-            className={`mt-[3px] shrink-0 transition-transform duration-300 ease-out ${open ? 'rotate-90' : ''}`}
-            style={{ color: 'var(--text-muted)' }}
-            aria-hidden="true"
+        <span className="flex min-w-0 items-center gap-3">
+          <span
+            className="flex shrink-0 items-center justify-center rounded-[11px]"
+            style={{ width: 38, height: 38, background: iconBg, color: st.color }}
           >
-            <path d="M9 6l6 6-6 6" />
-          </svg>
+            <StatusIcon status={status} />
+          </span>
           <span className="line-clamp-2 text-[13px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
             {title}
           </span>
         </span>
-        <span
-          className="shrink-0 whitespace-nowrap text-right font-extrabold tabular-nums"
-          style={{ color: scoreColor, fontSize: `${scoreFontPx}px` }}
-        >
-          {score}
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="whitespace-nowrap font-extrabold tabular-nums" style={{ color: st.color, fontSize: `${scoreFontPx}px` }}>
+            {score}
+          </span>
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+            className={`shrink-0 transition-transform duration-300 ease-out ${open ? 'rotate-90' : ''}`}
+            style={{ color: 'var(--text-muted)' }} aria-hidden="true"
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
         </span>
       </button>
 
-      {/* Corpo animado: 0fr (fechado) → 1fr (aberto) */}
+      {/* Corpo animado: 0fr (fechado) -> 1fr (aberto) */}
       <div
         id={bodyId}
         aria-hidden={!open}
@@ -84,7 +92,7 @@ export default function CollapsibleCard({
         style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
       >
         <div className="overflow-hidden">
-          <div className="px-4 pb-3">{children}</div>
+          <div className="px-5 pb-4">{children}</div>
         </div>
       </div>
     </div>

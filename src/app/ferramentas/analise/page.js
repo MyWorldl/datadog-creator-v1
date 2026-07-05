@@ -18,6 +18,8 @@ function ScoreRing({ value, color, size = 120, stroke = 10 }) {
 }
 
 const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
+// status da dimensão para o card (Modelo E): good | warn | bad | nd
+const smStatus = (dim) => !dim.measured ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
 
 const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
@@ -94,8 +96,7 @@ export default function ScopeMaturityPage() {
                   key={dim.key}
                   title={dim.label}
                   score={dim.measured ? dim.score : 'N/D'}
-                  scoreColor={dim.measured ? scoreColor(dim.score) : 'var(--text-muted)'}
-                  accentColor={dim.measured ? scoreColor(dim.score) : 'var(--border)'}
+                  status={smStatus(dim)}
                 >
                   <p style={s.dimDetail}>{dim.detail}</p>
                 </CollapsibleCard>

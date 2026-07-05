@@ -15,6 +15,15 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.12.3',
+    date: '2026-07-04',
+    title: 'Cards no estilo Modelo E (gradiente + ícone)',
+    notes: [
+      'CollapsibleCard redesenhado: acento em gradiente sutil da cor de status, ícone de status em quadrado tingido, número grande e mais respiro — aplicado no ScopeMaturity e no MonitorsAnalytics.',
+      'Status agora é comunicado por forma (ícone) + cor + número (reforça o WCAG 1.4.1). Mantém o expandir/colapsar com transição suave.',
+    ],
+  },
+  {
     version: '1.12.2',
     date: '2026-07-04',
     title: 'Reanálise: README atualizado, CI e limpeza',

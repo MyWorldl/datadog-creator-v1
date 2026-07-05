@@ -6,14 +6,14 @@ import { useApp } from '@/context/AppContext'
 import CollapsibleCard from '@/components/CollapsibleCard'
 
 const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
-// cor do KPI conforme o goodness (0-100, maior=melhor); cai para value se ausente
-const kpiColor = (dim) => {
-  if (!dim.measured) return 'var(--text-muted)'
+// status do KPI conforme o goodness (0-100, maior=melhor): good | warn | bad | nd
+const kpiStatus = (dim) => {
+  if (!dim.measured) return 'nd'
   const g = typeof dim.goodness === 'number'
     ? dim.goodness
     : (dim.value == null ? null : (dim.higherIsBetter === false ? 100 - dim.value : dim.value))
-  if (g == null) return 'var(--text-muted)'
-  return g >= 70 ? 'var(--success)' : g >= 40 ? 'var(--warning)' : 'var(--danger)'
+  if (g == null) return 'nd'
+  return g >= 70 ? 'good' : g >= 40 ? 'warn' : 'bad'
 }
 
 function Ring({ value, size = 120, stroke = 10 }) {
@@ -100,8 +100,7 @@ export default function MonitorsAnalyticsPage() {
                   key={dim.key}
                   title={dim.label}
                   score={dim.measured && dim.value != null ? (dim.display ?? `${dim.value}%`) : 'N/D'}
-                  scoreColor={dim.measured && dim.value != null ? kpiColor(dim) : 'var(--text-muted)'}
-                  accentColor={dim.measured && dim.value != null ? kpiColor(dim) : 'var(--border)'}
+                  status={kpiStatus(dim)}
                 >
                   <p style={s.detail}>{dim.detail}</p>
                   <span style={s.weight}>peso {dim.weight}{dim.higherIsBetter === false ? ' · menor é melhor' : ''}</span>
