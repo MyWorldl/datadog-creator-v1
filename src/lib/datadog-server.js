@@ -51,6 +51,29 @@ export async function listMonitors(ctx, pageSize = 1000, maxPages = 50) {
   return { ok: true, json: all }
 }
 
+// Lista TODOS os hosts paginando (start/count), no mesmo espírito de
+// listMonitors: GET /api/v1/hosts não pagina automaticamente e orgs grandes
+// podem ter milhares de hosts. `filter` aceita a sintaxe de busca de hosts
+// do Datadog (ex.: "env:prod", "tag_key:value"). Doc:
+// https://docs.datadoghq.com/api/latest/hosts/#get-all-hosts-for-your-organization
+export async function listHosts(ctx, filter = '', pageSize = 1000, maxPages = 20) {
+  const all = []
+  for (let page = 0; page < maxPages; page++) {
+    const start = page * pageSize
+    const qs = new URLSearchParams({ start: String(start), count: String(pageSize) })
+    if (filter) qs.set('filter', filter)
+    const r = await ddGet(ctx, `/api/v1/hosts?${qs.toString()}`)
+    if (!r.ok) {
+      if (all.length > 0) return { ok: true, json: all, partial: true }
+      return { ok: false, status: r.status, error: r.error, detail: r.detail }
+    }
+    const batch = Array.isArray(r.json?.host_list) ? r.json.host_list : []
+    all.push(...batch)
+    if (batch.length < pageSize) break // último bloco
+  }
+  return { ok: true, json: all }
+}
+
 export async function ddPost(ctx, path, body) {
   try {
     const r = await fetch(`https://api.${ctx.site}${path}`, {

@@ -2,6 +2,7 @@
 'use client'
 
 import { planPreview } from '@/lib/discovery'
+import { planInfraPreview } from '@/lib/infra'
 
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
@@ -17,14 +18,18 @@ const s = {
 }
 
 export default function DiscoveryReview({ config, onNext, onBack }) {
-  const d = config.discovery
-  const plan = planPreview(d)
-  const services = Object.keys(d.selected).length
+  const isInfra = config.resourceType === 'infra'
+  const d = isInfra ? config.infra : config.discovery
+  const plan = isInfra ? planInfraPreview(d) : planPreview(d)
+  const entities = isInfra
+    ? Object.values(d.selected).filter(Boolean).length
+    : Object.keys(d.selected).length
+  const entityLabel = isInfra ? 'host(s)' : 'serviço(s)'
 
   return (
     <div style={s.card}>
       <p style={s.summary}>
-        Serão criados <strong>{plan.length}</strong> monitor(es) para <strong>{services}</strong> serviço(s),
+        Serão criados <strong>{plan.length}</strong> monitor(es) para <strong>{entities}</strong> {entityLabel},
         agrupados por <strong>{(d.groupBy || []).join(', ') || '—'}</strong>.
         Nada é criado até a Etapa 5.
       </p>

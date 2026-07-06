@@ -5,9 +5,11 @@
 
 import { useState } from 'react'
 import { initialDiscovery } from '@/lib/discovery'
+import { initialInfraDiscovery } from '@/lib/infra'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import DiscoveryConfigure from '@/components/discovery/DiscoveryConfigure'
+import DiscoveryConfigureInfra from '@/components/discovery/DiscoveryConfigureInfra'
 import DiscoveryPersonalize from '@/components/discovery/DiscoveryPersonalize'
 import DiscoveryReview from '@/components/discovery/DiscoveryReview'
 import DiscoveryCreate from '@/components/discovery/DiscoveryCreate'
@@ -21,9 +23,12 @@ const STEPS = ['Conectar', 'Configurar', 'Personalizar', 'Revisar', 'Criar']
 // Estado inicial de todas as configurações
 // ─────────────────────────────────────────────
 const INITIAL_CONFIG = {
-  // O wizard opera somente no modo de descoberta de serviços.
+  // O wizard opera somente no modo de descoberta.
   mode: 'discovery',
+  // 'services' (APM, por serviço/operação) ou 'infra' (por host: CPU/Memória/Disco).
+  resourceType: 'services',
   discovery: initialDiscovery(),
+  infra: initialInfraDiscovery(),
 }
 
 export default function Home() {
@@ -79,12 +84,46 @@ export default function Home() {
         )}
 
         {step === 1 && (
-          <DiscoveryConfigure
-            config={config}
-            setConfig={setConfig}
-            onNext={goNext}
-            onBack={goBack}
-          />
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[
+                { key: 'services', label: 'Serviços (APM)' },
+                { key: 'infra', label: 'Infraestrutura (Hosts)' },
+              ].map(opt => {
+                const on = config.resourceType === opt.key
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => setConfig(c => ({ ...c, resourceType: opt.key }))}
+                    style={{
+                      flex: 1, fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 8, cursor: 'pointer',
+                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+                      background: on ? 'var(--accent-light)' : 'var(--bg-surface)',
+                      color: on ? 'var(--accent)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {config.resourceType === 'infra' ? (
+              <DiscoveryConfigureInfra
+                config={config}
+                setConfig={setConfig}
+                onNext={goNext}
+                onBack={goBack}
+              />
+            ) : (
+              <DiscoveryConfigure
+                config={config}
+                setConfig={setConfig}
+                onNext={goNext}
+                onBack={goBack}
+              />
+            )}
+          </>
         )}
 
         {step === 2 && (
