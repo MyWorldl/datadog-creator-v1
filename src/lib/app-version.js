@@ -15,6 +15,16 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.13.0',
+    date: '2026-07-06',
+    title: 'Monitores de Infra + correção de lint e testes',
+    notes: [
+      'Nova frente de descoberta de HOSTS e criação de monitores de infraestrutura (CPU, memória, disco, I/O, rede, load, Agent Down), com modo threshold ou anomaly por métrica.',
+      'Correção: aspas cruas nos labels de DiscoveryConfigureInfra.jsx (react/no-unescaped-entities) que estavam quebrando o CI.',
+      'Testes automatizados para lib/infra.js (query threshold/anomaly, by por termo na rede, service check do Agent Down, preview).',
+    ],
+  },
+  {
     version: '1.12.3',
     date: '2026-07-04',
     title: 'Cards no estilo Modelo E (gradiente + ícone)',
