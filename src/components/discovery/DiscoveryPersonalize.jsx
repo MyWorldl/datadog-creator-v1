@@ -3,8 +3,10 @@
 
 import { useState } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY } from '@/lib/discovery'
+import { INFRA_TYPES, INFRA_BY_KEY } from '@/lib/infra'
 
 const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'http.status_code']
+const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 18 },
@@ -24,11 +26,19 @@ const s = {
 }
 
 export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }) {
-  const d = config.discovery
-  const setDisc = (patch) => setConfig(c => ({ ...c, discovery: { ...c.discovery, ...patch } }))
+  const isInfra = config.resourceType === 'infra'
+  const stateKey = isInfra ? 'infra' : 'discovery'
+  const d = config[stateKey]
+  const setDisc = (patch) => setConfig(c => ({ ...c, [stateKey]: { ...c[stateKey], ...patch } }))
   const [tagInput, setTagInput] = useState('')
 
-  const enabled = ALERT_TYPES.filter(a => d.alerts[a.key]?.enabled)
+  const TYPES = isInfra ? INFRA_TYPES : ALERT_TYPES
+  const BY_KEY = isInfra ? INFRA_BY_KEY : ALERT_BY_KEY
+  const groupByOptions = isInfra ? COMMON_INFRA_GROUP_BY : COMMON_GROUP_BY
+  const enabledKeySet = isInfra ? d.metrics : d.alerts
+  const enabled = TYPES.filter(t => enabledKeySet[t.key]?.enabled)
+  const entityLabel = isInfra ? 'host' : 'serviço'
+  const entityTag = isInfra ? 'host' : 'service'
 
   function toggleGroup(tag) {
     const has = d.groupBy.includes(tag)
@@ -43,7 +53,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
   }
   function removeTag(t) { setDisc({ tags: (d.tags || []).filter(x => x !== t) }) }
   function setMessage(key, value) { setDisc({ messages: { ...d.messages, [key]: value } }) }
-  function resetMessage(key) { setDisc({ messages: { ...d.messages, [key]: ALERT_BY_KEY[key].message } }) }
+  function resetMessage(key) { setDisc({ messages: { ...d.messages, [key]: BY_KEY[key].message } }) }
 
   return (
     <div style={s.card}>
@@ -52,7 +62,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
         <label style={s.label}>Nome do monitor (prefixo)</label>
         <input style={s.input} value={d.namePrefix} onChange={e => setDisc({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
         <p style={s.hint}>
-          Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;serviço&gt; · &lt;tipo&gt;</strong>.
+          Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;{entityLabel}&gt; · &lt;tipo&gt;</strong>.
         </p>
       </div>
 
@@ -76,35 +86,41 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
             ))}
           </div>
         )}
-        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator e service:&lt;serviço&gt;.</p>
+        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator e {entityTag}:&lt;{entityLabel}&gt;.</p>
       </div>
 
       {/* Group By */}
       <div>
         <label style={s.label}>Group By (dimensões do monitor)</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[...new Set([...COMMON_GROUP_BY, ...d.groupBy])].map(tag => (
+          {[...new Set([...groupByOptions, ...d.groupBy])].map(tag => (
             <button key={tag} style={s.chip(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
           ))}
         </div>
-        <p style={s.hint}>Padrão: service e resource_name. Cada combinação vira um grupo avaliado separadamente.</p>
+        <p style={s.hint}>
+          {isInfra
+            ? 'Padrão: host. Disco também agrupa por device automaticamente.'
+            : 'Padrão: service e resource_name. Cada combinação vira um grupo avaliado separadamente.'}
+        </p>
       </div>
 
       {/* Mensagens */}
       <div>
         <label style={s.label}>Mensagens dos monitores</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {enabled.map(a => (
-            <div key={a.key}>
+          {enabled.map(t => (
+            <div key={t.key}>
               <div style={s.msgHead}>
-                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{a.label}</span>
-                <button style={s.reset} onClick={() => resetMessage(a.key)}>restaurar padrão</button>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</span>
+                <button style={s.reset} onClick={() => resetMessage(t.key)}>restaurar padrão</button>
               </div>
-              <textarea style={s.textarea} value={d.messages[a.key] ?? ''} onChange={e => setMessage(a.key, e.target.value)} />
+              <textarea style={s.textarea} value={d.messages[t.key] ?? ''} onChange={e => setMessage(t.key, e.target.value)} />
             </div>
           ))}
         </div>
-        <p style={s.hint}>Variáveis: {'{{service.name}}'}, {'{{value}}'}. Use @ para notificar (ex.: @slack-canal).</p>
+        <p style={s.hint}>
+          Variáveis: {isInfra ? '{{host.name}}' : '{{service.name}}'}, {'{{value}}'}. Use @ para notificar (ex.: @slack-canal).
+        </p>
       </div>
 
       <div style={s.actions}>

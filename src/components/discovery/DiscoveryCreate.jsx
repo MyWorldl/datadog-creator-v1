@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { planPreview } from '@/lib/discovery'
+import { planInfraPreview } from '@/lib/infra'
 
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
@@ -16,8 +17,11 @@ const s = {
 }
 
 export default function DiscoveryCreate({ config, onBack }) {
-  const d = config.discovery
-  const plan = planPreview(d)
+  const isInfra = config.resourceType === 'infra'
+  const d = isInfra ? config.infra : config.discovery
+  const plan = isInfra ? planInfraPreview(d) : planPreview(d)
+  const endpoint = isInfra ? '/api/datadog/infra-monitors' : '/api/datadog/service-monitors'
+  const bodyKey = isInfra ? 'infra' : 'discovery'
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null)
@@ -25,10 +29,10 @@ export default function DiscoveryCreate({ config, onBack }) {
   async function create() {
     setError(''); setResults(null); setCreating(true)
     try {
-      const r = await fetch('/api/datadog/service-monitors', {
+      const r = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discovery: d }),
+        body: JSON.stringify({ [bodyKey]: d }),
       })
       const data = await r.json()
       if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
@@ -49,13 +53,15 @@ export default function DiscoveryCreate({ config, onBack }) {
 
       {results && (
         <>
-          <div style={results.created === results.total ? s.okBox : s.err}>
-            {results.created} de {results.total} monitor(es) criado(s) com sucesso.
+          <div style={results.results.every(r => r.ok) ? s.okBox : s.err}>
+            {results.created} de {results.total} monitor(es) criado(s)
+            {typeof results.skipped === 'number' && results.skipped > 0 ? ` · ${results.skipped} já existia(m) (pulado)` : ''}.
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
             {results.results.map((r, i) => (
-              <div key={i} style={{ ...s.resItem, color: r.ok ? 'var(--success)' : 'var(--danger)', borderColor: r.ok ? 'var(--success)' : 'var(--danger)' }}>
-                {r.ok ? '✓' : '✗'} {r.service} · {r.operation} · {r.kind}{r.id ? ` · id ${r.id}` : ''}{r.error ? ` · ${r.error}` : ''}
+              <div key={i} style={{ ...s.resItem, color: r.ok ? (r.skipped ? 'var(--text-muted)' : 'var(--success)') : 'var(--danger)', borderColor: r.ok ? (r.skipped ? 'var(--border)' : 'var(--success)') : 'var(--danger)' }}>
+                {r.ok ? (r.skipped ? '↷' : '✓') : '✗'} {r.service} · {r.operation} · {r.kind}
+                {r.id ? ` · id ${r.id}` : ''}{r.skipped ? ' · já existia' : ''}{r.error ? ` · ${r.error}` : ''}
               </div>
             ))}
           </div>
