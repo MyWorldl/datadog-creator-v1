@@ -187,11 +187,11 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                         <input style={s.select} type="number" min="1" max="20" value={cfg.window} disabled={!on} onChange={e => setMetricParam(t.key, 'window', Number(e.target.value))} />
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Critical (nº "down")</label>
+                        <label style={s.miniLabel}>Critical (nº &quot;down&quot;)</label>
                         <input style={s.select} type="number" min="1" max="20" value={cfg.counts.critical} disabled={!on} onChange={e => setMetricCount(t.key, 'critical', e.target.value)} />
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Warning (nº "down")</label>
+                        <label style={s.miniLabel}>Warning (nº &quot;down&quot;)</label>
                         <input style={s.select} type="number" min="0" max="20" value={cfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
                       </div>
                       <div>

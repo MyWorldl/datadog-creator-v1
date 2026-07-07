@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY } from '@/lib/discovery'
 import { INFRA_TYPES, INFRA_BY_KEY } from '@/lib/infra'
 
-const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'http.status_code']
+const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_namespace', 'http.status_code']
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
 const s = {

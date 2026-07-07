@@ -9,7 +9,7 @@ import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops, IconSettings
 
 const cards = [
   { href: '/monitor', Icon: IconMonitorsCreator, title: 'MonitorsCreator', desc: 'Descubra serviços e crie monitores de anomalia no Datadog.', cta: 'Abrir wizard' },
-  { href: '/ferramentas/analytics', Icon: IconAnalytics, title: 'MonitorsAnalytics', desc: 'Maturidade dos monitores em um score ponderado.', cta: 'Analisar' },
+  { href: '/ferramentas/audit', Icon: IconAnalytics, title: 'AuditMonitors', desc: 'Cobertura de monitoramento (Infra + APM) e sugestão de lacunas.', cta: 'Auditar' },
   { href: '/ferramentas/analise', Icon: IconScope, title: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente.', cta: 'Ver score' },
   { href: '/ferramentas/finops', Icon: IconFinops, title: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme e custo estimado.', cta: 'Ver consumo' },
   { href: '/configuracoes', Icon: IconSettings, title: 'Configurações', desc: 'Tema e conexão da sessão.', cta: 'Ajustar' },
@@ -31,7 +31,7 @@ const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
   band: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 },
-  scoreCard: { display: 'flex', alignItems: 'center', gap: 18, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.25rem', boxShadow: 'var(--card-shadow)', textDecoration: 'none' },
+  scoreCard: { display: 'flex', alignItems: 'center', gap: 18, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', textDecoration: 'none' },
   scoreWrap: { position: 'relative', width: 88, height: 88, flexShrink: 0 },
   scoreNum: (c) => ({ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 800, color: c }),
   scoreLabel: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
@@ -39,12 +39,12 @@ const s = {
   scoreLink: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 8, display: 'inline-block' },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
-  card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.1rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
+  card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
   icon: { width: 38, height: 38, borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   cTitle: { fontSize: 14.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
   cDesc: { fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, flex: 1 },
   cCta: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 2 },
-  panel: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
+  panel: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
 }
 
 function ScoreCard({ href, label, score, sub, loading }) {
@@ -74,14 +74,14 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Sincroniza com o servidor: busca ScopeMaturity + MonitorsAnalytics ao conectar.
+    // Sincroniza com o servidor: busca ScopeMaturity + AuditMonitors ao conectar.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!keysConfigured) { setSm(null); setMa(null); return }
     let cancel = false
     setLoading(true); setError('')
     Promise.all([
       fetch('/api/datadog/scope-maturity').then(r => r.json().then(j => ({ ok: r.ok, j }))),
-      fetch('/api/datadog/monitors-analytics').then(r => r.json().then(j => ({ ok: r.ok, j }))),
+      fetch('/api/datadog/audit-monitors').then(r => r.json().then(j => ({ ok: r.ok, j }))),
     ])
       .then(([smR, maR]) => {
         if (cancel) return
@@ -102,9 +102,9 @@ export default function DashboardPage() {
         <>
           <div style={s.band}>
             <ScoreCard href="/ferramentas/analise" label="ScopeMaturity" score={sm?.score ?? null} loading={loading && !sm}
-              sub={sm ? `${sm.measuredCount} de ${sm.totalDimensions} dimensões avaliadas` : 'Governança e cobertura do ambiente'} />
-            <ScoreCard href="/ferramentas/analytics" label="MonitorsAnalytics" score={ma?.score ?? null} loading={loading && !ma}
-              sub={ma ? `${ma.measuredCount} de ${ma.totalDimensions} KPIs · ${ma.monitorsCount} monitores` : 'Maturidade dos monitores'} />
+              sub={sm ? `Nível ${sm.level} · ${sm.levelLabel}` : 'Governança e cobertura do ambiente'} />
+            <ScoreCard href="/ferramentas/audit" label="AuditMonitors" score={ma?.score ?? null} loading={loading && !ma}
+              sub={ma ? `${ma.score}% de cobertura · ${ma.gapCount} lacuna(s)` : 'Cobertura de monitoramento (Infra + APM)'} />
           </div>
 
           {error && <div style={{ ...s.panel, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}
