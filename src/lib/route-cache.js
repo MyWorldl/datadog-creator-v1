@@ -1,7 +1,7 @@
 // src/lib/route-cache.js
 //
 // Cache curto (TTL) para respostas de rotas pesadas que fazem muitas chamadas
-// ao Datadog (scope-maturity, finops, monitors-analytics). Evita bater rate
+// ao Datadog (scope-maturity, finops, audit-monitors). Evita bater rate
 // limit (429) em refresh repetido ou uso simultâneo da mesma conta.
 //
 // Backend: se houver Redis externo configurado (kv-store / Upstash), usa ele

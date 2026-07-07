@@ -15,6 +15,29 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.15.0',
+    date: '2026-07-06',
+    title: 'MonitorsAnalytics vira AuditMonitors (análise de cobertura)',
+    notes: [
+      'MonitorsAnalytics renomeado para AuditMonitors (rota /ferramentas/audit, endpoint audit-monitors) e a função de score de maturidade foi aposentada.',
+      'AuditMonitors analisa o ambiente (hosts + serviços APM + monitores) e mostra quais métricas-chave têm monitor e quais estão sem cobertura — detecção por nome de métrica na query do monitor.',
+      'Catálogo Infra (CPU, memória, disco, I/O, rede, load, Agent Down) + APM (latência, erros, throughput). Botão "Criar os que faltam" gera os monitores de Infra em lacuna reaproveitando a rota infra-monitors (idempotente).',
+      'Dashboard e Sobre atualizados; testes para a lib de auditoria.',
+    ],
+  },
+  {
+    version: '1.14.0',
+    date: '2026-07-06',
+    title: 'ScopeMaturity em 5 pilares + níveis, kube_namespace e histórico resumido',
+    notes: [
+      'ScopeMaturity reorganizado nos 5 pilares de maturidade (Cobertura, Qualidade dos Monitores, Observabilidade, Processos, Governança), cada um com a meta "maduro" e as dimensões que o compõem.',
+      'Novo pilar Observabilidade: detecta quais sinais estão ativos (Métricas, Logs, APM, RUM, Synthetics, Profiling, DBM) via métricas datadog.estimated_usage.*.',
+      'ScopeMaturity agora exibe o Nível de maturidade (1 a 5) por faixa de score: N1 0-20, N2 20-40, N3 40-60, N4 60-80, N5 80-100.',
+      'Group By de serviços passou a incluir kube_namespace.',
+      'Histórico (página Sobre) em formato resumido: versão + título, com as notas em expander.',
+    ],
+  },
+  {
     version: '1.13.0',
     date: '2026-07-06',
     title: 'Monitores de Infra + correção de lint e testes',

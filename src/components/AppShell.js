@@ -1,12 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import LoginPage from '@/components/LoginPage';
+import { IconMenu } from '@/components/Icons';
 
 export default function AppShell({ children }) {
   // Fonte da verdade do login agora é o Auth.js.
   const { status } = useSession(); // 'loading' | 'authenticated' | 'unauthenticated'
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   if (status === 'loading') {
     return (
@@ -35,14 +38,39 @@ export default function AppShell({ children }) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar />
-      <main style={{
-        flex: 1,
-        overflowY: 'auto',
-        background: 'var(--bg-base)',
-        padding: '2rem',
-      }}>
+    <div className="app-shell">
+      <Sidebar
+        isOpen={mobileOpen}
+        onNavigate={() => setMobileOpen(false)}
+        onClose={() => setMobileOpen(false)}
+      />
+
+      <div
+        className={`sidebar-overlay${mobileOpen ? ' is-open' : ''}`}
+        onClick={() => setMobileOpen(false)}
+      />
+
+      <div className="mobile-topbar">
+        <button
+          onClick={() => setMobileOpen(true)}
+          aria-label="Abrir menu"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--sidebar-logo)',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            padding: 6,
+          }}
+        >
+          <IconMenu size={22} />
+        </button>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--sidebar-logo)', margin: 0 }}>
+          Datadog Creator
+        </p>
+      </div>
+
+      <main className="app-main">
         {children}
       </main>
     </div>

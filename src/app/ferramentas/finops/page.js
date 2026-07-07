@@ -8,22 +8,22 @@ import { EST_METRICS, computeCost, fmtMoney, fmtNum } from '@/lib/finops-pricing
 const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
-  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
+  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   tabs: { display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
-  tab: (on) => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' }),
+  tab: (on) => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' }),
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' },
+  btnGhost: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   note: { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 },
-  warn: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', margin: '0 0 14px' },
+  warn: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', margin: '0 0 14px' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
   th: { textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', padding: '8px 10px', borderBottom: '1px solid var(--border)' },
   thR: { textAlign: 'right', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', padding: '8px 10px', borderBottom: '1px solid var(--border)' },
   td: { padding: '9px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)' },
   tdR: { padding: '9px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' },
-  priceInput: { width: 90, textAlign: 'right', fontSize: 13, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-base)', color: 'var(--text-primary)' },
+  priceInput: { width: 90, textAlign: 'right', fontSize: 13, padding: '5px 8px', border: '0.5px solid var(--border)', borderRadius: 6, background: 'var(--bg-base)', color: 'var(--text-primary)' },
   label: { display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
-  select: { width: '100%', fontSize: 13, padding: '9px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' },
+  select: { width: '100%', fontSize: 13, padding: '9px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' },
   totalRow: { fontWeight: 800, fontSize: 15 },
   okBox: { fontSize: 12.5, color: 'var(--success)', background: '#e6f4ef', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12, lineHeight: 1.5 },
 }
@@ -117,7 +117,7 @@ export default function FinOpsPage() {
             {data && (
               <span style={{
                 fontSize: 11, fontWeight: 600, padding: '2px 9px', borderRadius: 999,
-                border: '1px solid var(--border)',
+                border: '0.5px solid var(--border)',
                 color: data.source === 'usage_summary' ? 'var(--success)' : 'var(--warning)',
                 background: data.source === 'usage_summary' ? 'var(--success-bg)' : 'var(--warning-bg)',
               }}>
@@ -129,20 +129,22 @@ export default function FinOpsPage() {
           {data?.warning && <div style={s.warn}>⚠️ {data.warning}</div>}
           {data && (
             <>
-              <table style={s.table}>
-                <thead>
-                  <tr><th style={s.th}>Produto (licenciamento)</th><th style={s.thR}>Consumo</th><th style={s.th}>Unidade</th></tr>
-                </thead>
-                <tbody>
-                  {data.products.map(p => (
-                    <tr key={p.key}>
-                      <td style={s.td}>{p.label}</td>
-                      <td style={s.tdR}>{fmtNum(p.bytes ? p.value / 1e9 : p.value)}</td>
-                      <td style={s.td}>{p.bytes ? 'GB' : p.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={s.table}>
+                  <thead>
+                    <tr><th style={s.th}>Produto (licenciamento)</th><th style={s.thR}>Consumo</th><th style={s.th}>Unidade</th></tr>
+                  </thead>
+                  <tbody>
+                    {data.products.map(p => (
+                      <tr key={p.key}>
+                        <td style={s.td}>{p.label}</td>
+                        <td style={s.tdR}>{fmtNum(p.bytes ? p.value / 1e9 : p.value)}</td>
+                        <td style={s.td}>{p.bytes ? 'GB' : p.unit}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
               {data.products.length === 0 && <p style={{ ...s.note, marginTop: 12 }}>Nenhum campo de consumo reconhecido no retorno (org sem uso ou App key sem escopo).</p>}
               {data.missing.length > 0 && <p style={{ ...s.note, marginTop: 10 }}>Sem dados para: {data.missing.join(', ')} (produto não usado ou campo ausente no seu plano).</p>}
               {Array.isArray(data.diagnostics) && data.diagnostics.length > 0 && (
@@ -236,6 +238,7 @@ export default function FinOpsPage() {
               <button style={s.btnGhost} onClick={() => setTab('consumo')}>Ir para Consumo</button>
             </div>
           ) : (
+            <div style={{ overflowX: 'auto' }}>
             <table style={s.table}>
               <thead>
                 <tr>
@@ -270,6 +273,7 @@ export default function FinOpsPage() {
                 </tr>
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
