@@ -16,7 +16,7 @@ export default function ConfiguracoesPage() {
   return (
     <div style={{ maxWidth: 640 }}>
       <h1 style={s.title}>Configurações</h1>
-      <p style={s.sub}>Tema e conexão da sessão.</p>
+      <p style={s.sub}>Tema e conexões com o Datadog (múltiplas orgs).</p>
 
       {/* ── TEMA ── */}
       <div style={s.card}>

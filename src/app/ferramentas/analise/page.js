@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
 import CollapsibleCard from '@/components/CollapsibleCard'
+import Sparkline from '@/components/Sparkline'
 
 function ScoreRing({ value, color, size = 120, stroke = 10 }) {
   const r = (size / 2) - stroke
@@ -81,6 +82,11 @@ export default function ScopeMaturityPage() {
                   <span style={{ fontSize: 26, fontWeight: 800, color: scoreColor(data.score) }}>Nível {data.level}</span>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{data.levelLabel}</span>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(1–5)</span>
+                </div>
+              )}
+              {data && (
+                <div style={{ marginBottom: 8 }}>
+                  <Sparkline values={data.history} delta={data.delta} color={scoreColor(data.score)} />
                 </div>
               )}
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px' }}>

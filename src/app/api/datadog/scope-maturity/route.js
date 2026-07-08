@@ -13,6 +13,7 @@ import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
+import { recordScore, computeDelta } from '@/lib/score-history'
 
 const REQUIRED_TAGS = ['env', 'service', 'team']
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min — suficiente pra absorver refreshes/múltiplos usuários
@@ -239,6 +240,11 @@ export async function GET() {
   const level = Math.min(5, Math.floor(score / 20) + 1)
   const LEVEL_LABELS = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
 
+  // Histórico do score geral (sparkline + delta). Grava só em compute fresco
+  // (cache hit retorna antes daqui), então no máximo 1 ponto por dia/conta.
+  const histId = cacheKey(['sm-hist', site, apiKey, appKey])
+  const hist = await recordScore('scope-maturity', histId, score)
+
   const payload = {
     score,
     level,
@@ -249,6 +255,8 @@ export async function GET() {
     measuredCount: measured.length,
     totalDimensions: dims.length,
     dimensions: dims,
+    history: hist.map(h => h.score),
+    delta: computeDelta(hist),
   }
   await cacheSet(key, payload, CACHE_TTL_MS)
   return Response.json(payload)

@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable react-hooks/set-state-in-effect --
    Os efeitos abaixo são intencionais: (1) hidratar tema/site do localStorage
-   no mount (não existe no SSR) e (2) buscar o status das chaves no servidor
+   no mount (não existe no SSR) e (2) buscar as conexões Datadog do usuário
    ao logar. São sincronizações com sistemas externos, não loops de render. */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -11,25 +11,23 @@ const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
   // Auth NÃO vive mais aqui — quem cuida do login é o Auth.js (useSession).
-  // Este context guarda só preferências de UI e o estado da conexão Datadog.
-  // theme = escolha do usuário: 'light' | 'dark' | 'system'
+  // Este context guarda preferências de UI + as conexões Datadog (múltiplas
+  // orgs, guardadas no Supabase — ver lib/connections.js) do usuário.
   const [theme, setTheme] = useState('system');
   const [datadogSite, setDatadogSite] = useState('datadoghq.com');
 
-  // Flag: as chaves da sessão estão configuradas? (item 5)
-  // A chave em si fica em cookie httpOnly no servidor; aqui guardamos só
-  // o "booleano" + o site, que não são segredos.
-  const [keysConfigured, setKeysConfigured] = useState(false);
+  // Lista de conexões (orgs) do usuário + qual está ativa no momento.
+  // As chaves em si NUNCA chegam ao browser — só id/nome/site/isActive.
+  const [connections, setConnections] = useState([]);
   const [keysLoading, setKeysLoading] = useState(true);
 
-  // Carrega preferências locais (tema/site NÃO são segredos => localStorage ok).
-  // Lido em efeito de propósito: o localStorage não existe no SSR, então fazer
-  // isso no mount evita divergência de hidratação.
+  const activeConnection = connections.find(c => c.isActive) || null;
+  const keysConfigured = !!activeConnection;
+
+  // Carrega preferências locais (tema NÃO é segredo => localStorage ok).
   useEffect(() => {
     const savedTheme = localStorage.getItem('dd_theme') || 'system';
-    const savedSite = localStorage.getItem('dd_site') || 'datadoghq.com';
     setTheme(savedTheme);
-    setDatadogSite(savedSite);
   }, []);
 
   // Aplica o tema no <html> e persiste. Quando a escolha é 'system',
@@ -51,49 +49,78 @@ export function AppProvider({ children }) {
     }
   }, [theme]);
 
-  // Pergunta ao servidor se as chaves da sessão estão configuradas
-  const refreshKeys = useCallback(async () => {
+  // Busca as conexões do usuário no servidor.
+  const refreshConnections = useCallback(async () => {
     try {
-      const r = await fetch('/api/session/keys');
-      if (!r.ok) { setKeysConfigured(false); return; }
+      const r = await fetch('/api/connections');
+      if (!r.ok) { setConnections([]); return; }
       const data = await r.json();
-      setKeysConfigured(!!data.configured);
-      if (data.site) {
-        setDatadogSite(data.site);
-        localStorage.setItem('dd_site', data.site);
-      }
+      const list = Array.isArray(data.connections) ? data.connections : [];
+      setConnections(list);
+      const active = list.find(c => c.isActive);
+      if (active?.site) setDatadogSite(active.site);
     } catch {
-      setKeysConfigured(false);
+      setConnections([]);
     } finally {
       setKeysLoading(false);
     }
   }, []);
 
-  // A consulta das chaves é disparada pela sessão abaixo (no login), evitando
-  // um fetch desnecessário antes de estar autenticado.
-
-  // Quando o login acontece (sessão vira "authenticated"), consulta as chaves.
-  // Fetch-on-login é justamente um efeito de sincronização com o servidor.
+  // Quando o login acontece (sessão vira "authenticated"), busca as conexões.
   const { status } = useSession();
   useEffect(() => {
     if (status === 'authenticated') {
-      refreshKeys();
+      refreshConnections();
     } else if (status === 'unauthenticated') {
-        setKeysConfigured(false);
-        setKeysLoading(false);
+      setConnections([]);
+      setKeysLoading(false);
     }
-  }, [status, refreshKeys]);
+  }, [status, refreshConnections]);
 
-  const saveSite = (site) => {
-    setDatadogSite(site);
-    localStorage.setItem('dd_site', site);
-  };
+  // Troca a org ativa (marca outra conexão salva como ativa).
+  const activateConnection = useCallback(async (id) => {
+    const r = await fetch(`/api/connections/${id}`, { method: 'PATCH' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha ao trocar de org.');
+    await refreshConnections();
+  }, [refreshConnections]);
+
+  // Adiciona uma nova org (a rota já valida as chaves contra o Datadog).
+  const addConnection = useCallback(async ({ name, apiKey, appKey, site }) => {
+    const r = await fetch('/api/connections', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, apiKey, appKey, site }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha ao salvar a conexão.');
+    await refreshConnections();
+    return data.connection;
+  }, [refreshConnections]);
+
+  // Remove uma org salva.
+  const removeConnection = useCallback(async (id) => {
+    const r = await fetch(`/api/connections/${id}`, { method: 'DELETE' });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha ao remover a conexão.');
+    await refreshConnections();
+  }, [refreshConnections]);
+
+  // Usado só no logout, pra limpar o estado local imediatamente (a fonte de
+  // verdade — o Supabase — não é afetada; as orgs salvas continuam lá pro
+  // próximo login).
+  const clearLocalKeysState = useCallback(() => {
+    setConnections([]);
+  }, []);
 
   return (
     <AppContext.Provider value={{
       theme, setTheme,
-      datadogSite, saveSite,
-      keysConfigured, keysLoading, refreshKeys, setKeysConfigured,
+      datadogSite,
+      keysConfigured, keysLoading,
+      connections, activeConnection,
+      refreshConnections, activateConnection, addConnection, removeConnection,
+      setKeysConfigured: clearLocalKeysState, // compat: só reseta estado local
     }}>
       {children}
     </AppContext.Provider>

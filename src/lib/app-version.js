@@ -15,6 +15,39 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.17.0',
+    date: '2026-07-07',
+    title: 'Múltiplas orgs Datadog por usuário (Supabase) + remoção do "Desconectar"',
+    notes: [
+      'As credenciais do Datadog deixam de viver em cookie httpOnly de sessão e passam a ser guardadas por usuário no Supabase, cifradas em repouso (AES-256-GCM) — ver scripts/supabase-schema.sql e a seção "Múltiplas orgs" no README.',
+      'Cada usuário pode salvar quantas orgs quiser (nome, site, API/App Key) e alternar entre elas com um clique ("Usar esta org"), sem digitar as chaves de novo.',
+      'Novo card "Conexões Datadog" (Configurações e Step 1 do wizard) substitui o antigo card de sessão única; removido o botão "Desconectar" — agora a ação equivalente é remover a org da lista, não desconectar a sessão inteira.',
+      'Novas rotas: GET/POST /api/connections e PATCH/DELETE /api/connections/:id. A rota /api/datadog/validate ganhou um POST para testar chaves antes de salvar.',
+      'lib/session-keys.js mantém a mesma assinatura (readSessionKeys → {apiKey, appKey, site}) para não exigir mudanças nas rotas /api/datadog/* já existentes — por baixo, agora resolve a org ATIVA do usuário logado.',
+    ],
+  },
+  {
+    version: '1.16.1',
+    date: '2026-07-07',
+    title: 'Correção: layout mobile responsivo perdido em deploy anterior',
+    notes: [
+      'O deploy da 1.16.0 foi publicado a partir de uma base de AppShell/Sidebar/Icons desatualizada e, com isso, perdeu o menu mobile (hamburger, sidebar off-canvas, overlay) e a paleta de cores da sidebar que já existiam em versões locais mais recentes.',
+      'Restaurado: AppShell.js e Sidebar.jsx voltam a suportar o menu off-canvas em telas ≤768px (IconMenu/IconClose, classes .app-shell/.app-sidebar/.mobile-topbar/.sidebar-overlay em globals.css).',
+      'Restaurada a paleta da sidebar (roxo mais escuro) e o breakpoint de tablet (≤1024px).',
+      'Sem mudanças de funcionalidade nas ferramentas (AuditMonitors, ScopeMaturity, FinOps) — histórico de score e cobertura por host da 1.16.0 permanecem intactos.',
+    ],
+  },
+  {
+    version: '1.16.0',
+    date: '2026-07-06',
+    title: 'Histórico de scores (sparkline + delta) e auditoria por host',
+    notes: [
+      'Novo histórico de score (via Upstash Redis, fallback em memória): ScopeMaturity e AuditMonitors passam a mostrar um sparkline de tendência e um delta (▲/▼) desde a medição anterior. Um ponto por dia.',
+      'AuditMonitors: cobertura de Infra por HOST — matriz host × métrica (✓/✗) com heurística de escopo da query ({*} cobre todos; host:<nome> cobre específico).',
+      'Limpeza: removidos os órfãos analytics/monitors-analytics que sobraram na migração para AuditMonitors.',
+    ],
+  },
+  {
     version: '1.15.0',
     date: '2026-07-06',
     title: 'MonitorsAnalytics vira AuditMonitors (análise de cobertura)',

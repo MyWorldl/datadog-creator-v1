@@ -33,8 +33,8 @@ export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
   const { setKeysConfigured } = useApp()
 
   async function handleLogout() {
-    // Limpa as chaves httpOnly da sessão antes de sair.
-    try { await fetch('/api/session/keys', { method: 'DELETE' }) } catch {}
+    // As orgs salvas ficam no Supabase (não numa sessão) — não há nada pra
+    // limpar no servidor aqui. Só reseta o estado local da UI.
     setKeysConfigured(false)
     signOut({ callbackUrl: '/' })
   }

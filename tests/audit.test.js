@@ -1,7 +1,7 @@
 // tests/audit.test.js — node --test, sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { analyzeCoverage, coverageScore, buildSuggestedInfra, AUDIT_CATALOG } from '../src/lib/audit.js'
+import { analyzeCoverage, coverageScore, buildSuggestedInfra, analyzeHostCoverage, AUDIT_CATALOG } from '../src/lib/audit.js'
 
 const monitorsSample = [
   { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' },      // CPU
@@ -53,4 +53,18 @@ test('catálogo cobre Infra + APM', () => {
   assert.ok(groups.has('Infra'))
   assert.ok(groups.has('APM'))
   assert.ok(AUDIT_CATALOG.length >= 10)
+})
+
+test('analyzeHostCoverage: {*} cobre todos os hosts; host:X cobre só X', () => {
+  const monitors = [
+    { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' }, // CPU amplo
+    { query: 'avg(last_5m):avg:system.mem.pct_usable{host:web} * 100 < 10' }, // memória só web
+  ]
+  const hc = analyzeHostCoverage(monitors, ['web', 'db'])
+  const byHost = Object.fromEntries(hc.map(h => [h.host, h]))
+  assert.equal(byHost.web.metrics.cpu, true)
+  assert.equal(byHost.db.metrics.cpu, true)      // {*} cobre db também
+  assert.equal(byHost.web.metrics.memory, true)  // host:web
+  assert.equal(byHost.db.metrics.memory, false)  // db sem monitor de memória
+  assert.ok(byHost.db.gapCount >= 1)
 })

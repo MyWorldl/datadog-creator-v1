@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
+import Sparkline from '@/components/Sparkline'
 
 const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 
@@ -19,9 +20,9 @@ function Ring({ value, size = 120, stroke = 10 }) {
 const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
+  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
-  btn2: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', background: 'transparent', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
+  btn2: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   ok: { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   stat: (c) => ({ fontSize: 20, fontWeight: 800, color: c || 'var(--text-primary)' }),
@@ -102,6 +103,11 @@ export default function AuditMonitorsPage() {
                   <div><div style={s.stat(scoreColor(100 - (data.gapCount / (data.coverage.length || 1)) * 100))}>{data.gapCount}</div><div style={s.statLbl}>lacunas</div></div>
                 </div>
               )}
+              {data && data.history && (
+                <div style={{ marginBottom: 10 }}>
+                  <Sparkline values={data.history} delta={data.delta} color={scoreColor(data.score)} />
+                </div>
+              )}
               <button style={s.btn} onClick={run} disabled={loading}>
                 {loading ? 'Auditando…' : data ? 'Reauditar' : 'Auditar ambiente'}
               </button>
@@ -139,6 +145,43 @@ export default function AuditMonitorsPage() {
                   </div>
                 ))}
               </div>
+
+              {Array.isArray(data.hostCoverage) && data.hostCoverage.length > 0 && (
+                <details style={{ marginTop: 16 }}>
+                  <summary style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, cursor: 'pointer' }}>
+                    Cobertura de Infra por host ({data.hostCoverage.filter(h => h.gapCount === 0).length}/{data.hostCoverage.length} hosts completos)
+                  </summary>
+                  <div style={{ overflowX: 'auto', marginTop: 10 }}>
+                    <table style={{ borderCollapse: 'collapse', fontSize: 11.5, width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--text-muted)', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>Host</th>
+                          {data.infraMetrics.map(m => (
+                            <th key={m.key} style={{ padding: '6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</th>
+                          ))}
+                          <th style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>Lacunas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.hostCoverage.map(h => (
+                          <tr key={h.host} style={{ borderTop: '1px solid var(--border)' }}>
+                            <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono), monospace', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>{h.host}</td>
+                            {data.infraMetrics.map(m => (
+                              <td key={m.key} style={{ padding: '6px 8px', textAlign: 'center', color: h.metrics[m.key] ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+                                {h.metrics[m.key] ? '✓' : '✗'}
+                              </td>
+                            ))}
+                            <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: h.gapCount === 0 ? 'var(--success)' : 'var(--danger)' }}>{h.gapCount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                      Heurística por escopo da query: monitor com {'{*}'} cobre todos os hosts; monitor com host:&lt;nome&gt; cobre aquele host. Monitores escopados por outras tags (ex.: env) não são contados aqui.
+                    </p>
+                  </div>
+                </details>
+              )}
 
               <p style={s.groupTitle}>APM ({apm.filter(c => c.covered).length}/{apm.length})</p>
               <div style={s.grid}>

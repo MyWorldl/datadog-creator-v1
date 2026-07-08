@@ -49,6 +49,42 @@ export function coverageScore(coverage) {
   return Math.round((coverage.filter(c => c.covered).length / coverage.length) * 100)
 }
 
+// ── Cobertura POR HOST das métricas de Infra (Feature: granularidade por host) ──
+// Heurística de escopo (detecção por texto da query):
+//  - monitor "amplo": referencia a métrica E tem {*}  -> cobre TODOS os hosts.
+//  - monitor específico: referencia a métrica E contém host:<nome> -> cobre aquele host.
+// host X coberto para a métrica M = existe monitor amplo em M OU específico de X em M.
+// Monitores escopados por outras tags (ex.: env:prod) NÃO contam, para evitar
+// falsa cobertura — é conservador (pode marcar lacuna a mais, nunca a menos).
+export const INFRA_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'Infra')
+
+export function analyzeHostCoverage(monitors, hostNames) {
+  const queries = (monitors || []).map(m => String(m?.query || ''))
+  const broad = {}
+  const specific = {}
+  for (const c of INFRA_CATALOG) {
+    broad[c.key] = queries.some(q => { try { return c.detect(q) && q.includes('{*}') } catch { return false } })
+    const set = new Set()
+    for (const q of queries) {
+      try {
+        if (!c.detect(q)) continue
+        for (const h of (hostNames || [])) if (q.includes(`host:${h}`)) set.add(h)
+      } catch { /* query estranha: ignora */ }
+    }
+    specific[c.key] = set
+  }
+  return (hostNames || []).map(host => {
+    const metrics = {}
+    let gapCount = 0
+    for (const c of INFRA_CATALOG) {
+      const covered = broad[c.key] || specific[c.key].has(host)
+      metrics[c.key] = covered
+      if (!covered) gapCount++
+    }
+    return { host, metrics, gapCount }
+  })
+}
+
 // Monta um estado de descoberta de infra pronto para POST em
 // /api/datadog/infra-monitors: os hosts dados, com APENAS as métricas de infra
 // em LACUNA habilitadas. Reaproveita a fonte única de payload de lib/infra.js.
