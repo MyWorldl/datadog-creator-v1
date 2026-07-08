@@ -1,7 +1,7 @@
 // src/lib/datadog-server.js
 //
 // Helpers server-side para coletar dados do Datadog (usados por
-// scope-maturity e monitors-analytics). Tudo defensivo: em falha,
+// scope-maturity e audit-monitors). Tudo defensivo: em falha,
 // retorna null e a dimensão vira "N/D" em vez de quebrar.
 
 export function ctxFrom({ apiKey, appKey, site }) {

@@ -35,3 +35,9 @@ export const IconLogout = ({ size = 16 }) => (
 export const IconArrow = ({ size = 16 }) => (
   <svg {...base(size)}><path d="M5 12h14M13 6l6 6-6 6"/></svg>
 )
+export const IconMenu = ({ size = 20 }) => (
+  <svg {...base(size)}><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+)
+export const IconClose = ({ size = 20 }) => (
+  <svg {...base(size)}><path d="M18 6 6 18M6 6l12 12"/></svg>
+)

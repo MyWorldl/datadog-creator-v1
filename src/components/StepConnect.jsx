@@ -1,9 +1,9 @@
 // src/components/StepConnect.jsx
-// Step 1 — Conectar ao Datadog (agora via sessão httpOnly).
+// Step 1 — Conectar ao Datadog (múltiplas orgs, guardadas no Supabase).
 //
-// As chaves NÃO ficam mais no estado do wizard. Elas são configuradas uma vez
-// por sessão (cookie httpOnly no servidor) e reaproveitadas em todo lugar.
-// Aqui só confirmamos que a sessão está conectada antes de avançar.
+// As chaves NÃO ficam no estado do wizard. Cada usuário conecta quantas orgs
+// quiser (ConnectKeysCard) e uma delas fica marcada como ativa; aqui só
+// confirmamos que existe pelo menos uma org ativa antes de avançar.
 
 'use client'
 

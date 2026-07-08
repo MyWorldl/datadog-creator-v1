@@ -1,38 +1,37 @@
 // src/lib/session-keys.js
 //
-// Lógica compartilhada para as credenciais do Datadog guardadas em cookies
-// httpOnly da sessão. Fica fora do route.js de propósito: arquivos de rota
-// só podem exportar os métodos HTTP (GET, POST...), então qualquer helper
-// extra vive aqui.
+// Fonte única das credenciais do Datadog usadas pelas rotas /api/datadog/*.
+//
+// Desde a v1.17.0, as credenciais NÃO ficam mais em cookie: cada usuário pode
+// ter várias conexões (orgs) salvas no Supabase (ver lib/connections.js),
+// cifradas em repouso (lib/crypto-keys.js). Esta função sempre lê a conexão
+// marcada como ATIVA do usuário logado — trocar de org é só marcar outra
+// conexão como ativa (POST /api/connections/:id/activate), sem precisar
+// digitar as chaves de novo.
+//
+// Mantido de propósito com a MESMA assinatura de antes ({ apiKey, appKey, site })
+// para não exigir mudanças nas ~10 rotas que já consomem isso.
 
-import { cookies } from 'next/headers'
+import { auth } from '@/auth'
+import { getActiveConnectionKeys } from './connections'
 
 export const VALID_SITES = [
   'datadoghq.com', 'us3.datadoghq.com', 'us5.datadoghq.com',
   'datadoghq.eu', 'ap1.datadoghq.com', 'ap2.datadoghq.com', 'ddog-gov.com',
 ]
 
-export const COOKIE = {
-  api: 'dd_api_key',
-  app: 'dd_app_key',
-  site: 'dd_site',
-}
-
-// Cookie de sessão httpOnly. Sem maxAge/expires => sobrevive ao refresh,
-// some ao fechar o browser. Exatamente "durante a sessão".
-export const cookieOpts = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
-  path: '/',
-}
-
-// Lê as chaves no servidor (usada pelas rotas /api/datadog/* e /api/session/keys).
 export async function readSessionKeys() {
-  const jar = await cookies()
-  return {
-    apiKey: jar.get(COOKIE.api)?.value || '',
-    appKey: jar.get(COOKIE.app)?.value || '',
-    site: jar.get(COOKIE.site)?.value || '',
+  const session = await auth()
+  if (!session?.user?.id) return { apiKey: '', appKey: '', site: '' }
+
+  try {
+    const active = await getActiveConnectionKeys(session.user.id)
+    if (!active) return { apiKey: '', appKey: '', site: '' }
+    return { apiKey: active.apiKey, appKey: active.appKey, site: active.site }
+  } catch (e) {
+    // Supabase/criptografia mal configurados, ou erro de rede com o banco:
+    // trata como "sem credenciais" em vez de derrubar a rota inteira.
+    console.error('[session-keys] falha ao ler conexão ativa:', e.message)
+    return { apiKey: '', appKey: '', site: '' }
   }
 }

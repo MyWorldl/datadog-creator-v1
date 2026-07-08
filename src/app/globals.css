@@ -6,11 +6,11 @@
   --bg-base: #F8F7F4;
   --bg-surface: #FFFFFF;
   --bg-surface-2: #F0EEE9;
-  --bg-sidebar: #534AB7;
-  --sidebar-text: #EDEBFA;
-  --sidebar-text-active: #534AB7;
+  --bg-sidebar: #3C3489;
+  --sidebar-text: #C7C2EE;
+  --sidebar-text-active: #3C3489;
   --sidebar-logo: #FFFFFF;
-  --sidebar-active-bg: #FFFFFF;
+  --sidebar-active-bg: #EEEDFE;
   --sidebar-accent: #632CA6;
   --text-primary: #111111;
   --text-secondary: #555555;
@@ -78,3 +78,88 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Layout responsivo (AppShell + Sidebar) ── */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: var(--bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  background: var(--bg-base);
+  padding: 2rem;
+}
+
+.mobile-topbar { display: none; }
+.sidebar-overlay { display: none; }
+.sidebar-close-btn { display: none; }
+
+/* Tablet: reduz respiro lateral, mantém sidebar fixa */
+@media (max-width: 1024px) {
+  .app-sidebar { width: 190px; }
+  .app-main { padding: 1.5rem; }
+}
+
+/* Mobile: sidebar vira menu off-canvas com topbar + hamburger */
+@media (max-width: 768px) {
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    width: 260px;
+    max-width: 82vw;
+    z-index: 50;
+    transform: translateX(-100%);
+    box-shadow: 6px 0 24px rgba(0,0,0,0.28);
+  }
+  .app-sidebar.is-open { transform: translateX(0); }
+
+  .app-main {
+    width: 100%;
+    padding: 1rem;
+    padding-top: 4.25rem;
+  }
+
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    background: var(--bg-sidebar);
+    z-index: 40;
+    padding: 0 12px;
+  }
+
+  .sidebar-overlay.is-open {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 45;
+  }
+
+  .sidebar-close-btn { display: inline-flex; }
+}
+
+@media (max-width: 480px) {
+  .app-main { padding: 0.75rem; padding-top: 4.25rem; }
+  .app-sidebar { width: 240px; }
+}

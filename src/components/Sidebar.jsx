@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useApp } from '@/context/AppContext'
-import { IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics, IconFinops, IconSettings, IconInfo, IconLogout } from '@/components/Icons'
+import { IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics, IconFinops, IconSettings, IconInfo, IconLogout, IconClose } from '@/components/Icons'
 
 const navItems = [
   {
@@ -13,7 +13,7 @@ const navItems = [
     items: [
       { href: '/ferramentas/dashboard', label: 'Dashboard', Icon: IconDashboard },
       { href: '/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
-      { href: '/ferramentas/analytics', label: 'MonitorsAnalytics', Icon: IconAnalytics },
+      { href: '/ferramentas/audit', label: 'AuditMonitors', Icon: IconAnalytics },
       { href: '/ferramentas/analise', label: 'ScopeMaturity', Icon: IconScope },
       { href: '/ferramentas/finops', label: 'FinOps Insights', Icon: IconFinops },
     ],
@@ -27,14 +27,14 @@ const navItems = [
   },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const { setKeysConfigured } = useApp()
 
   async function handleLogout() {
-    // Limpa as chaves httpOnly da sessão antes de sair.
-    try { await fetch('/api/session/keys', { method: 'DELETE' }) } catch {}
+    // As orgs salvas ficam no Supabase (não numa sessão) — não há nada pra
+    // limpar no servidor aqui. Só reseta o estado local da UI.
     setKeysConfigured(false)
     signOut({ callbackUrl: '/' })
   }
@@ -42,26 +42,38 @@ export default function Sidebar() {
   const user = session?.user
 
   return (
-    <aside style={{
-      width: 220,
-      minHeight: '100vh',
-      background: 'var(--bg-sidebar)',
-      display: 'flex',
-      flexDirection: 'column',
-      flexShrink: 0,
-    }}>
+    <aside className={`app-sidebar${isOpen ? ' is-open' : ''}`}>
       {/* Logo */}
       <div style={{
         padding: '1.25rem 1rem',
         borderBottom: '1px solid rgba(255,255,255,0.15)',
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
       }}>
-        <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--sidebar-logo)', margin: '1px 0 0' }}>
-          Datadog Creator
-        </p>
-        <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--sidebar-text)',
-          letterSpacing: '0.03em', textTransform: 'uppercase', margin: 0, opacity: 0.85 }}>
-          Ryujin Projects
-        </p>
+        <div>
+          <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--sidebar-logo)', margin: '1px 0 0' }}>
+            Datadog Creator
+          </p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--sidebar-text)',
+            letterSpacing: '0.03em', textTransform: 'uppercase', margin: 0, opacity: 0.85 }}>
+            Ryujin Projects
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Fechar menu"
+          className="sidebar-close-btn"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--sidebar-logo)',
+            cursor: 'pointer',
+            padding: 4,
+          }}
+        >
+          <IconClose size={20} />
+        </button>
       </div>
 
       {/* Navegação */}
@@ -82,6 +94,7 @@ export default function Sidebar() {
                 <Link
                   key={href}
                   href={href}
+                  onClick={onNavigate}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -125,7 +138,7 @@ export default function Sidebar() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{
-            fontSize: 12, color: 'var(--sidebar-text-active)', margin: 0,
+            fontSize: 12, fontWeight: 600, color: 'var(--sidebar-logo)', margin: 0,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {user?.name || 'Usuário'}

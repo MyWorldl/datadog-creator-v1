@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
 import CollapsibleCard from '@/components/CollapsibleCard'
+import Sparkline from '@/components/Sparkline'
 
 function ScoreRing({ value, color, size = 120, stroke = 10 }) {
   const r = (size / 2) - stroke
@@ -76,9 +77,21 @@ export default function ScopeMaturityPage() {
               </div>
             ) : null}
             <div style={{ flex: 1, minWidth: 200 }}>
+              {data && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                  <span style={{ fontSize: 26, fontWeight: 800, color: scoreColor(data.score) }}>Nível {data.level}</span>
+                  <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{data.levelLabel}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(1–5)</span>
+                </div>
+              )}
+              {data && (
+                <div style={{ marginBottom: 8 }}>
+                  <Sparkline values={data.history} delta={data.delta} color={scoreColor(data.score)} />
+                </div>
+              )}
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
                 {data
-                  ? <>Score geral com base em <strong>{data.measuredCount}</strong> de {data.totalDimensions} dimensões avaliadas · site {datadogSite}.</>
+                  ? <>Score {data.score}/100 · média de {data.pillars.filter(p => p.measured).length} de {data.pillars.length} pilares · site {datadogSite}.</>
                   : <>Coleta feita no servidor, usando as chaves da sessão (site {datadogSite}).</>}
               </p>
               <button style={s.btn} onClick={run} disabled={loading}>
@@ -90,18 +103,43 @@ export default function ScopeMaturityPage() {
           {error && <div style={s.err}>{error}</div>}
 
           {data && (
-            <div style={s.grid}>
-              {data.dimensions.map(dim => (
-                <CollapsibleCard
-                  key={dim.key}
-                  title={dim.label}
-                  score={dim.measured ? dim.score : 'N/D'}
-                  status={smStatus(dim)}
-                >
-                  <p style={s.dimDetail}>{dim.detail}</p>
-                </CollapsibleCard>
-              ))}
-            </div>
+            <>
+              <div style={{ display: 'flex', gap: 6, margin: '18px 0 6px', flexWrap: 'wrap' }}>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <div key={n} style={{
+                    flex: 1, minWidth: 60, height: 6, borderRadius: 999,
+                    background: n <= data.level ? scoreColor(data.score) : 'var(--border)',
+                  }} title={`Nível ${n}`} />
+                ))}
+              </div>
+              <div style={s.grid}>
+                {data.pillars.map(p => (
+                  <CollapsibleCard
+                    key={p.key}
+                    title={p.label}
+                    score={p.measured ? p.score : 'N/D'}
+                    status={smStatus(p)}
+                  >
+                    <p style={{ ...s.dimDetail, marginBottom: 10 }}>
+                      <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro:</span> {p.maduro}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {p.dimensions.map(dim => (
+                        <div key={dim.key} style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{dim.label}</span>
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: dim.measured ? scoreColor(dim.score) : 'var(--text-muted)' }}>
+                              {dim.measured ? dim.score : 'N/D'}
+                            </span>
+                          </div>
+                          <p style={{ ...s.dimDetail, margin: '3px 0 0' }}>{dim.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleCard>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}

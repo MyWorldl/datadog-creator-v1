@@ -6,7 +6,7 @@ import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/com
 
 const FEATURES = [
   { Icon: IconMonitorsCreator, name: 'MonitorsCreator', desc: 'Descobre serviços e cria monitores de anomaly detection com parâmetros por tipo de alerta.' },
-  { Icon: IconAnalytics, name: 'MonitorsAnalytics', desc: 'Score 0–100 ponderado da maturidade dos monitores (falsos positivos com maior peso).' },
+  { Icon: IconAnalytics, name: 'AuditMonitors', desc: 'Audita a cobertura de monitoramento (Infra + APM) e sugere os monitores que faltam.' },
   { Icon: IconScope, name: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente, de tags a error budget de SLO.' },
   { Icon: IconFinops, name: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme de anomalia de consumo e custo estimado.' },
 ]
@@ -75,16 +75,23 @@ export default function SobrePage() {
         {VERSION_HISTORY.map((entry, i) => (
           <div key={`${entry.version}-${i}`} style={{ ...s.item, borderLeft: i === VERSION_HISTORY.length - 1 ? '2px solid transparent' : s.item.borderLeft }}>
             <span style={s.dot} />
-            <div style={s.itemHead}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <span style={s.ver}>v{entry.version}</span>
               <span style={s.date}>{entry.date}</span>
+              {entry.title && <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>· {entry.title}</span>}
             </div>
-            {entry.title && <p style={s.title}>{entry.title}</p>}
-            <ul style={s.noteList}>
-              {entry.notes.map((n, j) => (
-                <li key={j} style={s.note}>{n}</li>
-              ))}
-            </ul>
+            {Array.isArray(entry.notes) && entry.notes.length > 0 && (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  ver detalhes ({entry.notes.length})
+                </summary>
+                <ul style={{ ...s.noteList, marginTop: 6 }}>
+                  {entry.notes.map((n, j) => (
+                    <li key={j} style={s.note}>{n}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         ))}
       </div>

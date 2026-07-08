@@ -11,8 +11,9 @@
 
 import { auth } from '@/auth'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
+import { recordScore, computeDelta } from '@/lib/score-history'
 
 const REQUIRED_TAGS = ['env', 'service', 'team']
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min — suficiente pra absorver refreshes/múltiplos usuários
@@ -176,16 +177,86 @@ export async function GET() {
     add('errorBudget', 'Error Budget respeitado', false, 0, budget.detail || 'Requer histórico de SLO.')
   }
 
+  // ── Pilar Observabilidade: quantos "pilares de sinal" estão ativos ──
+  // Métricas/Logs/APM saem de dados que já temos; RUM/Synthetics/Profiling/DBM
+  // são detectados pela presença de uso nas métricas datadog.estimated_usage.*
+  // (funcionam por org). Score = nº de pilares ativos / 7.
+  // Doc: https://docs.datadoghq.com/account_management/billing/usage_metrics/
+  const daySec = 24 * 3600
+  const dTo = Math.floor(toMs / 1000), dFrom = dTo - daySec
+  const active = async (q) => { const r = await queryMetric(ctx, q, dFrom, dTo); return r.ok && r.points.some(p => p > 0) }
+  const [rumOn, synthOn, profOn, dbmOn] = await Promise.all([
+    active('sum:datadog.estimated_usage.rum.sessions{*}.as_count()'),
+    active('sum:datadog.estimated_usage.synthetics.api_test_runs{*}.as_count()'),
+    active('max:datadog.estimated_usage.profiling.hosts{*}'),
+    active('max:datadog.estimated_usage.dbm.hosts{*}'),
+  ])
+  const obsSignals = [
+    { label: 'Métricas', on: hostsR.ok && hosts.length > 0 },
+    { label: 'Logs', on: (logsTotal || 0) > 0 },
+    { label: 'APM', on: servicesCount > 0 },
+    { label: 'RUM', on: rumOn },
+    { label: 'Synthetics', on: synthOn },
+    { label: 'Profiling', on: profOn },
+    { label: 'Database Monitoring', on: dbmOn },
+  ]
+  const obsActive = obsSignals.filter(s => s.on).map(s => s.label)
+  const obsMissing = obsSignals.filter(s => !s.on).map(s => s.label)
+  add('observabilidade', 'Observabilidade (sinais ativos)', true, (obsActive.length / obsSignals.length) * 100,
+    `${obsActive.length}/7 sinais ativos: ${obsActive.join(', ') || 'nenhum'}.${obsMissing.length ? ` Faltam: ${obsMissing.join(', ')}.` : ''}`)
+
   const measured = dims.filter(d => d.measured)
-  const score = measured.length ? clamp(measured.reduce((a, d) => a + d.score, 0) / measured.length) : 0
+
+  // ── 5 pilares de maturidade (tabela do usuário) ──
+  // Score do pilar = média das dimensões medidas que o compõem.
+  const PILLARS = [
+    { key: 'cobertura', label: 'Cobertura', dims: ['hostsAgent', 'hostsMonitorados', 'apm', 'cloud'],
+      maduro: 'Monitora infraestrutura, aplicações, banco de dados, cloud, containers, Kubernetes, logs, traces e usuários finais.',
+      imaturo: 'Monitora apenas alguns servidores.' },
+    { key: 'qualidade', label: 'Qualidade dos Monitores', dims: ['falseAlerts', 'monitorsOwner'],
+      maduro: 'Alertas relevantes, thresholds ajustados, composite monitors e monitor templates.',
+      imaturo: 'Muitos alertas falsos ou inexistentes.' },
+    { key: 'observabilidade', label: 'Observabilidade', dims: ['observabilidade'],
+      maduro: 'Métricas + Logs + APM + RUM + Synthetics + Profiling + Database Monitoring.',
+      imaturo: 'Apenas métricas.' },
+    { key: 'processos', label: 'Processos', dims: ['dashPerService', 'servicesSLO', 'errorBudget'],
+      maduro: 'Dashboards usados em operação diária, incidentes, capacity planning e SLA/SLO.',
+      imaturo: 'Dashboards apenas para consulta.' },
+    { key: 'governanca', label: 'Governança', dims: ['tagCompliance', 'logsCorrelated', 'logsNoService'],
+      maduro: 'Tags padronizadas, RBAC, naming convention, custos controlados e ownership definido.',
+      imaturo: 'Sem padrão.' },
+  ]
+  const dimByKey = Object.fromEntries(dims.map(d => [d.key, d]))
+  const pillars = PILLARS.map(p => {
+    const members = p.dims.map(k => dimByKey[k]).filter(Boolean)
+    const mm = members.filter(m => m.measured)
+    const pScore = mm.length ? clamp(mm.reduce((a, m) => a + m.score, 0) / mm.length) : null
+    return { key: p.key, label: p.label, score: pScore, measured: mm.length > 0, maduro: p.maduro, imaturo: p.imaturo, dimensions: members }
+  })
+
+  // Score geral = média dos pilares medidos. Nível 1-5 por faixa de 20 pontos.
+  const measuredPillars = pillars.filter(p => p.measured)
+  const score = measuredPillars.length ? clamp(measuredPillars.reduce((a, p) => a + p.score, 0) / measuredPillars.length) : 0
+  const level = Math.min(5, Math.floor(score / 20) + 1)
+  const LEVEL_LABELS = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
+
+  // Histórico do score geral (sparkline + delta). Grava só em compute fresco
+  // (cache hit retorna antes daqui), então no máximo 1 ponto por dia/conta.
+  const histId = cacheKey(['sm-hist', site, apiKey, appKey])
+  const hist = await recordScore('scope-maturity', histId, score)
 
   const payload = {
     score,
+    level,
+    levelLabel: LEVEL_LABELS[level],
+    pillars,
     site,
     generatedAt: new Date().toISOString(),
     measuredCount: measured.length,
     totalDimensions: dims.length,
     dimensions: dims,
+    history: hist.map(h => h.score),
+    delta: computeDelta(hist),
   }
   await cacheSet(key, payload, CACHE_TTL_MS)
   return Response.json(payload)

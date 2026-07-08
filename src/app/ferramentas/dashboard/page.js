@@ -9,7 +9,7 @@ import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops, IconSettings
 
 const cards = [
   { href: '/monitor', Icon: IconMonitorsCreator, title: 'MonitorsCreator', desc: 'Descubra serviços e crie monitores de anomalia no Datadog.', cta: 'Abrir wizard' },
-  { href: '/ferramentas/analytics', Icon: IconAnalytics, title: 'MonitorsAnalytics', desc: 'Maturidade dos monitores em um score ponderado.', cta: 'Analisar' },
+  { href: '/ferramentas/audit', Icon: IconAnalytics, title: 'AuditMonitors', desc: 'Cobertura de monitoramento (Infra + APM) e sugestão de lacunas.', cta: 'Auditar' },
   { href: '/ferramentas/analise', Icon: IconScope, title: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente.', cta: 'Ver score' },
   { href: '/ferramentas/finops', Icon: IconFinops, title: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme e custo estimado.', cta: 'Ver consumo' },
   { href: '/configuracoes', Icon: IconSettings, title: 'Configurações', desc: 'Tema e conexão da sessão.', cta: 'Ajustar' },
@@ -74,14 +74,14 @@ export default function DashboardPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    // Sincroniza com o servidor: busca ScopeMaturity + MonitorsAnalytics ao conectar.
+    // Sincroniza com o servidor: busca ScopeMaturity + AuditMonitors ao conectar.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!keysConfigured) { setSm(null); setMa(null); return }
     let cancel = false
     setLoading(true); setError('')
     Promise.all([
       fetch('/api/datadog/scope-maturity').then(r => r.json().then(j => ({ ok: r.ok, j }))),
-      fetch('/api/datadog/monitors-analytics').then(r => r.json().then(j => ({ ok: r.ok, j }))),
+      fetch('/api/datadog/audit-monitors').then(r => r.json().then(j => ({ ok: r.ok, j }))),
     ])
       .then(([smR, maR]) => {
         if (cancel) return
@@ -102,9 +102,9 @@ export default function DashboardPage() {
         <>
           <div style={s.band}>
             <ScoreCard href="/ferramentas/analise" label="ScopeMaturity" score={sm?.score ?? null} loading={loading && !sm}
-              sub={sm ? `${sm.measuredCount} de ${sm.totalDimensions} dimensões avaliadas` : 'Governança e cobertura do ambiente'} />
-            <ScoreCard href="/ferramentas/analytics" label="MonitorsAnalytics" score={ma?.score ?? null} loading={loading && !ma}
-              sub={ma ? `${ma.measuredCount} de ${ma.totalDimensions} KPIs · ${ma.monitorsCount} monitores` : 'Maturidade dos monitores'} />
+              sub={sm ? `Nível ${sm.level} · ${sm.levelLabel}` : 'Governança e cobertura do ambiente'} />
+            <ScoreCard href="/ferramentas/audit" label="AuditMonitors" score={ma?.score ?? null} loading={loading && !ma}
+              sub={ma ? `${ma.score}% de cobertura · ${ma.gapCount} lacuna(s)` : 'Cobertura de monitoramento (Infra + APM)'} />
           </div>
 
           {error && <div style={{ ...s.panel, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}

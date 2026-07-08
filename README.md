@@ -1,8 +1,9 @@
 # Datadog Creator
 
 Conjunto de ferramentas internas de Engenharia de Vendas para **Datadog**
-(Next.js 16 + React 19, JavaScript). Autenticação real por usuário, chaves do
-Datadog guardadas por sessão em cookies httpOnly, e coleta feita no servidor.
+(Next.js 16 + React 19, JavaScript). Autenticação real por usuário, suporte a
+**múltiplas orgs Datadog por usuário** (chaves cifradas e guardadas no
+Supabase), e coleta feita no servidor.
 
 ## Ferramentas
 
@@ -55,8 +56,37 @@ Alternativa a `AUTH_USERS` para **usuário único** (fallback):
 | `AUTH_LOGIN_NAME` | (opcional) Nome exibido. |
 | `AUTH_LOGIN_PASSWORD_HASH` | Hash bcrypt da senha (nunca a senha pura). |
 
-As chaves do Datadog (API Key, App Key, site) **não** vão no `.env` — são
-configuradas na interface, uma vez por sessão, e guardadas em cookies httpOnly.
+As chaves do Datadog (API Key, App Key, site) **não** vão no `.env` — cada
+usuário conecta quantas orgs quiser pela interface (Configurações ou Step 1 do
+wizard). Elas ficam **cifradas** (AES-256-GCM) numa tabela no **Supabase**;
+veja a seção "Múltiplas orgs (Supabase)" abaixo para o setup.
+
+## Múltiplas orgs (Supabase)
+
+Cada usuário pode salvar N conexões Datadog (org/site diferentes) e alternar
+entre elas sem digitar as chaves de novo — só uma fica "ativa" por vez, e é
+essa que as ferramentas usam.
+
+1. Crie um projeto em https://supabase.com (grátis).
+2. No **SQL Editor** do projeto, rode o conteúdo de `scripts/supabase-schema.sql`
+   (cria a tabela `datadog_connections`).
+3. Em **Project Settings → API**, copie a **Project URL** e a chave
+   **service_role** (não a `anon` — a `service_role` é a única usada, e só no
+   servidor; nunca é exposta ao browser).
+4. Gere uma chave de criptografia de 32 bytes:
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+5. No `.env.local` (e no painel da Vercel em produção), defina:
+   ```
+   SUPABASE_URL=https://xxxx.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=...
+   CONNECTIONS_ENCRYPTION_KEY=<hex de 64 caracteres gerado acima>
+   ```
+
+Sem essas variáveis configuradas, a tela de conexão funciona normalmente mas
+qualquer tentativa de salvar/listar orgs retorna erro — configure antes do
+primeiro uso.
 
 ## Scripts
 
@@ -83,7 +113,8 @@ npm run gen:credentials  # gera AUTH_SECRET + AUTH_USERS (local escapado / Verce
   fallback de usuário único). Exporta `auth`, `handlers`, `signIn`, `signOut`.
 - `proxy.js` — substitui o antigo middleware (renomeado no Next 16).
 - `src/app/api/auth/[...nextauth]/route.js` — endpoints do Auth.js.
-- `src/app/api/session/keys/route.js` — grava/limpa as chaves do Datadog em cookies httpOnly.
+- `src/app/api/connections/route.js` e `src/app/api/connections/[id]/route.js` —
+  CRUD das orgs Datadog do usuário (Supabase, chaves cifradas).
 
 > Segurança: por causa da CVE-2025-29927 (bypass de middleware), as rotas de API
 > revalidam a sessão com `auth()` no servidor, em vez de confiar só no `proxy.js`.
