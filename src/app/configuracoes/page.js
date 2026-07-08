@@ -6,7 +6,7 @@ import ConnectKeysCard from '@/components/ConnectKeysCard';
 const s = {
   title:     { fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub:       { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
-  card:      { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', marginBottom: 12, boxShadow: 'var(--card-shadow)' },
+  card:      { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', marginBottom: 12, boxShadow: 'var(--card-shadow)' },
   cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 12px' },
 };
 

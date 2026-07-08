@@ -1,6 +1,7 @@
 {
   "name": "datadog-creator",
   "version": "1.17.0",
+  "version": "1.15.0",
   "private": true,
   "scripts": {
     "dev": "next dev --port 9999",

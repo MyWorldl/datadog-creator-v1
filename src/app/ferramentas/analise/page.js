@@ -25,11 +25,11 @@ const smStatus = (dim) => !dim.measured ? 'nd' : dim.score >= 80 ? 'good' : dim.
 const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
-  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
+  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 12, marginTop: 16 },
-  dim: { border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)' },
+  dim: { border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)' },
   dimHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   dimName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   dimVal: (c) => ({ fontSize: 14, fontWeight: 800, color: c }),

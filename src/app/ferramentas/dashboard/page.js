@@ -31,7 +31,7 @@ const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
   band: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 },
-  scoreCard: { display: 'flex', alignItems: 'center', gap: 18, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.25rem', boxShadow: 'var(--card-shadow)', textDecoration: 'none' },
+  scoreCard: { display: 'flex', alignItems: 'center', gap: 18, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', textDecoration: 'none' },
   scoreWrap: { position: 'relative', width: 88, height: 88, flexShrink: 0 },
   scoreNum: (c) => ({ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 800, color: c }),
   scoreLabel: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
@@ -39,12 +39,12 @@ const s = {
   scoreLink: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 8, display: 'inline-block' },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
-  card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.1rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
+  card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
   icon: { width: 38, height: 38, borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   cTitle: { fontSize: 14.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
   cDesc: { fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, flex: 1 },
   cCta: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 2 },
-  panel: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
+  panel: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
 }
 
 function ScoreCard({ href, label, score, sub, loading }) {

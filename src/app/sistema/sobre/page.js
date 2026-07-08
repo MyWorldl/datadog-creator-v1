@@ -22,7 +22,7 @@ const s = {
   commit: { fontSize: 12, color: 'rgba(255,255,255,0.75)', fontFamily: 'var(--font-geist-mono), monospace' },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 22 },
-  feat: { display: 'flex', gap: 12, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1rem', boxShadow: 'var(--card-shadow)' },
+  feat: { display: 'flex', gap: 12, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1rem', boxShadow: 'var(--card-shadow)' },
   featIcon: { color: 'var(--accent)', flexShrink: 0, marginTop: 2 },
   featName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 3px' },
   featDesc: { fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, margin: 0 },
