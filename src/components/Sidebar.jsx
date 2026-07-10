@@ -1,25 +1,52 @@
 // src/components/Sidebar.jsx
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useApp } from '@/context/AppContext'
-import { IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics, IconFinops, IconSettings, IconInfo, IconLogout, IconClose } from '@/components/Icons'
+import {
+  IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics,
+  IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow,
+} from '@/components/Icons'
 
-const navItems = [
+// Categorias de navegação da sidebar. TODAS funcionam do mesmo jeito, mesmo
+// as que têm só 1 recurso (Home, Financeiro): passar o mouse abre um flyout
+// AO LADO, na mesma cor/tema da sidebar (não é um card branco flutuando
+// por cima da página, é uma extensão dela). Em telas touch (sem hover), o
+// clique no cabeçalho abre/fecha do mesmo jeito.
+const categories = [
   {
-    section: 'Ferramentas',
+    key: 'home',
+    label: 'Home',
+    Icon: IconDashboard,
     items: [
       { href: '/ferramentas/dashboard', label: 'Dashboard', Icon: IconDashboard },
+    ],
+  },
+  {
+    key: 'observabilidade',
+    label: 'Observabilidade',
+    Icon: IconAnalytics,
+    items: [
       { href: '/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
       { href: '/ferramentas/audit', label: 'AuditMonitors', Icon: IconAnalytics },
       { href: '/ferramentas/analise', label: 'ScopeMaturity', Icon: IconScope },
+    ],
+  },
+  {
+    key: 'financeiro',
+    label: 'Financeiro',
+    Icon: IconFinops,
+    items: [
       { href: '/ferramentas/finops', label: 'FinOps Insights', Icon: IconFinops },
     ],
   },
   {
-    section: 'Sistema',
+    key: 'sistema',
+    label: 'Sistema',
+    Icon: IconSettings,
     items: [
       { href: '/configuracoes', label: 'Configurações', Icon: IconSettings },
       { href: '/sistema/sobre', label: 'Sobre', Icon: IconInfo },
@@ -27,10 +54,122 @@ const navItems = [
   },
 ]
 
+function isItemActive(pathname, href) {
+  return pathname === href || (href !== '/' && pathname.startsWith(href))
+}
+
+function rowStyle({ active, hovered }) {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 9,
+    width: '100%',
+    margin: '2px 8px',
+    padding: '8px 10px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: active ? 600 : 400,
+    color: active ? 'var(--sidebar-text-active)' : 'var(--sidebar-text)',
+    background: active ? 'var(--sidebar-active-bg)' : hovered ? 'rgba(255,255,255,0.08)' : 'transparent',
+    textDecoration: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left',
+    fontFamily: 'inherit',
+    lineHeight: 'inherit',
+    transition: 'background 0.1s',
+  }
+}
+
+function CategoryGroup({ category, pathname, openKey, setOpenKey, onNavigate }) {
+  const { key, label, Icon, items } = category
+  const isActive = items.some((it) => isItemActive(pathname, it.href))
+  const isOpen = openKey === key
+  const closeTimer = useRef(null)
+
+  function openNow() {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current)
+      closeTimer.current = null
+    }
+    setOpenKey(key)
+  }
+
+  function closeLater() {
+    closeTimer.current = setTimeout(() => {
+      setOpenKey((curr) => (curr === key ? null : curr))
+    }, 180)
+  }
+
+  return (
+    <div
+      style={{ position: 'relative' }}
+      onMouseEnter={openNow}
+      onMouseLeave={closeLater}
+    >
+      <button
+        type="button"
+        onClick={() => setOpenKey(isOpen ? null : key)}
+        aria-expanded={isOpen}
+        style={rowStyle({ active: isActive, hovered: isOpen })}
+      >
+        <span style={{ display: 'inline-flex' }}><Icon size={17} /></span>
+        <span style={{ flex: 1 }}>{label}</span>
+        <span
+          style={{
+            display: 'inline-flex',
+            transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s ease',
+            opacity: 0.7,
+          }}
+        >
+          <IconArrow size={13} />
+        </span>
+      </button>
+
+      {isOpen && (
+        <div
+          className="sidebar-flyout"
+          onMouseEnter={openNow}
+          onMouseLeave={closeLater}
+        >
+          {items.map((item) => {
+            const active = isItemActive(pathname, item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => {
+                  onNavigate?.()
+                  setOpenKey(null)
+                }}
+                className="sidebar-flyout-item"
+                data-active={active ? 'true' : 'false'}
+              >
+                <span style={{ display: 'inline-flex' }}><item.Icon size={15} /></span>
+                {item.label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const { setKeysConfigured } = useApp()
+  const [openKey, setOpenKey] = useState(null)
+
+  // Ao navegar pra dentro de uma categoria (ex.: link direto, favorito,
+  // "voltar" do navegador), abre o flyout correspondente automaticamente,
+  // pra sempre indicar onde o usuário está. Some sozinho quando o mouse sai.
+  useEffect(() => {
+    const active = categories.find((c) => c.items.some((it) => isItemActive(pathname, it.href)))
+    if (active) setOpenKey(active.key)
+  }, [pathname])
 
   async function handleLogout() {
     // As orgs salvas ficam no Supabase (não numa sessão) — não há nada pra
@@ -78,44 +217,15 @@ export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
 
       {/* Navegação */}
       <nav style={{ padding: '8px 0', flex: 1 }}>
-        {navItems.map(({ section, items }) => (
-          <div key={section}>
-            <p style={{
-              fontSize: 10, fontWeight: 600, color: 'var(--sidebar-text)',
-              letterSpacing: '0.10em', textTransform: 'uppercase',
-              padding: '10px 1rem 4px', margin: 0, opacity: 0.7,
-            }}>
-              {section}
-            </p>
-            {items.map(({ href, label, Icon }) => {
-              const isActive = pathname === href ||
-                (href !== '/' && pathname.startsWith(href))
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  onClick={onNavigate}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 9,
-                    margin: '2px 8px',
-                    padding: '8px 10px',
-                    borderRadius: 8,
-                    fontSize: 13,
-                    fontWeight: isActive ? 600 : 400,
-                    color: isActive ? 'var(--sidebar-text-active)' : 'var(--sidebar-text)',
-                    background: isActive ? 'var(--sidebar-active-bg)' : 'transparent',
-                    textDecoration: 'none',
-                    transition: 'background 0.1s',
-                  }}
-                >
-                  <span style={{ display: 'inline-flex' }}><Icon size={17} /></span>
-                  {label}
-                </Link>
-              )
-            })}
-          </div>
+        {categories.map((category) => (
+          <CategoryGroup
+            key={category.key}
+            category={category}
+            pathname={pathname}
+            openKey={openKey}
+            setOpenKey={setOpenKey}
+            onNavigate={onNavigate}
+          />
         ))}
       </nav>
 

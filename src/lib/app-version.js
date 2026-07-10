@@ -15,6 +15,82 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.20.1',
+    date: '2026-07-08',
+    title: 'Correção: flyout da sidebar não aparecia mais',
+    notes: [
+      'O <nav> da sidebar tinha ficado com "overflow-y: auto" (resquício da versão em accordion, que podia crescer em altura). Pela regra do CSS, definir overflow-y força o overflow-x a virar "auto" também — isso cortava (clipava) o flyout, que é posicionado pra fora da caixa do nav, à direita.',
+      'Removido o overflow-y do nav (a lista de 4 categorias não precisa de scroll interno). O flyout volta a aparecer normalmente.',
+    ],
+  },
+  {
+    version: '1.20.0',
+    date: '2026-07-08',
+    title: 'Sidebar: accordion embutido virou flyout lateral (com o visual corrigido)',
+    notes: [
+      'A lista de recursos de cada categoria voltou a abrir AO LADO da sidebar (flyout), como no primeiro pedido — a versão 1.19.x tinha trocado por um accordion que expandia pra baixo dentro da sidebar.',
+      'Dessa vez o flyout usa a mesma cor de fundo e paleta da sidebar (roxo escuro / --bg-sidebar), sem borda do lado que encosta nela — fica parecendo uma extensão da sidebar crescendo pra direita, não mais uma caixa clara solta flutuando por cima da página (que foi o problema visual relatado na v1.18.x).',
+      'Continua abrindo no hover (mouse em cima), com um pequeno atraso ao sair pra dar tempo de mover o cursor até os itens; clique no cabeçalho continua funcionando como alternativa (essencial em touch).',
+      'No mobile, onde a sidebar off-canvas ocupa quase toda a largura da tela, não há espaço pro flyout lateral — ali ele continua aparecendo como lista logo abaixo do botão, na mesma paleta.',
+      'Mantido de antes: Home e Financeiro mostram seu único recurso na lista (Dashboard / FinOps Insights) igual às demais categorias; a categoria da página atual abre sozinha ao navegar.',
+    ],
+  },
+  {
+    version: '1.19.1',
+    date: '2026-07-08',
+    title: 'Sidebar: accordion volta a abrir no hover + Home/Financeiro consistentes',
+    notes: [
+      'A 1.19.0 trocou o hover por clique pra abrir as categorias; voltou a ser hover (mouse em cima expande), só que agora combinado com o accordion embutido — ou seja, expande dentro da própria sidebar, sem flutuar por cima da página como no primeiro flyout.',
+      'Home e Financeiro (que têm só 1 recurso cada) agora funcionam igual às demais categorias: expandem e mostram "Dashboard" / "FinOps Insights" como item selecionável na lista, em vez de navegar direto sem mostrar nada — antes ficavam sem mostrar o recurso.',
+      'Clique no cabeçalho continua funcionando como alternativa ao hover (essencial em touch, onde não existe hover).',
+      'Mantido: abre sozinho a categoria correspondente à página atual ao navegar.',
+    ],
+  },
+  {
+    version: '1.19.0',
+    date: '2026-07-08',
+    title: 'Sidebar: flyout flutuante virou accordion embutido',
+    notes: [
+      'O menu de categorias (Observabilidade, Sistema) deixou de abrir num popup flutuando ao lado da sidebar (fundo claro, sombra, por cima do conteúdo da página) e passou a expandir LOGO ABAIXO, dentro da própria sidebar — mesmo visual do resto da navegação, mesma paleta roxa escura.',
+      'Trigger passou de hover para clique em todas as telas (antes era hover no desktop e clique no mobile); mais previsível e sem risco de fechar sozinho ao mover o mouse.',
+      'A categoria correspondente à página atual abre sozinha ao navegar (ex.: entrar em AuditMonitors expande "Observabilidade" automaticamente), pra sempre indicar onde você está.',
+      'Reaproveitada a mesma técnica de animação de altura (CSS Grid 0fr → 1fr) já usada no CollapsibleCard, então o comportamento fica consistente com o resto do app.',
+    ],
+  },
+  {
+    version: '1.18.1',
+    date: '2026-07-08',
+    title: 'Correção: erro de console "font" vs "fontWeight" no Sidebar',
+    notes: [
+      'O botão de categoria com flyout (Sidebar.jsx) misturava a propriedade shorthand "font: inherit" com "fontSize"/"fontWeight" no mesmo objeto de estilo — o React acusava "Updating a style property during rerender (fontWeight) when a conflicting property is set (font)".',
+      'Trocado "font: inherit" pelas propriedades longhand equivalentes ("fontFamily: inherit" + "lineHeight: inherit"), que não conflitam com fontSize/fontWeight já definidos explicitamente.',
+      'Sem mudança visual ou de comportamento — só elimina o erro no console.',
+    ],
+  },
+  {
+    version: '1.18.0',
+    date: '2026-07-08',
+    title: 'Sidebar reorganizada em categorias com flyout',
+    notes: [
+      'A navegação lateral deixou de ser uma lista plana ("Ferramentas" / "Sistema") e passou a 4 categorias: Home (Dashboard), Observabilidade (MonitorsCreator, AuditMonitors, ScopeMaturity), Financeiro (FinOps Insights) e Sistema (Configurações, Sobre).',
+      'Categorias com mais de um item abrem um pequeno flyout ao passar o mouse (desktop) para navegar entre os recursos, sem precisar entrar em cada um pra descobrir o que tem lá dentro; no mobile (sidebar off-canvas) o mesmo flyout vira uma lista que expande ao tocar, já que não há hover em touch.',
+      'Categorias com um único item (Home, Financeiro) continuam navegando direto ao clicar — sem flyout, pois não há o que escolher.',
+      'Nenhuma rota mudou de lugar (mesmos hrefs de antes); só a organização visual da sidebar foi alterada, então links e favoritos existentes continuam funcionando.',
+    ],
+  },
+  {
+    version: '1.17.1',
+    date: '2026-07-08',
+    title: 'Correção: chave "version" duplicada no package.json + patch de dependências',
+    notes: [
+      'package.json tinha a chave "version" duplicada ("1.17.0" e, logo abaixo, "1.15.0"). Em JSON isso é ambíguo — o Node/npm ficava com a última ("1.15.0"), então qualquer ferramenta que lê a versão pelo package.json (npm version, metadata de build, etc.) via um número desatualizado, enquanto a tela Sobre (que lê de app-version.js) já mostrava 1.17.0. Corrigido para uma única chave, "1.17.1".',
+      'Adicionado "engines": {"node": ">=22"} — a partir da 2.110.0, @supabase/supabase-js deixou de suportar Node 20 (EOL em 30/04/2026). O CI já usa Node 22; isso só torna explícito o requisito e falha cedo (com mensagem clara) em vez de silenciosamente em runtime.',
+      'Next.js 16.2.9 → 16.2.10 (backport de segurança, CVE-2026-23869, sem breaking changes).',
+      'React e React DOM 19.2.4 → 19.2.7 (acumula patches de hardening de Server Components).',
+      'eslint-config-next atualizado para 16.2.10 para acompanhar o Next. @supabase/supabase-js já estava na versão mais recente (2.110.1) — sem mudança.',
+    ],
+  },
+  {
     version: '1.17.0',
     date: '2026-07-07',
     title: 'Múltiplas orgs Datadog por usuário (Supabase) + remoção do "Desconectar"',

@@ -109,6 +109,55 @@ body {
 .sidebar-overlay { display: none; }
 .sidebar-close-btn { display: none; }
 
+/* ── Flyout de categorias (Observabilidade, Sistema, etc.) ──
+   Usa a MESMA cor de fundo da sidebar (não a de card/superfície), sem
+   borda nem espaço do lado que toca a sidebar — assim ele parece uma
+   extensão dela crescendo pra direita, e não uma caixa solta flutuando
+   por cima da página. */
+.sidebar-flyout {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  min-width: 200px;
+  background: var(--bg-sidebar);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 8px 8px 28px rgba(0,0,0,0.35);
+  padding: 6px;
+  z-index: 60;
+  animation: sidebarFlyoutIn 0.14s ease;
+}
+
+@keyframes sidebarFlyoutIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.sidebar-flyout-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--sidebar-text);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s;
+}
+
+.sidebar-flyout-item:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--sidebar-text-active);
+}
+
+.sidebar-flyout-item[data-active="true"] {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-text-active);
+  font-weight: 600;
+}
+
 /* Tablet: reduz respiro lateral, mantém sidebar fixa */
 @media (max-width: 1024px) {
   .app-sidebar { width: 190px; }
@@ -157,6 +206,21 @@ body {
   }
 
   .sidebar-close-btn { display: inline-flex; }
+
+  /* Sidebar off-canvas ocupa quase toda a largura no mobile — não há
+     espaço à direita pro flyout lateral. Vira uma lista logo abaixo do
+     botão, na mesma cor da sidebar (mesma lógica, só a posição muda). */
+  .sidebar-flyout {
+    position: static;
+    left: auto;
+    top: auto;
+    margin: 2px 8px 4px 26px;
+    border: none;
+    border-radius: 8px;
+    box-shadow: none;
+    background: rgba(255,255,255,0.05);
+    animation: none;
+  }
 }
 
 @media (max-width: 480px) {
