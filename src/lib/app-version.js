@@ -2,11 +2,16 @@
 //
 // HISTÓRICO DE VERSÕES — fonte única de verdade.
 //
-// Como usar a cada deploy:
-//   1. Adicione uma nova entrada NO TOPO do array VERSION_HISTORY
-//      (versão, data, título e a lista do que mudou).
-//   2. Pronto: a página "Sobre" (Sistema -> Sobre) e o APP_VERSION
-//      passam a refletir a versão nova.
+// Como usar a cada deploy (evita a versão do package.json dessincronizar
+// desta lista, como já aconteceu nas v1.7.1 e v1.17.1):
+//   node scripts/bump-version.mjs <versão> "<título>" "<nota 1>" ["<nota 2>" ...]
+// Isso atualiza o "version" do package.json E insere a entrada no topo do
+// VERSION_HISTORY abaixo numa única execução. O CI roda
+// scripts/check-version-sync.mjs e falha o build se os dois não baterem —
+// então editar só um dos dois manualmente não passa despercebido.
+//
+// Pronto: a página "Sobre" (Sistema -> Sobre) e o APP_VERSION passam a
+// refletir a versão nova.
 //
 // Dica (automação opcional): em deploys na Vercel, o commit é exposto via
 // variável de ambiente. Mostramos o SHA automaticamente quando disponível
@@ -14,6 +19,45 @@
 // vindo daqui, porque descrevem O QUE mudou — algo que só você sabe.
 
 export const VERSION_HISTORY = [
+  {
+    version: '1.22.0',
+    date: '2026-07-11',
+    title: 'Segurança: versionamento da chave de criptografia',
+    notes: [
+      'CONNECTIONS_ENCRYPTION_KEY virou CONNECTIONS_ENCRYPTION_KEYS (mapa versão->chave) + CONNECTIONS_ENCRYPTION_KEY_VERSION — rotacionar a chave não invalida mais os dados já salvos, cada linha de datadog_connections guarda em qual versão foi cifrada (key_version).',
+      'Novo scripts/reencrypt-connections.mjs migra linhas de versões antigas para a versão atual quando quiser aposentar de vez uma chave (suporta --dry-run).',
+      'Documentado explicitamente (route-cache.js) que o cache de rotas do Datadog não é rate-limit/proteção contra abuso — só reduz chamadas repetidas. Decisão consciente de não adicionar limite real por usuário nas rotas /api/datadog/*/api/connections/* por ora.',
+    ],
+  },
+  {
+    version: '1.21.2',
+    date: '2026-07-11',
+    title: 'Histórico de versões: bump automatizado + checagem no CI',
+    notes: [
+      'Novo scripts/bump-version.mjs atualiza package.json e insere a entrada em VERSION_HISTORY numa única execução, eliminando a classe de bug que já causou dessincronia duas vezes (v1.7.1 e v1.17.1).',
+      'CI agora roda scripts/check-version-sync.mjs antes do build e falha se package.json.version e VERSION_HISTORY[0].version não baterem.',
+    ],
+  },
+  {
+    version: '1.21.1',
+    date: '2026-07-11',
+    title: 'MonitorsCreator: steps do wizard carregados sob demanda',
+    notes: [
+      'Os componentes dos steps 2 a 5 do wizard (Configurar, Personalizar, Revisar, Criar) agora usam next/dynamic — só entram no bundle do navegador quando o usuário avança até ali, em vez de todos serem carregados juntos ao abrir /monitor.',
+      'O App Router já divide o JS por rota automaticamente; esse ajuste divide também DENTRO da rota /monitor, que reunia os 6 steps do wizard num único bundle mesmo mostrando 1 por vez.',
+    ],
+  },
+  {
+    version: '1.21.0',
+    date: '2026-07-10',
+    title: 'Login migrado para Supabase Auth (e-mail + senha)',
+    notes: [
+      'Substituído o next-auth (usuários fixos na env var AUTH_USERS, exigindo redeploy pra criar/revogar acesso) pelo Supabase Auth: login agora é por e-mail + senha própria de cada pessoa, com "esqueci minha senha" nativo.',
+      'Criar ou revogar acesso de alguém agora é feito no Supabase Dashboard (Authentication → Users) ou via scripts/create-supabase-user.mjs, sem editar env var nem fazer redeploy.',
+      'datadog_connections.user_id passou a ter integridade referencial real (uuid com FK pra auth.users, ON DELETE CASCADE) — remover um usuário no Supabase Auth já remove automaticamente as conexões Datadog salvas dele.',
+      'Rate-limit de login por IP foi preservado (mesma proteção contra força bruta de antes, agora aplicada antes da chamada ao Supabase Auth).',
+    ],
+  },
   {
     version: '1.20.1',
     date: '2026-07-08',

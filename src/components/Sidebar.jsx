@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useSession, signOut } from 'next-auth/react'
+import { useSession, signOut } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import {
   IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics,

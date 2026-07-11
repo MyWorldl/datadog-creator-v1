@@ -9,7 +9,7 @@
 // para não distorcer o score. Algumas dimensões dependem de dados de logs/
 // histórico que não são obtidos aqui e ficam marcadas como não avaliadas.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
@@ -22,8 +22,8 @@ function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0 }
 function clamp(n) { return Math.max(0, Math.min(100, Math.round(n))) }
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
+  const user = await getServerUser()
+  if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { apiKey, appKey, site } = await readSessionKeys()
   if (!apiKey || !appKey || !site) {

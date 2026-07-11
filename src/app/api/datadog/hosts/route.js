@@ -8,13 +8,13 @@
 // Query opcional: /api/datadog/hosts?filter=env:prod
 // (filter usa a sintaxe de busca de hosts do Datadog; vazio = todos)
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, listHosts } from '@/lib/datadog-server'
 
 export async function GET(request) {
-  const session = await auth()
-  if (!session?.user) {
+  const user = await getServerUser()
+  if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 

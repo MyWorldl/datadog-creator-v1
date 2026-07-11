@@ -1,13 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/context/SupabaseAuthContext';
 import Sidebar from '@/components/Sidebar';
 import LoginPage from '@/components/LoginPage';
 import { IconMenu } from '@/components/Icons';
 
 export default function AppShell({ children }) {
-  // Fonte da verdade do login agora é o Auth.js.
+  // Fonte da verdade do login agora é o Supabase Auth.
   const { status } = useSession(); // 'loading' | 'authenticated' | 'unauthenticated'
   const [mobileOpen, setMobileOpen] = useState(false);
 

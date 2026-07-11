@@ -12,7 +12,7 @@
 // Mantido de propósito com a MESMA assinatura de antes ({ apiKey, appKey, site })
 // para não exigir mudanças nas ~10 rotas que já consomem isso.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { getActiveConnectionKeys } from './connections'
 
 export const VALID_SITES = [
@@ -21,11 +21,11 @@ export const VALID_SITES = [
 ]
 
 export async function readSessionKeys() {
-  const session = await auth()
-  if (!session?.user?.id) return { apiKey: '', appKey: '', site: '' }
+  const user = await getServerUser()
+  if (!user?.id) return { apiKey: '', appKey: '', site: '' }
 
   try {
-    const active = await getActiveConnectionKeys(session.user.id)
+    const active = await getActiveConnectionKeys(user.id)
     if (!active) return { apiKey: '', appKey: '', site: '' }
     return { apiKey: active.apiKey, appKey: active.appKey, site: active.site }
   } catch (e) {

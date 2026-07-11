@@ -4,9 +4,14 @@
 // Supabase (tabela `datadog_connections` — ver scripts/supabase-schema.sql).
 // As chaves (API Key / App Key) ficam cifradas em repouso (lib/crypto-keys).
 //
-// Modelo: cada usuário (session.user.id, vindo do Auth.js) pode ter N
-// conexões. Exatamente UMA fica marcada como `is_active` por vez — é essa
-// que as rotas /api/datadog/* usam (via readSessionKeys, em session-keys.js).
+// Modelo: cada usuário (user.id, UUID do Supabase Auth — ver
+// lib/supabase-server.js) pode ter N conexões. Exatamente UMA fica marcada
+// como `is_active` por vez — é essa que as rotas /api/datadog/* usam (via
+// readSessionKeys, em session-keys.js).
+//
+// user_id é uuid com FK pra auth.users(id) ON DELETE CASCADE (ver
+// scripts/supabase-schema.sql) — remover o usuário no Supabase Auth já
+// remove as conexões dele automaticamente.
 //
 // Este arquivo é server-only (usa a Service Role Key por baixo). Não
 // importar de componentes 'use client'.
@@ -52,14 +57,21 @@ export async function createConnection(userId, { name, apiKey, appKey, site }) {
 
   const isFirst = !count || count === 0
 
+  // encryptSecret sempre usa a versão CURRENT — as duas chamadas abaixo
+  // ficam na mesma versão, então dá pra gravar key_version uma única vez
+  // pra linha inteira (API Key e App Key nunca ficam em versões diferentes).
+  const apiEnc = encryptSecret(apiKey)
+  const appEnc = encryptSecret(appKey)
+
   const { data, error } = await sb
     .from(TABLE)
     .insert({
       user_id: userId,
       name: String(name || '').trim() || site,
       site,
-      api_key_enc: encryptSecret(apiKey),
-      app_key_enc: encryptSecret(appKey),
+      api_key_enc: apiEnc.value,
+      app_key_enc: appEnc.value,
+      key_version: apiEnc.keyVersion,
       is_active: isFirst,
     })
     .select('id, name, site, is_active, created_at')
@@ -137,7 +149,7 @@ export async function getActiveConnectionKeys(userId) {
   const sb = supabaseAdmin()
   const { data, error } = await sb
     .from(TABLE)
-    .select('id, name, site, api_key_enc, app_key_enc')
+    .select('id, name, site, api_key_enc, app_key_enc, key_version')
     .eq('user_id', userId)
     .eq('is_active', true)
     .maybeSingle()
@@ -149,7 +161,7 @@ export async function getActiveConnectionKeys(userId) {
     id: data.id,
     name: data.name,
     site: data.site,
-    apiKey: decryptSecret(data.api_key_enc),
-    appKey: decryptSecret(data.app_key_enc),
+    apiKey: decryptSecret(data.api_key_enc, data.key_version),
+    appKey: decryptSecret(data.app_key_enc, data.key_version),
   }
 }

@@ -9,7 +9,7 @@
 //  - o trigger_window (options.threshold_windows) DEVE casar com o
 //    alert_window da query.  https://docs.datadoghq.com/monitors/types/anomaly/
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddPost } from '@/lib/datadog-server'
 
@@ -18,8 +18,8 @@ const SEASONS = ['hourly', 'daily', 'weekly']
 const WINDOWS = ['last_5m', 'last_15m', 'last_30m', 'last_1h', 'last_4h']
 
 export async function POST(request) {
-  const session = await auth()
-  if (!session?.user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
+  const user = await getServerUser()
+  if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { apiKey, appKey, site } = await readSessionKeys()
   if (!apiKey || !appKey || !site) {

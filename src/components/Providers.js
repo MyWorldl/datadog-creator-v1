@@ -2,19 +2,19 @@
 'use client'
 
 // Junta os contexts que precisam rodar no client:
-//  - SessionProvider: dá acesso ao useSession() (estado de login do Auth.js)
+//  - SupabaseAuthProvider: dá acesso ao useSession() (estado de login do Supabase Auth)
 //  - AppProvider: tema, site e flags da nossa app
 //
 // O layout (server component) não pode usar esses providers direto, então
 // concentramos tudo aqui.
 
-import { SessionProvider } from 'next-auth/react'
+import { SupabaseAuthProvider } from '@/context/SupabaseAuthContext'
 import { AppProvider } from '@/context/AppContext'
 
 export default function Providers({ children }) {
   return (
-    <SessionProvider>
+    <SupabaseAuthProvider>
       <AppProvider>{children}</AppProvider>
-    </SessionProvider>
+    </SupabaseAuthProvider>
   )
 }

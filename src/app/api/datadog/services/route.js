@@ -6,13 +6,13 @@
 //
 // As chaves vêm dos cookies httpOnly da sessão — nunca do browser.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 
 export async function GET(request) {
-  const session = await auth()
-  if (!session?.user) {
+  const user = await getServerUser()
+  if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 
