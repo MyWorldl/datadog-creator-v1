@@ -20,6 +20,14 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.23.2',
+    date: '2026-07-11',
+    title: 'Config: fixar versão do Node no engines (evita upgrade automático)',
+    notes: [
+      'package.json engines.node era ">=22" (faixa aberta) — o Vercel avisa que isso pode atualizar sozinho pra um Node 23/24 quando virar padrão lá, sem redeploy pedido. Fixado em "22.x" (permite patch/minor dentro do 22, nunca pula de major sozinho).',
+    ],
+  },
+  {
     version: '1.23.1',
     date: '2026-07-11',
     title: 'Correção: convite/recovery não autenticava + middleware quebrava com sessão apagada',

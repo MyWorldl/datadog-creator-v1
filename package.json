@@ -1,9 +1,9 @@
 {
   "name": "datadog-creator",
-  "version": "1.23.1",
+  "version": "1.23.2",
   "private": true,
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "next dev --port 9999",
