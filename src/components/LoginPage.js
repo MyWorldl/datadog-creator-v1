@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
+import { useSession } from '@/context/SupabaseAuthContext';
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('');
+  const { refresh } = useSession();
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,29 +14,36 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
-    if (!username || !password) {
-      setError('Preencha usuário e senha.');
+    if (!email || !password) {
+      setError('Preencha e-mail e senha.');
       return;
     }
 
     setLoading(true);
-    // Auth.js: login por Credentials. redirect:false => tratamos o erro aqui.
-    const res = await signIn('credentials', {
-      username,
-      password,
-      redirect: false,
+    // Login roda no servidor (/api/auth/login) pra passar pelo rate-limit por
+    // IP antes de chamar o Supabase Auth. redirect:false-equivalente => o
+    // erro é tratado aqui, sem navegação.
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
     });
+    const data = await res.json().catch(() => ({}));
     setLoading(false);
 
-    if (res?.error) {
-      if (res?.code === 'rate_limited') {
+    if (!res.ok || !data.ok) {
+      if (data.code === 'rate_limited') {
         setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
       } else {
-        setError('Credenciais inválidas. Verifique usuário e senha.');
+        setError('Credenciais inválidas. Verifique e-mail e senha.');
       }
       return;
     }
-    // Sucesso: a sessão atualiza e a AppShell re-renderiza automaticamente.
+
+    // Sucesso: o cookie de sessão já foi setado pelo servidor. O browser
+    // client ainda não sabe disso sozinho (onAuthStateChange não dispara
+    // pra login feito fora dele) — refresh() força a reavaliação.
+    await refresh();
   };
 
   return (
@@ -91,13 +99,13 @@ export default function LoginPage() {
               fontWeight: 600,
               color: 'var(--text-secondary)',
               marginBottom: 6,
-            }}>Usuário</label>
+            }}>E-mail</label>
             <input
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="seu.usuario"
-              autoComplete="username"
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="seu.email@empresa.com"
+              autoComplete="email"
               style={{
                 width: '100%',
                 padding: '0.65rem 0.875rem',

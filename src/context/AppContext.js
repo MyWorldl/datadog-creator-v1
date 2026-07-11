@@ -5,12 +5,12 @@
    ao logar. São sincronizações com sistemas externos, não loops de render. */
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/context/SupabaseAuthContext';
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  // Auth NÃO vive mais aqui — quem cuida do login é o Auth.js (useSession).
+  // Auth NÃO vive mais aqui — quem cuida do login é o Supabase Auth (useSession).
   // Este context guarda preferências de UI + as conexões Datadog (múltiplas
   // orgs, guardadas no Supabase — ver lib/connections.js) do usuário.
   const [theme, setTheme] = useState('system');

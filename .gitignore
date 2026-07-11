@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# dados pessoais de scripts de migração one-time (nomes/e-mails reais)
+scripts/*.local.json
+
 # vercel
 .vercel
 

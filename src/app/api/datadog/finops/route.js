@@ -20,7 +20,7 @@
 // O custo é calculado no cliente (preços editáveis), pois preço de
 // lista ≠ preço contratado.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, estimatedUsage } from '@/lib/datadog-server'
 import { PRODUCTS } from '@/lib/finops-pricing'
@@ -107,8 +107,8 @@ async function viaEstimatedUsageMetrics(ctx, month) {
 }
 
 export async function GET(request) {
-  const session = await auth()
-  if (!session?.user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
+  const user = await getServerUser()
+  if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { apiKey, appKey, site } = await readSessionKeys()
   if (!apiKey || !appKey || !site) {

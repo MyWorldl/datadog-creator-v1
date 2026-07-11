@@ -28,6 +28,9 @@ jobs:
       - name: Instalar dependências (do package-lock)
         run: npm ci
 
+      - name: Versão do package.json bate com o histórico (Sistema -> Sobre)
+        run: npm run check:version
+
       - name: ESLint
         run: npm run lint
 
@@ -36,7 +39,3 @@ jobs:
 
       - name: Build de produção
         run: npm run build
-        env:
-          # O build não usa um segredo real; um valor qualquer evita que o
-          # Auth.js reclame de AUTH_SECRET ausente durante o next build.
-          AUTH_SECRET: ci-placeholder-not-a-real-secret

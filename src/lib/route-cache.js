@@ -10,6 +10,15 @@
 // (recalcula), nunca quebra a rota.
 //
 // Interface mantida (agora assíncrona): cacheKey (sync), cacheGet/cacheSet (async).
+//
+// ⚠️ ISSO NÃO É RATE-LIMIT: este cache existe pra reduzir chamadas repetidas
+// ao Datadog (performance/custo), não pra impedir abuso. As rotas
+// /api/datadog/* e /api/connections/* não têm limite de requisições por
+// usuário — só o login (src/lib/rate-limit.js) tem. Decisão consciente por
+// ora: um usuário autenticado ainda consegue bater essas rotas sem limite
+// real (o cache só reduz o CUSTO de fazer isso, não impede). Se isso virar
+// prioridade, reaproveitar o backend de rate-limit.js (já suporta Redis/
+// Upstash) com uma chave por user.id é o caminho natural.
 
 import { createHash } from 'node:crypto'
 import { kvEnabled, kvGet, kvSetEx } from '@/lib/kv-store'

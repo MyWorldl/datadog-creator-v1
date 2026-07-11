@@ -2,11 +2,16 @@
 //
 // HISTÓRICO DE VERSÕES — fonte única de verdade.
 //
-// Como usar a cada deploy:
-//   1. Adicione uma nova entrada NO TOPO do array VERSION_HISTORY
-//      (versão, data, título e a lista do que mudou).
-//   2. Pronto: a página "Sobre" (Sistema -> Sobre) e o APP_VERSION
-//      passam a refletir a versão nova.
+// Como usar a cada deploy (evita a versão do package.json dessincronizar
+// desta lista, como já aconteceu nas v1.7.1 e v1.17.1):
+//   node scripts/bump-version.mjs <versão> "<título>" "<nota 1>" ["<nota 2>" ...]
+// Isso atualiza o "version" do package.json E insere a entrada no topo do
+// VERSION_HISTORY abaixo numa única execução. O CI roda
+// scripts/check-version-sync.mjs e falha o build se os dois não baterem —
+// então editar só um dos dois manualmente não passa despercebido.
+//
+// Pronto: a página "Sobre" (Sistema -> Sobre) e o APP_VERSION passam a
+// refletir a versão nova.
 //
 // Dica (automação opcional): em deploys na Vercel, o commit é exposto via
 // variável de ambiente. Mostramos o SHA automaticamente quando disponível
@@ -14,6 +19,140 @@
 // vindo daqui, porque descrevem O QUE mudou — algo que só você sabe.
 
 export const VERSION_HISTORY = [
+  {
+    version: '1.23.1',
+    date: '2026-07-11',
+    title: 'Correção: convite/recovery não autenticava + middleware quebrava com sessão apagada',
+    notes: [
+      'O client do browser (@supabase/ssr) usa flowType \'pkce\' fixo, que só processa links com ?code=. Links gerados pela Admin API (convite, recovery) sempre voltam com os tokens em #access_token=... (hash) — sem tratamento manual, a sessão nunca era criada e a pessoa ficava presa na tela de login mesmo clicando no link certo.',
+      'proxy.js chamava getUser() sem tratamento de erro: um cookie de sessão apontando pra um usuário já removido do Supabase Auth fazia a chamada lançar exceção, derrubando o middleware inteiro (Internal Server Error) em toda requisição até o cookie expirar.',
+      'Nova tela \'Senha da conta\' em Configurações — necessária porque aceitar um convite só autentica temporariamente, não define senha nenhuma; sem isso, a pessoa nunca conseguiria logar de novo via e-mail/senha depois que a sessão expirasse.',
+    ],
+  },
+  {
+    version: '1.23.0',
+    date: '2026-07-11',
+    title: 'MonitorsCreator: mensagens de alerta mais ricas + tela Configurar reorganizada',
+    notes: [
+      'Mensagens de todos os tipos de alerta (serviços e infra) ganharam formato padronizado: O que monitora, Por que importa, Causas prováveis e Ação recomendada — antes eram uma linha só.',
+      'Tela Configurar do wizard reorganizada: busca/filtro de serviços sempre visível, opções de alert window unificadas entre serviços e infra (ALERT_WINDOW_OPTIONS), campos \'Sem dados\' e \'Renotificar\' removidos em favor do padrão do Datadog (menos configuração manual pra decidir).',
+    ],
+  },
+  {
+    version: '1.22.0',
+    date: '2026-07-11',
+    title: 'Segurança: versionamento da chave de criptografia',
+    notes: [
+      'CONNECTIONS_ENCRYPTION_KEY virou CONNECTIONS_ENCRYPTION_KEYS (mapa versão->chave) + CONNECTIONS_ENCRYPTION_KEY_VERSION — rotacionar a chave não invalida mais os dados já salvos, cada linha de datadog_connections guarda em qual versão foi cifrada (key_version).',
+      'Novo scripts/reencrypt-connections.mjs migra linhas de versões antigas para a versão atual quando quiser aposentar de vez uma chave (suporta --dry-run).',
+      'Documentado explicitamente (route-cache.js) que o cache de rotas do Datadog não é rate-limit/proteção contra abuso — só reduz chamadas repetidas. Decisão consciente de não adicionar limite real por usuário nas rotas /api/datadog/*/api/connections/* por ora.',
+    ],
+  },
+  {
+    version: '1.21.2',
+    date: '2026-07-11',
+    title: 'Histórico de versões: bump automatizado + checagem no CI',
+    notes: [
+      'Novo scripts/bump-version.mjs atualiza package.json e insere a entrada em VERSION_HISTORY numa única execução, eliminando a classe de bug que já causou dessincronia duas vezes (v1.7.1 e v1.17.1).',
+      'CI agora roda scripts/check-version-sync.mjs antes do build e falha se package.json.version e VERSION_HISTORY[0].version não baterem.',
+    ],
+  },
+  {
+    version: '1.21.1',
+    date: '2026-07-11',
+    title: 'MonitorsCreator: steps do wizard carregados sob demanda',
+    notes: [
+      'Os componentes dos steps 2 a 5 do wizard (Configurar, Personalizar, Revisar, Criar) agora usam next/dynamic — só entram no bundle do navegador quando o usuário avança até ali, em vez de todos serem carregados juntos ao abrir /monitor.',
+      'O App Router já divide o JS por rota automaticamente; esse ajuste divide também DENTRO da rota /monitor, que reunia os 6 steps do wizard num único bundle mesmo mostrando 1 por vez.',
+    ],
+  },
+  {
+    version: '1.21.0',
+    date: '2026-07-10',
+    title: 'Login migrado para Supabase Auth (e-mail + senha)',
+    notes: [
+      'Substituído o next-auth (usuários fixos na env var AUTH_USERS, exigindo redeploy pra criar/revogar acesso) pelo Supabase Auth: login agora é por e-mail + senha própria de cada pessoa, com "esqueci minha senha" nativo.',
+      'Criar ou revogar acesso de alguém agora é feito no Supabase Dashboard (Authentication → Users) ou via scripts/create-supabase-user.mjs, sem editar env var nem fazer redeploy.',
+      'datadog_connections.user_id passou a ter integridade referencial real (uuid com FK pra auth.users, ON DELETE CASCADE) — remover um usuário no Supabase Auth já remove automaticamente as conexões Datadog salvas dele.',
+      'Rate-limit de login por IP foi preservado (mesma proteção contra força bruta de antes, agora aplicada antes da chamada ao Supabase Auth).',
+    ],
+  },
+  {
+    version: '1.20.1',
+    date: '2026-07-08',
+    title: 'Correção: flyout da sidebar não aparecia mais',
+    notes: [
+      'O <nav> da sidebar tinha ficado com "overflow-y: auto" (resquício da versão em accordion, que podia crescer em altura). Pela regra do CSS, definir overflow-y força o overflow-x a virar "auto" também — isso cortava (clipava) o flyout, que é posicionado pra fora da caixa do nav, à direita.',
+      'Removido o overflow-y do nav (a lista de 4 categorias não precisa de scroll interno). O flyout volta a aparecer normalmente.',
+    ],
+  },
+  {
+    version: '1.20.0',
+    date: '2026-07-08',
+    title: 'Sidebar: accordion embutido virou flyout lateral (com o visual corrigido)',
+    notes: [
+      'A lista de recursos de cada categoria voltou a abrir AO LADO da sidebar (flyout), como no primeiro pedido — a versão 1.19.x tinha trocado por um accordion que expandia pra baixo dentro da sidebar.',
+      'Dessa vez o flyout usa a mesma cor de fundo e paleta da sidebar (roxo escuro / --bg-sidebar), sem borda do lado que encosta nela — fica parecendo uma extensão da sidebar crescendo pra direita, não mais uma caixa clara solta flutuando por cima da página (que foi o problema visual relatado na v1.18.x).',
+      'Continua abrindo no hover (mouse em cima), com um pequeno atraso ao sair pra dar tempo de mover o cursor até os itens; clique no cabeçalho continua funcionando como alternativa (essencial em touch).',
+      'No mobile, onde a sidebar off-canvas ocupa quase toda a largura da tela, não há espaço pro flyout lateral — ali ele continua aparecendo como lista logo abaixo do botão, na mesma paleta.',
+      'Mantido de antes: Home e Financeiro mostram seu único recurso na lista (Dashboard / FinOps Insights) igual às demais categorias; a categoria da página atual abre sozinha ao navegar.',
+    ],
+  },
+  {
+    version: '1.19.1',
+    date: '2026-07-08',
+    title: 'Sidebar: accordion volta a abrir no hover + Home/Financeiro consistentes',
+    notes: [
+      'A 1.19.0 trocou o hover por clique pra abrir as categorias; voltou a ser hover (mouse em cima expande), só que agora combinado com o accordion embutido — ou seja, expande dentro da própria sidebar, sem flutuar por cima da página como no primeiro flyout.',
+      'Home e Financeiro (que têm só 1 recurso cada) agora funcionam igual às demais categorias: expandem e mostram "Dashboard" / "FinOps Insights" como item selecionável na lista, em vez de navegar direto sem mostrar nada — antes ficavam sem mostrar o recurso.',
+      'Clique no cabeçalho continua funcionando como alternativa ao hover (essencial em touch, onde não existe hover).',
+      'Mantido: abre sozinho a categoria correspondente à página atual ao navegar.',
+    ],
+  },
+  {
+    version: '1.19.0',
+    date: '2026-07-08',
+    title: 'Sidebar: flyout flutuante virou accordion embutido',
+    notes: [
+      'O menu de categorias (Observabilidade, Sistema) deixou de abrir num popup flutuando ao lado da sidebar (fundo claro, sombra, por cima do conteúdo da página) e passou a expandir LOGO ABAIXO, dentro da própria sidebar — mesmo visual do resto da navegação, mesma paleta roxa escura.',
+      'Trigger passou de hover para clique em todas as telas (antes era hover no desktop e clique no mobile); mais previsível e sem risco de fechar sozinho ao mover o mouse.',
+      'A categoria correspondente à página atual abre sozinha ao navegar (ex.: entrar em AuditMonitors expande "Observabilidade" automaticamente), pra sempre indicar onde você está.',
+      'Reaproveitada a mesma técnica de animação de altura (CSS Grid 0fr → 1fr) já usada no CollapsibleCard, então o comportamento fica consistente com o resto do app.',
+    ],
+  },
+  {
+    version: '1.18.1',
+    date: '2026-07-08',
+    title: 'Correção: erro de console "font" vs "fontWeight" no Sidebar',
+    notes: [
+      'O botão de categoria com flyout (Sidebar.jsx) misturava a propriedade shorthand "font: inherit" com "fontSize"/"fontWeight" no mesmo objeto de estilo — o React acusava "Updating a style property during rerender (fontWeight) when a conflicting property is set (font)".',
+      'Trocado "font: inherit" pelas propriedades longhand equivalentes ("fontFamily: inherit" + "lineHeight: inherit"), que não conflitam com fontSize/fontWeight já definidos explicitamente.',
+      'Sem mudança visual ou de comportamento — só elimina o erro no console.',
+    ],
+  },
+  {
+    version: '1.18.0',
+    date: '2026-07-08',
+    title: 'Sidebar reorganizada em categorias com flyout',
+    notes: [
+      'A navegação lateral deixou de ser uma lista plana ("Ferramentas" / "Sistema") e passou a 4 categorias: Home (Dashboard), Observabilidade (MonitorsCreator, AuditMonitors, ScopeMaturity), Financeiro (FinOps Insights) e Sistema (Configurações, Sobre).',
+      'Categorias com mais de um item abrem um pequeno flyout ao passar o mouse (desktop) para navegar entre os recursos, sem precisar entrar em cada um pra descobrir o que tem lá dentro; no mobile (sidebar off-canvas) o mesmo flyout vira uma lista que expande ao tocar, já que não há hover em touch.',
+      'Categorias com um único item (Home, Financeiro) continuam navegando direto ao clicar — sem flyout, pois não há o que escolher.',
+      'Nenhuma rota mudou de lugar (mesmos hrefs de antes); só a organização visual da sidebar foi alterada, então links e favoritos existentes continuam funcionando.',
+    ],
+  },
+  {
+    version: '1.17.1',
+    date: '2026-07-08',
+    title: 'Correção: chave "version" duplicada no package.json + patch de dependências',
+    notes: [
+      'package.json tinha a chave "version" duplicada ("1.17.0" e, logo abaixo, "1.15.0"). Em JSON isso é ambíguo — o Node/npm ficava com a última ("1.15.0"), então qualquer ferramenta que lê a versão pelo package.json (npm version, metadata de build, etc.) via um número desatualizado, enquanto a tela Sobre (que lê de app-version.js) já mostrava 1.17.0. Corrigido para uma única chave, "1.17.1".',
+      'Adicionado "engines": {"node": ">=22"} — a partir da 2.110.0, @supabase/supabase-js deixou de suportar Node 20 (EOL em 30/04/2026). O CI já usa Node 22; isso só torna explícito o requisito e falha cedo (com mensagem clara) em vez de silenciosamente em runtime.',
+      'Next.js 16.2.9 → 16.2.10 (backport de segurança, CVE-2026-23869, sem breaking changes).',
+      'React e React DOM 19.2.4 → 19.2.7 (acumula patches de hardening de Server Components).',
+      'eslint-config-next atualizado para 16.2.10 para acompanhar o Next. @supabase/supabase-js já estava na versão mais recente (2.110.1) — sem mudança.',
+    ],
+  },
   {
     version: '1.17.0',
     date: '2026-07-07',

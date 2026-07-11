@@ -8,7 +8,7 @@
 // 401 normalmente = API key inválida/expirada/de outro site.
 // 403 normalmente = Application key sem permissão/escopo.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys, VALID_SITES } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 
@@ -27,8 +27,8 @@ function friendlyReason(r, site) {
 }
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) {
+  const user = await getServerUser()
+  if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 
@@ -60,8 +60,8 @@ export async function GET() {
 // POST — valida chaves ainda não salvas (usado no formulário "Adicionar org",
 // antes de gravar a conexão no Supabase). Não persiste nada.
 export async function POST(request) {
-  const session = await auth()
-  if (!session?.user) {
+  const user = await getServerUser()
+  if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 

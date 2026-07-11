@@ -6,19 +6,19 @@
 //   GET  -> lista as conexões do usuário (id, nome, site, ativa?) — sem chaves
 //   POST -> cria uma nova conexão (valida as chaves contra o Datadog antes de salvar)
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { listConnections, createConnection } from '@/lib/connections'
 import { VALID_SITES } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const user = await getServerUser()
+  if (!user?.id) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 
   try {
-    const connections = await listConnections(session.user.id)
+    const connections = await listConnections(user.id)
     return Response.json({ connections })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })
@@ -26,8 +26,8 @@ export async function GET() {
 }
 
 export async function POST(request) {
-  const session = await auth()
-  if (!session?.user?.id) {
+  const user = await getServerUser()
+  if (!user?.id) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
   }
 
@@ -62,7 +62,7 @@ export async function POST(request) {
   }
 
   try {
-    const connection = await createConnection(session.user.id, { name, apiKey, appKey, site })
+    const connection = await createConnection(user.id, { name, apiKey, appKey, site })
     return Response.json({ connection })
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 })

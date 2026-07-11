@@ -3,7 +3,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops, IconSettings } from '@/components/Icons'
 

@@ -4,14 +4,14 @@
 // Chamado apenas na ETAPA 5. Recebe o estado de descoberta e usa o mesmo
 // planejador do preview (src/lib/discovery.js) para não haver divergência.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planPreview } from '@/lib/discovery'
 import { ctxFrom, ddPost } from '@/lib/datadog-server'
 
 export async function POST(request) {
-  const session = await auth()
-  if (!session?.user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
+  const user = await getServerUser()
+  if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { apiKey, appKey, site } = await readSessionKeys()
   if (!apiKey || !appKey || !site) {

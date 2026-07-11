@@ -4,15 +4,20 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
-import DiscoveryConfigure from '@/components/discovery/DiscoveryConfigure'
-import DiscoveryConfigureInfra from '@/components/discovery/DiscoveryConfigureInfra'
-import DiscoveryPersonalize from '@/components/discovery/DiscoveryPersonalize'
-import DiscoveryReview from '@/components/discovery/DiscoveryReview'
-import DiscoveryCreate from '@/components/discovery/DiscoveryCreate'
+
+// Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
+// primeiro, por isso fica com import estático — os demais só entram no bundle
+// quando o usuário avança até ali).
+const DiscoveryConfigure = dynamic(() => import('@/components/discovery/DiscoveryConfigure'))
+const DiscoveryConfigureInfra = dynamic(() => import('@/components/discovery/DiscoveryConfigureInfra'))
+const DiscoveryPersonalize = dynamic(() => import('@/components/discovery/DiscoveryPersonalize'))
+const DiscoveryReview = dynamic(() => import('@/components/discovery/DiscoveryReview'))
+const DiscoveryCreate = dynamic(() => import('@/components/discovery/DiscoveryCreate'))
 
 // ─────────────────────────────────────────────
 // Labels da barra de progresso

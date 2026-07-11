@@ -4,7 +4,7 @@
 // devolve a cobertura de monitoramento por métrica-chave, além de uma sugestão
 // pronta de monitores de Infra para as lacunas.
 
-import { auth } from '@/auth'
+import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, listMonitors, listHosts } from '@/lib/datadog-server'
 import { analyzeCoverage, coverageScore, buildSuggestedInfra, analyzeHostCoverage, INFRA_CATALOG } from '@/lib/audit'
@@ -14,8 +14,8 @@ import { recordScore, computeDelta } from '@/lib/score-history'
 const CACHE_TTL_MS = 60 * 1000
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
+  const user = await getServerUser()
+  if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
   const { apiKey, appKey, site } = await readSessionKeys()
   if (!apiKey || !appKey || !site) {

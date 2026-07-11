@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import { useApp } from '@/context/AppContext'
-import { ALERT_TYPES } from '@/lib/discovery'
+import { ALERT_TYPES, ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 
 const ENV_META = {
   dev: { label: 'dev', c: 'var(--accent)', bg: 'var(--accent-light)' },
@@ -170,53 +170,49 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   return (
     <div style={s.card}>
       <div>
-        <button style={s.btn} onClick={discover} disabled={loading}>
-          {loading ? 'Descobrindo…' : '🔎 Descobrir serviços'}
-        </button>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>via {datadogSite}</span>
-      </div>
-
-      {d.services.length > 0 && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-            <label style={{ ...s.label, marginBottom: 0 }}>Serviços</label>
-            <span style={s.counter}>
-              {selectedNames.length} selecionado(s) · mostrando {filtered.length} de {d.services.length}
-            </span>
-          </div>
-
-          <div style={s.toolbar}>
-            <input style={s.search} value={svcSearch} onChange={e => setSvcSearch(e.target.value)} placeholder="Buscar serviço(s)… ex.: svc1, svc2, svc3" />
-            {['dev', 'hml', 'prd'].map(e => (
-              <button key={e} style={s.chip(envFilter.includes(e), ENV_META[e].c, ENV_META[e].bg)} onClick={() => toggleEnv(e)}>
-                {ENV_META[e].label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <button style={s.smallBtn} onClick={selectAllFiltered}>
-              Selecionar {filtered.length}{svcSearch || envFilter.length ? ' (filtrados)' : ''}
+        <label style={s.label}>Serviços</label>
+        <div style={s.toolbar}>
+          <input style={s.search} value={svcSearch} onChange={e => setSvcSearch(e.target.value)} placeholder="Buscar serviço(s)… ex.: svc1, svc2, svc3" />
+          {['dev', 'hml', 'prd'].map(e => (
+            <button key={e} style={s.chip(envFilter.includes(e), ENV_META[e].c, ENV_META[e].bg)} onClick={() => toggleEnv(e)}>
+              {ENV_META[e].label}
             </button>
-            <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
-          </div>
-
-          <div style={s.svcList}>
-            {filtered.map(svc => {
-              const env = envOf(svc)
-              const on = !!d.selected[svc]
-              return (
-                <label key={svc} style={{ ...s.svcRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
-                  <input type="checkbox" checked={on} onChange={() => toggleService(svc)} />
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{svc}</span>
-                  {env && <span style={s.envTag(ENV_META[env].c, ENV_META[env].bg)}>{ENV_META[env].label}</span>}
-                </label>
-              )
-            })}
-            {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum serviço para esse filtro.</p>}
-          </div>
+          ))}
+          <button style={s.btnGhost} onClick={discover} disabled={loading}>
+            {loading ? 'Descobrindo…' : 'Descobrir serviços'}
+          </button>
         </div>
-      )}
+
+        {d.services.length > 0 && (
+          <>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button style={s.smallBtn} onClick={selectAllFiltered}>
+                Selecionar {filtered.length}{svcSearch || envFilter.length ? ' (filtrados)' : ''}
+              </button>
+              <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
+              <span style={s.counter}>{selectedNames.length} selecionado(s) · mostrando {filtered.length} de {d.services.length}</span>
+            </div>
+
+            <div style={s.svcList}>
+              {filtered.map(svc => {
+                const env = envOf(svc)
+                const on = !!d.selected[svc]
+                return (
+                  <label key={svc} style={{ ...s.svcRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                    <input type="checkbox" checked={on} onChange={() => toggleService(svc)} />
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{svc}</span>
+                    {env && <span style={s.envTag(ENV_META[env].c, ENV_META[env].bg)}>{ENV_META[env].label}</span>}
+                  </label>
+                )
+              })}
+              {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum serviço para esse filtro.</p>}
+            </div>
+          </>
+        )}
+        {d.services.length === 0 && !loading && (
+          <p style={s.hint}>Clique em &quot;Descobrir serviços&quot; para listar os serviços reportando ao Datadog (via {datadogSite}).</p>
+        )}
+      </div>
 
       {selectedNames.length > 0 && (
         <div>
@@ -293,7 +289,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                       <div>
                         <label style={s.miniLabel}>Alert window</label>
                         <select style={s.select} value={cfg.alertWindow} disabled={!on} onChange={e => setAlertParam(a.key, 'alertWindow', e.target.value)}>
-                          <option value="last_5m">last_5m</option><option value="last_15m">last_15m</option><option value="last_30m">last_30m</option><option value="last_1h">last_1h</option><option value="last_4h">last_4h</option>
+                          {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                       <div>
@@ -303,7 +299,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                         </select>
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Desvios</label>
+                        <label style={s.miniLabel}>Anomalies</label>
                         <input style={s.select} type="number" min="1" max="10" value={cfg.deviations} disabled={!on} onChange={e => setAlertParam(a.key, 'deviations', e.target.value)} />
                       </div>
                     </div>

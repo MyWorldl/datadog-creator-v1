@@ -3,6 +3,7 @@
 
 import { useState } from 'react'
 import { INFRA_TYPES } from '@/lib/infra'
+import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
@@ -106,6 +107,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   return (
     <div style={s.card}>
       <div>
+        <label style={s.label}>Hosts</label>
         <div style={s.toolbar}>
           <input
             style={s.search}
@@ -194,10 +196,6 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                         <label style={s.miniLabel}>Warning (nº &quot;down&quot;)</label>
                         <input style={s.select} type="number" min="0" max="20" value={cfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
                       </div>
-                      <div>
-                        <label style={s.miniLabel}>Renotificar (min)</label>
-                        <input style={s.select} type="number" min="0" max="1440" value={cfg.renotifyMinutes} disabled={!on} onChange={e => setMetricParam(t.key, 'renotifyMinutes', Number(e.target.value))} />
-                      </div>
                     </div>
                   )}
                   {open && !isCheck && (
@@ -236,20 +234,17 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                             </select>
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Desvios</label>
+                            <label style={s.miniLabel}>Alert window</label>
+                            <select style={s.select} value={cfg.alertWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'alertWindow', e.target.value)}>
+                              {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={s.miniLabel}>Anomalies</label>
                             <input style={s.select} type="number" min="1" max="10" value={cfg.deviations} disabled={!on} onChange={e => setMetricParam(t.key, 'deviations', Number(e.target.value))} />
                           </div>
                         </>
                       )}
-
-                      <div>
-                        <label style={s.miniLabel}>Sem dados (min)</label>
-                        <input style={s.select} type="number" min="0" max="120" value={cfg.noDataMinutes} disabled={!on} onChange={e => setMetricParam(t.key, 'noDataMinutes', Number(e.target.value))} />
-                      </div>
-                      <div>
-                        <label style={s.miniLabel}>Renotificar (min)</label>
-                        <input style={s.select} type="number" min="0" max="1440" value={cfg.renotifyMinutes} disabled={!on} onChange={e => setMetricParam(t.key, 'renotifyMinutes', Number(e.target.value))} />
-                      </div>
                     </div>
                   )}
                 </div>
@@ -257,8 +252,8 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
             })}
           </div>
           <p style={s.hint}>
-            &quot;Sem dados&quot; alerta quando o host para de reportar (crash, agent parado). &quot;Renotificar&quot; repete o alerta
-            enquanto o problema persistir; 0 desativa a repetição.
+            Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor. Ausência de
+            dados e renotificação seguem o padrão do Datadog.
           </p>
         </div>
       )}
