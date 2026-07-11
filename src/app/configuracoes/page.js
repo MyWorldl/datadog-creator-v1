@@ -2,6 +2,7 @@
 
 import { useApp } from '@/context/AppContext';
 import ConnectKeysCard from '@/components/ConnectKeysCard';
+import AccountPasswordCard from '@/components/AccountPasswordCard';
 
 const s = {
   title:     { fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
@@ -47,6 +48,9 @@ export default function ConfiguracoesPage() {
 
       {/* ── CONEXÃO DA SESSÃO ── */}
       <ConnectKeysCard />
+
+      {/* ── SENHA DA CONTA ── */}
+      <AccountPasswordCard />
     </div>
   );
 }

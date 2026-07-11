@@ -20,6 +20,16 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.23.1',
+    date: '2026-07-11',
+    title: 'Correção: convite/recovery não autenticava + middleware quebrava com sessão apagada',
+    notes: [
+      'O client do browser (@supabase/ssr) usa flowType \'pkce\' fixo, que só processa links com ?code=. Links gerados pela Admin API (convite, recovery) sempre voltam com os tokens em #access_token=... (hash) — sem tratamento manual, a sessão nunca era criada e a pessoa ficava presa na tela de login mesmo clicando no link certo.',
+      'proxy.js chamava getUser() sem tratamento de erro: um cookie de sessão apontando pra um usuário já removido do Supabase Auth fazia a chamada lançar exceção, derrubando o middleware inteiro (Internal Server Error) em toda requisição até o cookie expirar.',
+      'Nova tela \'Senha da conta\' em Configurações — necessária porque aceitar um convite só autentica temporariamente, não define senha nenhuma; sem isso, a pessoa nunca conseguiria logar de novo via e-mail/senha depois que a sessão expirasse.',
+    ],
+  },
+  {
     version: '1.23.0',
     date: '2026-07-11',
     title: 'MonitorsCreator: mensagens de alerta mais ricas + tela Configurar reorganizada',

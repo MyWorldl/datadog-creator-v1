@@ -17,7 +17,18 @@ export default async function proxy(request) {
   if (supabase) {
     // getUser() força a revalidação/refresh do token e persiste os cookies
     // atualizados na response acima. O resultado em si não é usado aqui.
-    await supabase.auth.getUser()
+    //
+    // Precisa de try/catch: um cookie de sessão apontando pra um usuário já
+    // apagado (ex: conta removida no Supabase Auth) faz getUser() FALHAR
+    // (não só retornar erro — lança), o que sem isso derruba o middleware
+    // inteiro em TODA request (Internal Server Error), até o cookie expirar
+    // ou o usuário limpar o site data. Sem sessão válida = segue como
+    // requisição anônima, que é o comportamento correto aqui de qualquer forma.
+    try {
+      await supabase.auth.getUser()
+    } catch {
+      // ignora — resultado não é usado, só o refresh de cookie (best-effort)
+    }
   }
   return response
 }
