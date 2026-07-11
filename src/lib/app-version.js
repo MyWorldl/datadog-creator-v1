@@ -20,6 +20,15 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.23.0',
+    date: '2026-07-11',
+    title: 'MonitorsCreator: mensagens de alerta mais ricas + tela Configurar reorganizada',
+    notes: [
+      'Mensagens de todos os tipos de alerta (serviços e infra) ganharam formato padronizado: O que monitora, Por que importa, Causas prováveis e Ação recomendada — antes eram uma linha só.',
+      'Tela Configurar do wizard reorganizada: busca/filtro de serviços sempre visível, opções de alert window unificadas entre serviços e infra (ALERT_WINDOW_OPTIONS), campos \'Sem dados\' e \'Renotificar\' removidos em favor do padrão do Datadog (menos configuração manual pra decidir).',
+    ],
+  },
+  {
     version: '1.22.0',
     date: '2026-07-11',
     title: 'Segurança: versionamento da chave de criptografia',

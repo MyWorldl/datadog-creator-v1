@@ -35,7 +35,22 @@ export const INFRA_TYPES = [
     defThresholds: { critical: 90, warning: 80 },
     defDeviations: 3,
     hint: 'Uso de CPU acima do limite (ou fora do padrão histórico).',
-    message: '🔴 [Infra · CPU] {{host.name}} — CPU em {{value}}% (limite: {{threshold}}%).\n@equipe-infra',
+    message: `🔴 [Infra · CPU] {{host.name}} — CPU em {{value}}% (limite: {{threshold}}%).
+
+**O que monitora:** percentual de uso de CPU do host em relação à capacidade total, dentro da janela avaliada. Dispara quando o valor ultrapassa o limite configurado.
+
+**Por que importa:** uso sustentado próximo do limite reduz a margem de capacidade, aumenta a latência de processos e pode causar degradação de serviços, throttling em containers ou queda de processos críticos.
+
+**Causas prováveis:**
+- Pico de tráfego ou carga de trabalho acima do normal
+- Processo com uso ineficiente de CPU (loop, leak, query pesada)
+- Job em lote (batch) ou cron mal dimensionado no host
+- Redução no número de instâncias/hosts do pool, concentrando carga
+- Ruído de vizinhança em ambientes compartilhados (noisy neighbor)
+
+**Ação recomendada:** identificar os processos com maior consumo (top/htop, APM), verificar correlação com aumento de tráfego, avaliar escalonamento horizontal/vertical e checar jobs concorrentes que possam ser reagendados.
+
+@equipe-infra`,
   },
   {
     key: 'memory', kind: 'metric', label: 'Memória', unit: '%',
@@ -44,7 +59,22 @@ export const INFRA_TYPES = [
     defThresholds: { critical: 90, warning: 80 },
     defDeviations: 3,
     hint: 'Uso de memória acima do limite (ou fora do padrão histórico).',
-    message: '🔴 [Infra · Memória] {{host.name}} — memória em {{value}}% (limite: {{threshold}}%).\n@equipe-infra',
+    message: `🔴 [Infra · Memória] {{host.name}} — memória em {{value}}% (limite: {{threshold}}%).
+
+**O que monitora:** percentual de uso de memória RAM do host em relação à capacidade total, alertando quando o consumo ultrapassa o limite configurado.
+
+**Por que importa:** memória insuficiente pode causar uso excessivo de swap (degradando performance), OOM Killer encerrando processos abruptamente e falhas em cascata quando serviços dependentes não conseguem alocar memória.
+
+**Causas prováveis:**
+- Memory leak em alguma aplicação
+- Aumento real de carga/volume de dados em memória (cache, buffers)
+- Processo ou container sem limite de memória configurado corretamente
+- Vazamento de conexões ou sessões não liberadas
+- Redução no número de instâncias, concentrando carga de memória
+
+**Ação recomendada:** analisar o histórico de consumo por processo, verificar se o crescimento é gradual (leak) ou súbito (pico de carga), revisar limites de memória de containers/processos e considerar reinício controlado ou scale out como mitigação imediata.
+
+@equipe-infra`,
   },
   {
     key: 'disk', kind: 'metric', label: 'Disco (espaço)', unit: '%',
@@ -54,7 +84,22 @@ export const INFRA_TYPES = [
     defDeviations: 3,
     hint: 'Uso de espaço em disco acima do limite (ou fora do padrão histórico).',
     extraBy: ['device'], // disco quase sempre precisa de {host,device}
-    message: '🔴 [Infra · Disco] {{host.name}} — disco em {{value}}% (limite: {{threshold}}%).\n@equipe-infra',
+    message: `🔴 [Infra · Disco] {{host.name}} — disco em {{value}}% (limite: {{threshold}}%).
+
+**O que monitora:** percentual de espaço em disco utilizado em relação à capacidade total do volume/partição monitorada.
+
+**Por que importa:** disco cheio é uma das causas mais comuns de indisponibilidade total: impede escrita de logs, trava banco de dados, impede gravação de arquivos temporários e pode deixar o sistema operacional instável.
+
+**Causas prováveis:**
+- Crescimento não controlado de logs de aplicação
+- Acúmulo de arquivos temporários, dumps ou backups locais
+- Crescimento orgânico de banco de dados sem rotação/retenção configurada
+- Falha em job de limpeza (log rotation, cleanup automatizado)
+- Aumento real de volume de dados armazenados pela aplicação
+
+**Ação recomendada:** identificar diretórios/arquivos que mais consomem espaço, validar políticas de retenção e rotação de logs, remover arquivos temporários com segurança e avaliar expansão do volume caso o crescimento seja orgânico e esperado.
+
+@equipe-infra`,
   },
   {
     key: 'diskIO', kind: 'metric', label: 'Disco · I/O (saturação)', unit: '%',
@@ -66,7 +111,22 @@ export const INFRA_TYPES = [
     defDeviations: 3,
     hint: 'Percentual de tempo com o disco ocupado em operações de I/O (gargalo de leitura/escrita, não é espaço livre).',
     extraBy: ['device'],
-    message: '🔴 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (limite: {{threshold}}%). Possível gargalo de leitura/escrita.\n@equipe-infra',
+    message: `🔴 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (limite: {{threshold}}%). Possível gargalo de leitura/escrita.
+
+**O que monitora:** percentual de utilização/saturação de I/O do disco (tempo em que o disco está ocupado processando leitura/escrita), sinalizando quando ultrapassa o limite.
+
+**Por que importa:** saturação de I/O gera aumento de latência mesmo com CPU e memória saudáveis — é um gargalo silencioso que afeta bancos de dados, filas e persistência intensiva, podendo causar timeouts em cascata.
+
+**Causas prováveis:**
+- Consultas de banco de dados ineficientes (queries sem índice, table scans)
+- Backup, restore ou replicação rodando em horário de pico
+- Disco físico subdimensionado para a carga (ex.: HDD onde deveria haver SSD/NVMe)
+- Múltiplos processos concorrendo pelo mesmo volume
+- Escrita excessiva de logs em modo síncrono
+
+**Ação recomendada:** verificar quais processos geram maior I/O, revisar queries e índices, mover cargas pesadas (backup/batch) para janelas de menor uso e considerar discos de maior performance ou separação de volumes por tipo de carga.
+
+@equipe-infra`,
   },
   {
     key: 'network', kind: 'metric', label: 'Rede (erros)', unit: 'erros',
@@ -80,7 +140,22 @@ export const INFRA_TYPES = [
     defDeviations: 3,
     hint: 'Pacotes de rede com erro (entrada+saída) na janela — indica problema de interface/driver/cabo, não uso normal de banda.',
     extraBy: ['device'], // interface de rede
-    message: '🔴 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (limite: {{threshold}}).\n@equipe-infra',
+    message: `🔴 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (limite: {{threshold}}).
+
+**O que monitora:** quantidade de erros de pacote (descartes, colisões, falhas de transmissão/recepção) na interface de rede do host dentro da janela, comparado ao limite configurado.
+
+**Por que importa:** erros de rede indicam problemas na camada de transporte que podem causar retransmissões, aumento de latência, perda de conexões e indisponibilidade de comunicação — mesmo com CPU, memória e disco normais.
+
+**Causas prováveis:**
+- Problema físico de cabeamento, placa de rede ou switch
+- Configuração incorreta de MTU, duplex ou negociação de velocidade
+- Sobrecarga de tráfego na interface (saturação de banda)
+- Problema em equipamento de rede intermediário (firewall, load balancer)
+- Falha de driver ou firmware da interface de rede
+
+**Ação recomendada:** verificar estatísticas da interface (erros de entrada vs. saída, descartes), checar se o problema é isolado ao host ou afeta múltiplos hosts na mesma rede/rack, e acionar a equipe de rede caso indique problema físico ou de equipamento.
+
+@equipe-infra`,
   },
   {
     key: 'load', kind: 'metric', label: 'Load Average (normalizado)', unit: 'x',
@@ -90,7 +165,21 @@ export const INFRA_TYPES = [
     defThresholds: { critical: 2, warning: 1 },
     defDeviations: 3,
     hint: 'Load average de 5min dividido pelo nº de CPUs. Acima de 1x, há mais processos esperando CPU do que núcleos disponíveis.',
-    message: '🔴 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (limite: {{threshold}}x).\n@equipe-infra',
+    message: `🔴 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (limite: {{threshold}}x).
+
+**O que monitora:** load average do host normalizado pelo número de núcleos de CPU, alertando quando ultrapassa o limite (1x = demanda igual à capacidade total de processamento).
+
+**Por que importa:** load normalizado acima do limite indica mais processos aguardando CPU/recursos do que o host consegue atender simultaneamente — sinaliza saturação geral mesmo quando o uso percentual de CPU isolado não parece crítico (captura também espera por I/O).
+
+**Causas prováveis:**
+- Excesso de processos concorrentes para a capacidade do host
+- Processos em espera por I/O (disco ou rede lentos) contribuindo para o load
+- Dimensionamento inadequado do host para a carga atual
+- Deadlocks ou processos travados acumulando na fila de execução
+
+**Ação recomendada:** correlacionar com CPU, I/O de disco e memória para achar o gargalo real, verificar processos em estado "D" (uninterruptible sleep) e avaliar redimensionamento ou balanceamento de carga entre hosts.
+
+@equipe-infra`,
   },
   {
     key: 'hostUp', kind: 'check', label: 'Agent Down (sem reporte)', unit: '',
@@ -101,7 +190,22 @@ export const INFRA_TYPES = [
     defCounts: { critical: 3, warning: 1 }, // nº de reportes "down" nos últimos `window` para disparar
     defWindow: 4, // últimos N reportes do check considerados
     hint: 'Alerta quando o Agent do host para de enviar heartbeat (crash, host desligado, rede caiu) — reage ao check em si, não a uma métrica ausente.',
-    message: '🔴 [Infra · Agent Down] {{host.name}} — o Agent parou de reportar.\n@equipe-infra',
+    message: `🔴 [Infra · Agent Down] {{host.name}} — o Agent parou de reportar.
+
+**O que monitora:** se o agente de monitoramento do host está reportando métricas dentro do intervalo esperado. Dispara quando o host para de enviar dados.
+
+**Por que importa:** sem o agente reportando, o time perde toda a observabilidade daquele host — não é possível saber se há problema de CPU, memória, disco ou rede, o que pode mascarar outro incidente ocorrendo simultaneamente.
+
+**Causas prováveis:**
+- Host desligado, reiniciado ou em manutenção
+- Falha ou crash do processo do agente
+- Perda de conectividade de rede entre o host e a plataforma
+- Host removido/desprovisionado sem remoção do monitor correspondente
+- Problema de autenticação/certificado do agente
+
+**Ação recomendada:** confirmar se a ausência de reporte é esperada (manutenção, desprovisionamento); se não for, verificar acesso via SSH/console, status do processo do agente, logs e conectividade de rede.
+
+@equipe-infra`,
   },
 ]
 export const INFRA_BY_KEY = Object.fromEntries(INFRA_TYPES.map(t => [t.key, t]))
@@ -119,7 +223,6 @@ export function initialInfraDiscovery() {
             mode: 'check',
             counts: { ...t.defCounts },
             window: t.defWindow,
-            renotifyMinutes: 60,
           }]
         }
         return [t.key, {
@@ -132,8 +235,6 @@ export function initialInfraDiscovery() {
           seasonality: 'weekly',
           queryWindow: 'last_10m',
           alertWindow: 'last_15m',
-          noDataMinutes: 10,
-          renotifyMinutes: 60,
           evaluationDelay: 0,
         }]
       })
@@ -175,7 +276,7 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   return `avg(${queryWindow}):${m} > ${thresholds.critical}`
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, renotifyMinutes = 60, evaluationDelay }) {
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
@@ -199,8 +300,7 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
       // caiu) — diferente do monitor de serviço, aqui isso PRECISA alertar.
       notify_no_data: true,
       no_data_timeframe: noDataMinutes,
-      // Re-notifica enquanto o problema persiste, para não ser esquecido.
-      renotify_interval: renotifyMinutes,
+      // Re-notificação fica no padrão do Datadog (não configurável aqui).
       // Métricas de integrações cloud costumam chegar atrasadas; evita
       // falso "sem dados" ou leitura de janela incompleta.
       ...(evaluationDelay ? { evaluation_delay: evaluationDelay } : {}),
@@ -223,7 +323,7 @@ function buildHostCheckQuery({ host, extraTags, check, window = 4 }) {
   return `"${check}".over(${over}).by("host").last(${window}).count_by_status()`
 }
 
-function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, renotifyMinutes = 60 }) {
+function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
@@ -243,7 +343,6 @@ function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, m
       // ligado, pois um Agent totalmente sumido também deve alertar.
       notify_no_data: true,
       no_data_timeframe: (window || t.defWindow) * 2,
-      renotify_interval: renotifyMinutes,
       notify_audit: false,
     },
   }
@@ -274,7 +373,6 @@ export function planInfraPreview(infraDiscovery) {
             kind: t.key, host, tags, namePrefix, message: messages[t.key],
             counts: cfg.counts || t.defCounts,
             window: cfg.window || t.defWindow,
-            renotifyMinutes: cfg.renotifyMinutes,
           })
         : buildInfraMonitorPayload({
             kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key],
@@ -286,8 +384,6 @@ export function planInfraPreview(infraDiscovery) {
             seasonality: cfg.seasonality || 'weekly',
             queryWindow: cfg.queryWindow || 'last_10m',
             alertWindow: cfg.alertWindow || 'last_15m',
-            noDataMinutes: cfg.noDataMinutes,
-            renotifyMinutes: cfg.renotifyMinutes,
             evaluationDelay: cfg.evaluationDelay,
           })
       plan.push({ kind: t.key, label: t.label, service: host, operation: t.label, name: payload.name, query: payload.query, message: payload.message, payload })

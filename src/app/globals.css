@@ -120,10 +120,10 @@ body {
   left: 100%;
   min-width: 200px;
   background: var(--bg-sidebar);
-  border: 1px solid rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.08);
   border-left: none;
   border-radius: 0 10px 10px 0;
-  box-shadow: 8px 8px 28px rgba(0,0,0,0.35);
+  box-shadow: 4px 0 16px rgba(0,0,0,0.2);
   padding: 6px;
   z-index: 60;
   animation: sidebarFlyoutIn 0.14s ease;

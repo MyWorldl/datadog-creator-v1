@@ -1,5 +1,8 @@
 // src/components/Sidebar.jsx
 'use client'
+/* eslint-disable react-hooks/set-state-in-effect --
+   O efeito abaixo sincroniza a categoria aberta com a navegação (sistema
+   externo ao componente), não é loop de render. */
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
@@ -63,7 +66,7 @@ function rowStyle({ active, hovered }) {
     display: 'flex',
     alignItems: 'center',
     gap: 9,
-    width: '100%',
+    width: 'calc(100% - 16px)',
     margin: '2px 8px',
     padding: '8px 10px',
     borderRadius: 8,
