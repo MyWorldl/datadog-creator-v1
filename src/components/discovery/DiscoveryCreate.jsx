@@ -5,6 +5,59 @@ import { useState } from 'react'
 import { planPreview } from '@/lib/discovery'
 import { planInfraPreview } from '@/lib/infra'
 
+// Primeira linha da mensagem (o resto é o corpo longo — O que monitora/Causas/
+// Ação recomendada — que não cabe bem numa célula de planilha).
+function firstLine(message) {
+  return (message || '').split('\n')[0].trim()
+}
+
+function priorityLabel(priority) {
+  return priority ? `P${priority}` : 'Sem prioridade'
+}
+
+// Monta e baixa o Excel (só monitores CRIADOS agora — não os que já existiam
+// e foram pulados, já que esses não têm id novo). plan[i] e results[i] estão
+// sempre alinhados 1:1: a rota processa o mesmo plano, na mesma ordem, que o
+// cliente já calculou aqui (mesma função pura, mesmo input).
+async function downloadResultsExcel(plan, resultsList) {
+  const rows = plan
+    .map((p, i) => ({ p, r: resultsList[i] }))
+    .filter(({ r }) => r?.ok && !r?.skipped)
+    .map(({ p, r }) => ({
+      id: r.id,
+      nome: p.name,
+      prioridade: priorityLabel(p.priority),
+      servico: p.service,
+      descricao: firstLine(p.message),
+    }))
+
+  if (rows.length === 0) return
+
+  const ExcelJS = (await import('exceljs')).default
+  const wb = new ExcelJS.Workbook()
+  const sheet = wb.addWorksheet('Monitores')
+  sheet.columns = [
+    { header: 'ID', key: 'id', width: 14 },
+    { header: 'Nome do Monitor', key: 'nome', width: 48 },
+    { header: 'Prioridade', key: 'prioridade', width: 16 },
+    { header: 'Nome do host/serviço', key: 'servico', width: 28 },
+    { header: 'Descrição da mensagem', key: 'descricao', width: 64 },
+  ]
+  sheet.getRow(1).font = { bold: true }
+  sheet.addRows(rows)
+
+  const buffer = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `monitores-datadog-${new Date().toISOString().slice(0, 10)}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
   summary: { fontSize: 13, color: 'var(--text-secondary)' },
@@ -14,6 +67,7 @@ const s = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
+  btnExport: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer', alignSelf: 'flex-start' },
 }
 
 export default function DiscoveryCreate({ config, onBack }) {
@@ -25,6 +79,7 @@ export default function DiscoveryCreate({ config, onBack }) {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   async function create() {
     setError(''); setResults(null); setCreating(true)
@@ -40,6 +95,17 @@ export default function DiscoveryCreate({ config, onBack }) {
     } catch (e) { setError('Falha de rede: ' + e.message) }
     finally { setCreating(false) }
   }
+
+  async function exportExcel() {
+    setExporting(true)
+    try {
+      await downloadResultsExcel(plan, results.results)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const createdCount = results?.results?.filter(r => r.ok && !r.skipped).length || 0
 
   return (
     <div style={s.card}>
@@ -65,6 +131,11 @@ export default function DiscoveryCreate({ config, onBack }) {
               </div>
             ))}
           </div>
+          {createdCount > 0 && (
+            <button style={s.btnExport} onClick={exportExcel} disabled={exporting}>
+              {exporting ? 'Gerando…' : `📊 Baixar Excel (${createdCount} monitor(es))`}
+            </button>
+          )}
         </>
       )}
 

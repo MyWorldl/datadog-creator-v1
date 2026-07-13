@@ -128,6 +128,7 @@ export function initialDiscovery() {
         algorithm: a.algorithm,
         seasonality: a.seasonality,
         alertWindow: a.alertWindow,
+        priority: 3, // 1-5 (P1-P5) ou null = sem prioridade — campo nativo do Datadog. Default P3.
       }])
     ),
     groupBy: [...DEFAULT_GROUP_BY],
@@ -180,7 +181,7 @@ export function buildAnomalyQuery({ kind, service, env, operation, deviations, g
   )
 }
 
-export function buildMonitorPayload({ kind, service, env, operation, deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow }) {
+export function buildMonitorPayload({ kind, service, env, operation, deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority }) {
   const label = ALERT_BY_KEY[kind]?.label || kind
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${service} · ${label}`.trim()
   const baseTags = ['created_by:monitorscreator', `service:${service}`]
@@ -193,6 +194,9 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
     query: buildAnomalyQuery({ kind, service, env, operation, deviations, direction, groupBy, algorithm, seasonality, queryWindow, alertWindow }),
     message: message || ALERT_BY_KEY[kind]?.message || '',
     tags: baseTags,
+    // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5,
+    // omitido quando não definido (o Datadog trata ausência como "sem prioridade").
+    ...(priority ? { priority } : {}),
     options: {
       // Anomaly detection: a chave é trigger_window (não alert_window) e ela
       // DEVE ser igual ao alert_window usado na query. Doc:
@@ -233,8 +237,9 @@ export function planPreview(discovery) {
           seasonality: cfg.seasonality || a.seasonality,
           alertWindow: cfg.alertWindow || a.alertWindow,
           queryWindow,
+          priority: cfg.priority,
         })
-        plan.push({ kind: a.key, label: a.label, service, operation, name: payload.name, query: payload.query, message: payload.message, payload })
+        plan.push({ kind: a.key, label: a.label, service, operation, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
       }
     }
   }
