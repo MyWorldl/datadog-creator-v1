@@ -44,3 +44,33 @@ test('buildAnomalyQuery injeta seasonality só quando não é basic', () => {
   const basic = buildAnomalyQuery({ kind: 'latency', service: 'web', deviations: 2, direction: 'above', algorithm: 'basic', seasonality: 'weekly', alertWindow: 'last_15m' })
   assert.doesNotMatch(basic, /seasonality=/)
 })
+
+test('priority: padrão é P3 (initialDiscovery já vem com priority:3 pra cada tipo de alerta)', () => {
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  const [m] = planPreview(d)
+  assert.equal(m.priority, 3)
+  assert.equal(m.payload.priority, 3)
+})
+
+test('priority: null explícito (usuário escolheu "Sem prioridade" na UI) faz o campo nem aparecer no payload', () => {
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  d.alerts.latency.priority = null
+  const [m] = planPreview(d)
+  assert.equal(m.priority, null)
+  assert.ok(!('priority' in m.payload))
+})
+
+test('priority: definida na config, propaga pro item do plano E pro payload (campo de topo, não dentro de options)', () => {
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  d.alerts.latency.priority = 2
+  const [m] = planPreview(d)
+  assert.equal(m.priority, 2)
+  assert.equal(m.payload.priority, 2)
+  assert.ok(!('priority' in m.payload.options), 'priority é campo de topo do monitor, não deve ficar dentro de options')
+})

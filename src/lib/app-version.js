@@ -20,6 +20,24 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.24.1',
+    date: '2026-07-13',
+    title: 'Prioridade dos monitores: padrão P3',
+    notes: [
+      'O seletor de Prioridade (P1-P5) na etapa Personalizar agora nasce com P3 marcado por padrão em todos os tipos de alerta/métrica, em vez de "Sem prioridade" — ainda dá pra trocar pra outra prioridade ou remover manualmente por tipo.',
+    ],
+  },
+  {
+    version: '1.24.0',
+    date: '2026-07-13',
+    title: 'MonitorsCreator: prioridade dos monitores + exportar Excel',
+    notes: [
+      'Novo campo de Prioridade (P1-P5, campo nativo do Datadog) por tipo de alerta/métrica na etapa Personalizar do wizard — antes o app não definia prioridade nenhuma nos monitores criados.',
+      'Etapa Criar ganhou botão \'Baixar Excel\' após a criação, com ID, Nome do Monitor, Prioridade, Nome do host/serviço e a primeira linha da mensagem — só dos monitores efetivamente criados (não inclui os que já existiam/foram pulados).',
+      'Geração via exceljs (client-side, carregado sob demanda só quando o botão é clicado) — optamos por essa lib em vez da mais popular \'xlsx\' por causa de duas vulnerabilidades conhecidas (Prototype Pollution + ReDoS) nela.',
+    ],
+  },
+  {
     version: '1.23.2',
     date: '2026-07-11',
     title: 'Config: fixar versão do Node no engines (evita upgrade automático)',

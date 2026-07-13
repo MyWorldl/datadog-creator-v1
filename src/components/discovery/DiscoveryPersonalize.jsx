@@ -17,7 +17,8 @@ const s = {
   tag: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '4px 10px', borderRadius: 999, background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' },
   tagX: { cursor: 'pointer', fontWeight: 700, border: 'none', background: 'none', color: 'var(--accent)', fontSize: 13, lineHeight: 1 },
   textarea: { width: '100%', fontSize: 12.5, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', minHeight: 72, lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' },
-  msgHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  msgHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 },
+  prioritySelect: { fontSize: 12, padding: '4px 8px', border: '0.5px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface-2)', color: 'var(--text-secondary)', outline: 'none' },
   reset: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
@@ -54,6 +55,10 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
   function removeTag(t) { setDisc({ tags: (d.tags || []).filter(x => x !== t) }) }
   function setMessage(key, value) { setDisc({ messages: { ...d.messages, [key]: value } }) }
   function resetMessage(key) { setDisc({ messages: { ...d.messages, [key]: BY_KEY[key].message } }) }
+  function setPriority(key, value) {
+    const field = isInfra ? 'metrics' : 'alerts'
+    setDisc({ [field]: { ...d[field], [key]: { ...d[field][key], priority: value ? Number(value) : null } } })
+  }
 
   return (
     <div style={s.card}>
@@ -112,7 +117,22 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
             <div key={t.key}>
               <div style={s.msgHead}>
                 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</span>
-                <button style={s.reset} onClick={() => resetMessage(t.key)}>restaurar padrão</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <select
+                    style={s.prioritySelect}
+                    value={enabledKeySet[t.key]?.priority ?? ''}
+                    onChange={e => setPriority(t.key, e.target.value)}
+                    title="Prioridade do monitor no Datadog"
+                  >
+                    <option value="">Sem prioridade</option>
+                    <option value="1">P1</option>
+                    <option value="2">P2</option>
+                    <option value="3">P3</option>
+                    <option value="4">P4</option>
+                    <option value="5">P5</option>
+                  </select>
+                  <button style={s.reset} onClick={() => resetMessage(t.key)}>restaurar padrão</button>
+                </div>
               </div>
               <textarea style={s.textarea} value={d.messages[t.key] ?? ''} onChange={e => setMessage(t.key, e.target.value)} />
             </div>

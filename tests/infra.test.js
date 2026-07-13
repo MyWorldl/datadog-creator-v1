@@ -57,3 +57,48 @@ test('planInfraPreview: um monitor por (host × métrica habilitada)', () => {
   const plan = planInfraPreview(d)
   assert.equal(plan.length, 4) // 2 hosts × 2 métricas
 })
+
+test('priority: padrão é P3 (initialInfraDiscovery já vem com priority:3 pra cada métrica/check)', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.hostUp.enabled = true
+  const plan = planInfraPreview(d)
+  for (const m of plan) {
+    assert.equal(m.priority, 3, `${m.kind}: esperado priority 3 (padrão)`)
+    assert.equal(m.payload.priority, 3, `${m.kind}: payload deveria ter priority 3`)
+  }
+})
+
+test('priority: null explícito (usuário escolheu "Sem prioridade" na UI) faz o campo nem aparecer no payload', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.priority = null
+  d.metrics.hostUp.enabled = true
+  d.metrics.hostUp.priority = null
+  const plan = planInfraPreview(d)
+  for (const m of plan) {
+    assert.equal(m.priority, null, `${m.kind}: esperado priority null`)
+    assert.ok(!('priority' in m.payload), `${m.kind}: payload não deveria ter priority`)
+  }
+})
+
+test('priority: definida na config, propaga pro payload de métrica E de service check (campo de topo)', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.priority = 1
+  d.metrics.hostUp.enabled = true
+  d.metrics.hostUp.priority = 5
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  const hostUp = plan.find(m => m.kind === 'hostUp')
+  assert.equal(cpu.priority, 1)
+  assert.equal(cpu.payload.priority, 1)
+  assert.equal(hostUp.priority, 5)
+  assert.equal(hostUp.payload.priority, 5)
+})

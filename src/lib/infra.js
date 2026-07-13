@@ -223,6 +223,7 @@ export function initialInfraDiscovery() {
             mode: 'check',
             counts: { ...t.defCounts },
             window: t.defWindow,
+            priority: 3, // 1-5 (P1-P5) ou null = sem prioridade — campo nativo do Datadog. Default P3.
           }]
         }
         return [t.key, {
@@ -236,6 +237,7 @@ export function initialInfraDiscovery() {
           queryWindow: 'last_10m',
           alertWindow: 'last_15m',
           evaluationDelay: 0,
+          priority: 3,
         }]
       })
     ),
@@ -276,7 +278,7 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   return `avg(${queryWindow}):${m} > ${thresholds.critical}`
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay }) {
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
@@ -289,6 +291,8 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
     query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow }),
     message: message || t.message,
     tags: baseTags,
+    // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5.
+    ...(priority ? { priority } : {}),
     options: {
       thresholds: mode === 'anomaly'
         ? { critical: 1.0 }
@@ -323,7 +327,7 @@ function buildHostCheckQuery({ host, extraTags, check, window = 4 }) {
   return `"${check}".over(${over}).by("host").last(${window}).count_by_status()`
 }
 
-function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix }) {
+function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, priority }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
@@ -336,6 +340,7 @@ function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, m
     query: buildHostCheckQuery({ host, extraTags, check: t.check, window: window || t.defWindow }),
     message: message || t.message,
     tags: baseTags,
+    ...(priority ? { priority } : {}),
     options: {
       thresholds: { critical: counts?.critical ?? t.defCounts.critical, warning: counts?.warning ?? t.defCounts.warning, ok: counts?.ok ?? 1 },
       // O próprio check "sem reportar mais nada" já é coberto por
@@ -373,6 +378,7 @@ export function planInfraPreview(infraDiscovery) {
             kind: t.key, host, tags, namePrefix, message: messages[t.key],
             counts: cfg.counts || t.defCounts,
             window: cfg.window || t.defWindow,
+            priority: cfg.priority,
           })
         : buildInfraMonitorPayload({
             kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key],
@@ -385,8 +391,9 @@ export function planInfraPreview(infraDiscovery) {
             queryWindow: cfg.queryWindow || 'last_10m',
             alertWindow: cfg.alertWindow || 'last_15m',
             evaluationDelay: cfg.evaluationDelay,
+            priority: cfg.priority,
           })
-      plan.push({ kind: t.key, label: t.label, service: host, operation: t.label, name: payload.name, query: payload.query, message: payload.message, payload })
+      plan.push({ kind: t.key, label: t.label, service: host, operation: t.label, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
     }
   }
   return plan
