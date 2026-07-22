@@ -7,8 +7,12 @@
 // descritivo (children) fica escondido e é revelado ao clicar, com transição
 // suave de altura (CSS Grid: grid-template-rows 0fr -> 1fr + overflow hidden).
 //
-// Acessibilidade: o status é transmitido por FORMA (ícone) + COR + NÚMERO, não
-// só por cor — atende ao WCAG 1.4.1. https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html
+// Acessibilidade: o status é transmitido por COR + NÚMERO + rótulo textual
+// (aria-label no cabeçalho descreve o status por extenso), não só por cor —
+// atende ao WCAG 1.4.1. https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html
+// Quando um `icon` temático é passado, ele substitui a forma de status como
+// glyph de identidade do card; o status segue transmitido por cor + número +
+// aria-label. Sem `icon`, cai no ícone de status por forma (StatusIcon).
 // Cabeçalho é um <button> com aria-expanded/aria-controls; corpo com aria-hidden.
 
 'use client'
@@ -34,7 +38,9 @@ function StatusIcon({ status }) {
   return <svg {...p}><path d="M5 12h14" /></svg>
 }
 
-export default function CollapsibleCard({ title, score, status = 'nd', defaultOpen = false, children }) {
+const STATUS_LABEL = { good: 'saudável', warn: 'atenção', bad: 'crítico', nd: 'não avaliado' }
+
+export default function CollapsibleCard({ title, score, status = 'nd', icon = null, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen)
   const bodyId = useId()
   const st = STATUS[status] || STATUS.nd
@@ -56,6 +62,7 @@ export default function CollapsibleCard({ title, score, status = 'nd', defaultOp
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-controls={bodyId}
+        aria-label={`${title}: status ${STATUS_LABEL[status] || STATUS_LABEL.nd}, pontuação ${scoreStr || 'não avaliada'}`}
         className="flex w-full cursor-pointer items-center justify-between gap-3 bg-transparent px-5 py-4 text-left"
       >
         <span className="flex min-w-0 items-center gap-3">
@@ -63,7 +70,7 @@ export default function CollapsibleCard({ title, score, status = 'nd', defaultOp
             className="flex shrink-0 items-center justify-center rounded-[11px]"
             style={{ width: 38, height: 38, background: iconBg, color: st.color }}
           >
-            <StatusIcon status={status} />
+            {icon || <StatusIcon status={status} />}
           </span>
           <span className="line-clamp-2 text-[13px] font-semibold leading-snug" style={{ color: 'var(--text-primary)' }}>
             {title}

@@ -22,13 +22,29 @@ const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--suc
 // status da dimensão para o card (Modelo E): good | warn | bad | nd
 const smStatus = (dim) => !dim.measured ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
 
+// Ícones temáticos por pilar (linha, estilo lucide — sinérgicos com o tema
+// escuro): cada pilar ganha um glyph de identidade em vez da forma de status.
+const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }
+const PILLAR_ICON = {
+  // Cobertura → camadas (infra/apps/cloud empilhadas)
+  cobertura: <svg {...ICON_PROPS}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></svg>,
+  // Qualidade dos Monitores → sino (alertas)
+  qualidade: <svg {...ICON_PROPS}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>,
+  // Observabilidade → pulso (sinais/telemetria)
+  observabilidade: <svg {...ICON_PROPS}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
+  // Processos → checklist/prancheta (operação, runbooks, SLO)
+  processos: <svg {...ICON_PROPS}><rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></svg>,
+  // Governança → escudo com check (padrões, RBAC, ownership)
+  governanca: <svg {...ICON_PROPS}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z" /><path d="m9 12 2 2 4-4" /></svg>,
+}
+
 const s = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', gap: 12, marginTop: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', alignItems: 'start', gap: 12, marginTop: 16 },
   dim: { border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)' },
   dimHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   dimName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
@@ -84,6 +100,12 @@ export default function ScopeMaturityPage() {
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(1–5)</span>
                 </div>
               )}
+              {data && data.levelNote && (
+                <p style={{ fontSize: 11.5, color: 'var(--warning)', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M12 3 21 19H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+                  {data.levelNote}
+                </p>
+              )}
               {data && (
                 <div style={{ marginBottom: 8 }}>
                   <Sparkline values={data.history} delta={data.delta} color={scoreColor(data.score)} />
@@ -119,9 +141,13 @@ export default function ScopeMaturityPage() {
                     title={p.label}
                     score={p.measured ? p.score : 'N/D'}
                     status={smStatus(p)}
+                    icon={PILLAR_ICON[p.key] || null}
                   >
-                    <p style={{ ...s.dimDetail, marginBottom: 10 }}>
+                    <p style={{ ...s.dimDetail, marginBottom: 6 }}>
                       <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro:</span> {p.maduro}
+                    </p>
+                    <p style={{ ...s.dimDetail, marginBottom: 10 }}>
+                      <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo:</span> {p.imaturo}
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {p.dimensions.map(dim => (
