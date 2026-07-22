@@ -12,10 +12,14 @@
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
+import { analyzeHostCoverage, INFRA_CATALOG } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 
-const REQUIRED_TAGS = ['env', 'service', 'team']
+// Tags reservadas do Unified Service Tagging da Datadog: env, service, version
+// (version habilita deployment tracking). `team` NÃO é tag reservada — vira um
+// KPI próprio de ownership. https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
+const REQUIRED_TAGS = ['env', 'service', 'version']
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min — suficiente pra absorver refreshes/múltiplos usuários
 
 function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0 }
@@ -60,6 +64,7 @@ export async function GET() {
 
   const monitors = Array.isArray(monitorsR.json) ? monitorsR.json : []
   const hosts = hostsR.json?.host_list || []
+  const hostNames = hosts.map(h => h.host_name || h.name).filter(Boolean)
   const totals = totalsR.json || {}
   const apmServices = (() => {
     const data = apmR.json?.data
@@ -70,7 +75,6 @@ export async function GET() {
   const servicesCount = new Set(apmServices).size
   const dashboards = dashR.json?.dashboards || []
   const slos = sloR.json?.data || []
-  const cloudCount = [awsR, gcpR, azureR].filter(r => r.ok && Array.isArray(r.json) ? r.json.length > 0 : r.ok).length
 
   // Helpers de tags
   const hostTags = (h) => Object.values(h.tags_by_source || {}).flat()
@@ -89,28 +93,52 @@ export async function GET() {
     alertEvents(ctx, 7),
   ])
 
-  // 1. Tag Compliance (hosts com env/service/team) — detalhe por tag (item 7)
+  // 1. Unified Service Tagging (hosts com env/service/version) — as 3 tags
+  // reservadas da Datadog. Detalhe por tag, com destaque do gargalo.
   if (hostsR.ok && hosts.length) {
     const per = REQUIRED_TAGS.map(k => ({ tag: k, pct: pct(hosts.filter(h => hasTagKey(hostTags(h), k)).length, hosts.length) }))
     const avg = per.reduce((a, b) => a + b.pct, 0) / per.length
     const worst = per.reduce((a, b) => b.pct < a.pct ? b : a, per[0])
     const breakdown = per.map(p => `${p.tag} ${p.pct}%`).join(', ')
-    add('tagCompliance', 'Tag Compliance', true, avg,
-      `Infra (${hosts.length} hosts): ${breakdown}. Gargalo: tag "${worst.tag}" (${worst.pct}%) — priorize corrigi-la para subir o score.`)
-  } else add('tagCompliance', 'Tag Compliance', false, 0, 'Sem dados de hosts (requer leitura de infraestrutura).')
+    add('tagCompliance', 'Unified Service Tagging', true, avg,
+      `Infra (${hosts.length} hosts) com as tags reservadas env/service/version: ${breakdown}. Gargalo: "${worst.tag}" (${worst.pct}%). version é o que costuma faltar e habilita deployment tracking.`)
+  } else add('tagCompliance', 'Unified Service Tagging', false, 0, 'Sem dados de hosts (requer leitura de infraestrutura).')
 
-  // 2. Hosts Monitorados
-  if (totalsR.ok && (totals.total_active || totals.total_up)) {
-    add('hostsMonitorados', 'Hosts Monitorados', true, pct(totals.total_up || 0, totals.total_active || totals.total_up || 1), `${totals.total_up || 0} de ${totals.total_active || 0} hosts reportando.`)
-  } else if (hostsR.ok) {
-    const up = hosts.filter(h => h.up).length
-    add('hostsMonitorados', 'Hosts Monitorados', true, pct(up, hosts.length || 1), `${up} de ${hosts.length} hosts ativos.`)
-  } else add('hostsMonitorados', 'Hosts Monitorados', false, 0, 'Sem dados de hosts.')
+  // 1b. Ownership (hosts com tag team) — team não é tag reservada do unified
+  // tagging, mas é a chave de governança para roteamento e responsabilidade.
+  if (hostsR.ok && hosts.length) {
+    const withTeam = hosts.filter(h => hasTagKey(hostTags(h), 'team')).length
+    add('ownership', 'Ownership (tag team)', true, pct(withTeam, hosts.length),
+      `${withTeam} de ${hosts.length} hosts com tag team (dono definido). Datadog: team habilita rotear alertas e atribuir responsabilidade por recurso.`)
+  } else add('ownership', 'Ownership (tag team)', false, 0, 'Sem dados de hosts.')
 
-  // 3. Aplicações com APM (heurística por contagem)
+  // 2. Hosts Monitorados = COBERTURA REAL de monitores-chave de infra por host
+  // (reaproveita a matriz por-host do AuditMonitors), não apenas liveness — um
+  // host "no ar" sem nenhum monitor não deveria contar como monitorado.
+  if (monitorsR.ok && hostNames.length) {
+    const nInfra = INFRA_CATALOG.length || 1
+    const hostCov = analyzeHostCoverage(monitors, hostNames)
+    const avgCov = hostCov.reduce((a, h) => a + (nInfra - h.gapCount) / nInfra, 0) / hostCov.length * 100
+    const full = hostCov.filter(h => h.gapCount === 0).length
+    add('hostsMonitorados', 'Hosts Monitorados', true, avgCov,
+      `Cobertura média de ${avgCov.toFixed(0)}% dos ${nInfra} monitores-chave de infra por host (${full} de ${hostCov.length} hosts totalmente cobertos). Detalhe por host no AuditMonitors.`)
+  } else if (totalsR.ok && (totals.total_active || totals.total_up)) {
+    add('hostsMonitorados', 'Hosts Monitorados', true, pct(totals.total_up || 0, totals.total_active || totals.total_up || 1), `Sem monitores para cruzar — fallback de liveness: ${totals.total_up || 0} de ${totals.total_active || 0} hosts reportando.`)
+  } else add('hostsMonitorados', 'Hosts Monitorados', false, 0, 'Sem dados de hosts/monitores.')
+
+  // 3. Aplicações com APM = % dos serviços CONHECIDOS que têm APM. O universo
+  // de serviços é a união de (serviços com APM) ∪ (tag service:<x> nos hosts) —
+  // serviços que a infra conhece mas não emitem traces contam como lacuna.
+  // Ratio de cobertura escala com o ambiente (o antigo limiar fixo "≥6 = 100"
+  // dava nota máxima tanto para 6 serviços quanto para 6 de 309).
   if (apmR.ok) {
-    const score = servicesCount === 0 ? 0 : servicesCount >= 6 ? 100 : servicesCount >= 3 ? 70 : 40
-    add('apm', 'Aplicações com APM', true, score, `${servicesCount} serviço(s) com APM (faixas: 0→0, 1-2→40, 3-5→70, ≥6→100). Instrumente mais serviços para subir.`)
+    const apmSet = new Set(apmServices)
+    const svcFromHosts = new Set()
+    for (const h of hosts) for (const t of hostTags(h)) if (t.startsWith('service:')) svcFromHosts.add(t.slice('service:'.length))
+    const universe = new Set([...apmSet, ...svcFromHosts])
+    const apmScore = universe.size ? pct(apmSet.size, universe.size) : (apmSet.size > 0 ? 100 : 0)
+    add('apm', 'Aplicações com APM', true, apmScore,
+      `${apmSet.size} de ${universe.size || apmSet.size} serviços conhecidos com APM (universo = serviços com APM ∪ tag service em hosts). Instrumente os serviços sem traces para subir.`)
   } else add('apm', 'Aplicações com APM', false, 0, 'apm_read indisponível na App key.')
 
   // 4. Logs Correlacionados — requer análise de logs (não coletado aqui)
@@ -123,26 +151,46 @@ export async function GET() {
     add('logsCorrelated', 'Logs Correlacionados', false, 0, 'Requer Logs Analytics (logs_read).')
   }
 
-  // 5. Monitores com Owner (tag team:/owner: ou creator)
+  // 5. Monitores roteados = têm destino de notificação. Datadog define alerta
+  // acionável pelo ROTEAMENTO (o @handle no message que notifica um time/canal),
+  // não por quem criou — por isso creator.email NÃO conta mais (todo monitor tem
+  // criador, o que inflava o KPI). Vale @notificação no aviso ou tag team/owner.
   if (monitorsR.ok && monitors.length) {
-    const withOwner = monitors.filter(m => (m.tags || []).some(t => t.startsWith('team:') || t.startsWith('owner:')) || m.creator?.email).length
-    add('monitorsOwner', 'Monitores com Owner', true, pct(withOwner, monitors.length), `${withOwner} de ${monitors.length} monitores com team/owner. Datadog recomenda toda notificação rotear para um dono (tag team:/@handle) com runbook, para o alerta chegar a quem age.`)
-  } else add('monitorsOwner', 'Monitores com Owner', false, 0, 'Sem dados de monitores.')
+    const NOTIFY_RE = /@[\w.-]+/ // @slack-…, @pagerduty-…, @team-…, @user@dominio
+    const routed = monitors.filter(m => NOTIFY_RE.test(String(m.message || '')) || (m.tags || []).some(t => t.startsWith('team:') || t.startsWith('owner:'))).length
+    add('monitorsOwner', 'Monitores roteados (dono/notificação)', true, pct(routed, monitors.length), `${routed} de ${monitors.length} monitores roteiam para um dono (@notificação no aviso ou tag team/owner). creator não conta — o que importa é o alerta chegar a quem age.`)
+  } else add('monitorsOwner', 'Monitores roteados (dono/notificação)', false, 0, 'Sem dados de monitores.')
 
-  // 6. Dashboards por Serviço (ratio dashboards / serviços)
+  // 6. Dashboards por Serviço — densidade dashboards/serviços. É um PROXY: a
+  // API de resumo não associa dashboard→serviço sem inspecionar cada um (custo
+  // de N chamadas), então medimos densidade, não cobertura real por serviço.
   if (dashR.ok && apmR.ok && servicesCount > 0) {
-    add('dashPerService', 'Dashboards por Serviço', true, pct(dashboards.length, servicesCount), `${dashboards.length} dashboards para ${servicesCount} serviços.`)
+    add('dashPerService', 'Dashboards por Serviço', true, pct(dashboards.length, servicesCount), `${dashboards.length} dashboards para ${servicesCount} serviços (densidade — proxy; cobertura real por serviço exigiria inspecionar cada dashboard).`)
   } else add('dashPerService', 'Dashboards por Serviço', false, 0, 'Requer dashboards e serviços APM.')
 
-  // 7. Serviços com SLO
+  // 7. Serviços com SLO — SLOs miram os serviços CRÍTICOS/jornadas de usuário,
+  // não todos os serviços (Datadog). Por isso saturamos: ~20% dos serviços com
+  // SLO já reflete cobrir os críticos e pontua 100 (o antigo /todos-os-serviços
+  // punia injustamente ambientes com centenas de serviços).
   if (sloR.ok && apmR.ok && servicesCount > 0) {
-    add('servicesSLO', 'Serviços com SLO', true, pct(slos.length, servicesCount), `${slos.length} SLO(s) para ${servicesCount} serviços.`)
+    const sloScore = slos.length === 0 ? 0 : Math.min(100, (slos.length / servicesCount) * 100 * 5)
+    add('servicesSLO', 'Serviços com SLO', true, sloScore, `${slos.length} SLO(s) para ${servicesCount} serviços (meta: cobrir os críticos; ~20% de cobertura já pontua cheio).`)
   } else if (sloR.ok) {
     add('servicesSLO', 'Serviços com SLO', true, slos.length > 0 ? 60 : 0, `${slos.length} SLO(s) configurado(s).`)
   } else add('servicesSLO', 'Serviços com SLO', false, 0, 'Sem dados de SLO.')
 
-  // 8. Cloud Integrations
-  add('cloud', 'Cloud Integrations', true, cloudCount === 0 ? 0 : Math.min(100, cloudCount * 40), `${cloudCount} provedor(es) de nuvem integrado(s) — AWS/GCP/Azure (cada um vale +40, máx. 100).`)
+  // 8. Cloud Integrations — maturidade aqui é "a cloud que você USA está bem
+  // integrada", não "quantos provedores". O antigo ×40 travava single-cloud em
+  // 40 para sempre. Agora ≥1 provedor integrado já é maduro (base 80), +10 por
+  // provedor adicional; nº de contas entra no detalhe como sinal de completude.
+  {
+    const acct = (r) => r.ok && Array.isArray(r.json) ? r.json.length : 0
+    const providers = [{ name: 'AWS', n: acct(awsR) }, { name: 'GCP', n: acct(gcpR) }, { name: 'Azure', n: acct(azureR) }]
+    const integrated = providers.filter(p => p.n > 0)
+    const cloudScore = integrated.length === 0 ? 0 : Math.min(100, 80 + (integrated.length - 1) * 10)
+    const desc = integrated.length ? integrated.map(p => `${p.name} (${p.n} conta(s))`).join(', ') : 'nenhum'
+    add('cloud', 'Cloud Integrations', true, cloudScore, `Integrado: ${desc}. Maturidade = a cloud que você usa está integrada — single-cloud não é penalizado.`)
+  }
 
   // 9. Hosts sem Agent (score = % COM agent)
   if (hostsR.ok && hosts.length) {
@@ -150,11 +198,7 @@ export async function GET() {
     add('hostsAgent', 'Hosts com Agent', true, pct(withAgent, hosts.length), `${withAgent} de ${hosts.length} hosts com Agent instalado.`)
   } else add('hostsAgent', 'Hosts com Agent', false, 0, 'Sem dados de hosts.')
 
-  // 11-14. Dependem de logs/histórico — não avaliados nesta versão
-  // 11. Alta Cardinalidade — segue N/D (requer dados de cardinalidade de métricas)
-  add('highCardinality', 'Alta Cardinalidade', false, 0, 'Requer dados de cardinalidade de métricas (não exposto pela API padrão).')
-
-  // 12. Logs sem Service (score = % COM service) — via Logs Analytics
+  // Logs sem Service (score = % COM service) — via Logs Analytics
   if (logsTotal != null && logsTotal > 0 && logsWithSvc != null) {
     add('logsNoService', 'Logs sem Service', true, (logsWithSvc / logsTotal) * 100, `${logsTotal - logsWithSvc} de ${logsTotal} logs (24h) sem tag service.`)
   } else if (logsTotal === 0) {
@@ -191,19 +235,25 @@ export async function GET() {
     active('max:datadog.estimated_usage.profiling.hosts{*}'),
     active('max:datadog.estimated_usage.dbm.hosts{*}'),
   ])
+  // Sinais PONDERADOS: os fundacionais (Métricas/Logs/APM) pesam 2; os avançados
+  // (RUM/Synthetics/Profiling/DBM) pesam 1 — faltar APM não pode valer o mesmo
+  // que faltar DBM (que pode ser N/A no stack). Fundacionais completos = 60;
+  // cada avançado soma ~10. Peso total = 3×2 + 4×1 = 10.
   const obsSignals = [
-    { label: 'Métricas', on: hostsR.ok && hosts.length > 0 },
-    { label: 'Logs', on: (logsTotal || 0) > 0 },
-    { label: 'APM', on: servicesCount > 0 },
-    { label: 'RUM', on: rumOn },
-    { label: 'Synthetics', on: synthOn },
-    { label: 'Profiling', on: profOn },
-    { label: 'Database Monitoring', on: dbmOn },
+    { label: 'Métricas', on: hostsR.ok && hosts.length > 0, w: 2 },
+    { label: 'Logs', on: (logsTotal || 0) > 0, w: 2 },
+    { label: 'APM', on: servicesCount > 0, w: 2 },
+    { label: 'RUM', on: rumOn, w: 1 },
+    { label: 'Synthetics', on: synthOn, w: 1 },
+    { label: 'Profiling', on: profOn, w: 1 },
+    { label: 'Database Monitoring', on: dbmOn, w: 1 },
   ]
+  const totalW = obsSignals.reduce((a, s) => a + s.w, 0)
+  const gotW = obsSignals.filter(s => s.on).reduce((a, s) => a + s.w, 0)
   const obsActive = obsSignals.filter(s => s.on).map(s => s.label)
   const obsMissing = obsSignals.filter(s => !s.on).map(s => s.label)
-  add('observabilidade', 'Observabilidade (sinais ativos)', true, (obsActive.length / obsSignals.length) * 100,
-    `${obsActive.length}/7 sinais ativos: ${obsActive.join(', ') || 'nenhum'}.${obsMissing.length ? ` Faltam: ${obsMissing.join(', ')}.` : ''}`)
+  add('observabilidade', 'Observabilidade (sinais ativos)', true, (gotW / totalW) * 100,
+    `${obsActive.length}/7 sinais ativos (fundacionais Métricas/Logs/APM pesam mais): ${obsActive.join(', ') || 'nenhum'}.${obsMissing.length ? ` Faltam: ${obsMissing.join(', ')} — RUM/Profiling/DBM podem ser N/A no seu stack.` : ''}`)
 
   const measured = dims.filter(d => d.measured)
 
@@ -222,9 +272,9 @@ export async function GET() {
     { key: 'processos', label: 'Processos', dims: ['dashPerService', 'servicesSLO', 'errorBudget'],
       maduro: 'Dashboards usados em operação diária, incidentes, capacity planning e SLA/SLO.',
       imaturo: 'Dashboards só para consulta pontual, sem SLOs nem error budget — a operação é reativa (apaga incêndios) em vez de guiada por objetivos de confiabilidade.' },
-    { key: 'governanca', label: 'Governança', dims: ['tagCompliance', 'logsCorrelated', 'logsNoService'],
-      maduro: 'Tags padronizadas, RBAC, naming convention, custos controlados e ownership definido.',
-      imaturo: 'Sem padrão de tags (env/service/team) nem ownership — dificulta filtrar, atribuir responsabilidade e controlar custo, e quebra a correlação entre sinais.' },
+    { key: 'governanca', label: 'Governança', dims: ['tagCompliance', 'ownership', 'logsCorrelated', 'logsNoService'],
+      maduro: 'Unified Service Tagging (env/service/version), ownership por time, RBAC, naming convention e custos controlados.',
+      imaturo: 'Sem as tags reservadas env/service/version nem dono (team) — dificulta filtrar, atribuir responsabilidade e controlar custo, e quebra a correlação entre métricas, logs e traces.' },
   ]
   const dimByKey = Object.fromEntries(dims.map(d => [d.key, d]))
   const pillars = PILLARS.map(p => {
