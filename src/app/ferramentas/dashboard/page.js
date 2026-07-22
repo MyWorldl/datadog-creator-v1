@@ -106,8 +106,10 @@ function PillarBars({ pillars }) {
 
 export default function DashboardPage() {
   const { data: session } = useSession()
-  const { keysConfigured, keysLoading, datadogSite } = useApp()
+  const { keysConfigured, keysLoading, datadogSite, activeConnection } = useApp()
   const name = session?.user?.name || 'de volta'
+  // Título: nome da ORG ativa (conexão em uso). Sem org conectada, saúda o usuário.
+  const heading = activeConnection?.name || `Olá, ${name}`
 
   const [sm, setSm] = useState(null)
   const [ma, setMa] = useState(null)
@@ -145,7 +147,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 style={s.h1}>Olá, {name} 👋</h1>
+      <h1 style={s.h1}>{heading} 👋</h1>
       <p style={s.sub}>Visão geral do ambiente {keysConfigured ? `· ${datadogSite}` : ''}.</p>
 
       {keysConfigured && (
