@@ -1,25 +1,54 @@
 // src/components/discovery/DiscoveryConfigure.jsx
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useApp } from '@/context/AppContext'
 import { ALERT_TYPES, ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 
-const ENV_META = {
-  dev: { label: 'dev', c: 'var(--accent)', bg: 'var(--accent-light)' },
-  hml: { label: 'hml', c: 'var(--warning)', bg: 'var(--warning-bg)' },
-  prd: { label: 'prd', c: 'var(--success)', bg: 'var(--success-bg)' },
-}
-// Deduz o ambiente pelo sufixo do nome do serviço (nomenclatura freeflow-*-dev/hml/prd).
-function envOf(svc) {
-  const n = String(svc).toLowerCase()
-  if (/(^|[-_.])(dev|desenv|develop|development)$/.test(n)) return 'dev'
-  if (/(^|[-_.])(hml|hmg|hom|homolog|homologacao|staging|stg)$/.test(n)) return 'hml'
-  if (/(^|[-_.])(prd|prod|production)$/.test(n)) return 'prd'
-  return null
-}
 const winShort = (w) => (w || '').replace('last_', '')
 const dirLabel = (d) => (d === 'below' ? 'abaixo' : d === 'both' ? 'ambos' : 'acima')
+
+// Parametriza tudo que difere entre os dois modos de escopo — as duas rotas
+// de discovery (entidades e operações) e os textos — pra reaproveitar UM
+// bloco de UI (descobrir → checkbox list → identificar operações → chips)
+// em vez de duplicar o JSX inteiro por modo.
+const SCOPE_CONFIG = {
+  service: {
+    entityNoun: 'serviço',
+    listLabel: 'Serviços',
+    searchPlaceholder: 'Buscar serviço(s)… ex.: svc1, svc2, svc3',
+    discoverLabel: 'Descobrir serviços',
+    discoverUrl: (env) => `/api/datadog/services?env=${encodeURIComponent(env || '*')}`,
+    listKey: 'services',
+    opsUrl: (names) => `/api/datadog/operations?services=${encodeURIComponent(names.join(','))}`,
+    discoverHint: (site) => `Clique em "Descobrir serviços" para listar os serviços reportando ao Datadog (via ${site}).`,
+    opsLabel: 'Operações por serviço',
+  },
+  namespace: {
+    entityNoun: 'namespace',
+    listLabel: 'Namespaces',
+    searchPlaceholder: 'Buscar namespace(s)… ex.: ns1, ns2, ns3',
+    discoverLabel: 'Descobrir namespaces',
+    discoverUrl: (env) => `/api/datadog/namespaces?env=${encodeURIComponent(env || '')}`,
+    listKey: 'namespaces',
+    opsUrl: (names) => `/api/datadog/namespace-operations?namespaces=${encodeURIComponent(names.join(','))}`,
+    discoverHint: (site) => `Clique em "Descobrir namespaces" para listar os kube_namespace com tráfego APM no Datadog (via ${site}). Se algum não aparecer (ex.: namespace sem http), adicione manualmente abaixo.`,
+    opsLabel: 'Operações por namespace',
+    allowManualEntry: true,
+    manualPlaceholder: 'Adicionar namespace manualmente… ex.: payments',
+  },
+}
+
+// Sub-etapas internas de "Configurar" — a etapa era 1 card só com 3 fases
+// empilhadas (entidades → operações → alertas), causando scroll longo e
+// scroll-dentro-de-scroll com várias entidades selecionadas. Divide em um
+// mini-wizard de 3 fases, cada uma com validação própria (peneira os erros
+// mais cedo, perto do campo relevante, em vez de só no fim).
+const SUB_STEPS = [
+  { key: 'entities', label: 'Entidades' },
+  { key: 'operations', label: 'Operações' },
+  { key: 'alerts', label: 'Alertas' },
+]
 
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
@@ -31,14 +60,26 @@ const s = {
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
-  // Serviços
+  addBtn: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--accent)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer' },
+  // Sub-navegação (Entidades/Operações/Alertas)
+  subNav: { display: 'flex', gap: 18, marginBottom: 2 },
+  subNavItem: (state) => ({
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+    fontWeight: state === 'active' ? 700 : 500,
+    color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
+  }),
+  subNavDot: (state) => ({
+    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+    background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
+  }),
+  // Serviços/Namespaces
+  scopeToggle: { display: 'flex', gap: 6, marginBottom: 10 },
+  scopeBtn: (on) => ({ fontSize: 12.5, fontWeight: 600, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)' }),
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
-  chip: (on, c, bg) => ({ fontSize: 11.5, fontWeight: 600, padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? c : 'var(--border)'}`, background: on ? bg : 'var(--bg-surface)', color: on ? c : 'var(--text-secondary)' }),
   counter: { fontSize: 12, color: 'var(--text-muted)' },
   svcList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
   svcRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 6, cursor: 'pointer' },
-  envTag: (c, bg) => ({ fontSize: 10, fontWeight: 700, color: c, background: bg, borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }),
   selBox: { border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', padding: '10px 12px' },
   opChip: (on) => ({ fontSize: 11.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace' }),
   // Accordion de alertas
@@ -60,73 +101,105 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [error, setError] = useState('')
-  const [svcSearch, setSvcSearch] = useState('')
-  const [envFilter, setEnvFilter] = useState([]) // ['dev','hml','prd']
+  const [search, setSearch] = useState('')
+  const [manualInput, setManualInput] = useState('')
   const [openAlert, setOpenAlert] = useState(ALERT_TYPES[0]?.key || null)
+  const [subStep, setSubStep] = useState(0)
 
+  const scopeType = d.scopeType || 'service'
+  const cfg = SCOPE_CONFIG[scopeType]
   const selectedNames = Object.keys(d.selected)
 
-  // Serviços filtrados por busca + chips de ambiente.
-  // Busca aceita VÁRIOS termos separados por vírgula (OU lógico):
-  // "svc1, svc2, svc3" casa serviços que contenham qualquer um dos termos.
-  const searchTerms = svcSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
-  const filtered = d.services.filter(svc => {
-    const name = svc.toLowerCase()
-    if (searchTerms.length > 0 && !searchTerms.some(t => name.includes(t))) return false
-    if (envFilter.length > 0) { const e = envOf(svc); if (!e || !envFilter.includes(e)) return false }
-    return true
-  })
-  const selectedInFiltered = filtered.filter(svc => d.selected[svc]).length
+  // Sempre aponta pro scopeType mais recente — usado dentro de discover() pra
+  // detectar, DEPOIS do await, se o usuário trocou o toggle enquanto a busca
+  // estava em andamento (ler `scopeType` direto ali seria o valor capturado
+  // no closure da chamada, não o atual).
+  const scopeTypeRef = useRef(scopeType)
+  useEffect(() => { scopeTypeRef.current = scopeType }, [scopeType])
 
-  function toggleEnv(e) {
-    setEnvFilter(cur => cur.includes(e) ? cur.filter(x => x !== e) : [...cur, e])
+  function setScopeType(type) {
+    if (type === scopeType) return
+    // Reseta seleção ao trocar de modo: entradas de um modo não fazem sentido no outro
+    // (scopeType é global no planPreview, não por entrada de `selected`).
+    setDisc({ scopeType: type, selected: {}, services: [] })
+    setSearch('')
+    setError('')
+    setSubStep(0)
   }
+
+  // Busca aceita VÁRIOS termos separados por vírgula (OU lógico):
+  // "a, b, c" casa entradas que contenham qualquer um dos termos.
+  const searchTerms = search.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+  const filtered = d.services.filter(name => {
+    if (searchTerms.length === 0) return true
+    return searchTerms.some(t => name.toLowerCase().includes(t))
+  })
+  const selectedInFiltered = filtered.filter(name => d.selected[name]).length
+
   function selectAllFiltered() {
     const sel = { ...d.selected }
-    for (const svc of filtered) if (!sel[svc]) sel[svc] = { opsCount: null, operations: [], chosen: [] }
+    for (const name of filtered) if (!sel[name]) sel[name] = { opsCount: null, operations: [], chosen: [] }
     setDisc({ selected: sel })
   }
   function clearFiltered() {
     const sel = { ...d.selected }
-    for (const svc of filtered) delete sel[svc]
+    for (const name of filtered) delete sel[name]
     setDisc({ selected: sel })
   }
 
   async function discover() {
+    const requestedScope = scopeType // trava o modo desta chamada — ver guard abaixo
     setError(''); setLoading(true)
     try {
-      const r = await fetch(`/api/datadog/services?env=${encodeURIComponent(d.env || '*')}`)
+      const r = await fetch(cfg.discoverUrl(d.env))
       const data = await r.json()
-      if (!r.ok) { setError((data.error || 'Falha ao descobrir serviços.') + (data.hint ? ' ' + data.hint : '')); return }
-      setDisc({ services: data.services || [] })
-      if ((data.services || []).length === 0) setError('Nenhum serviço encontrado para esse ambiente.')
+      // Usuário pode trocar o toggle Serviço/Namespace enquanto a busca está em
+      // andamento — se trocou, a resposta é de outro escopo e não deve sobrescrever
+      // d.services (senão mistura nomes de serviço num modo já trocado pra namespace).
+      if (requestedScope !== scopeTypeRef.current) return
+      if (!r.ok) { setError((data.error || `Falha ao descobrir ${cfg.entityNoun}s.`) + (data.hint ? ' ' + data.hint : '')); return }
+      const names = data[cfg.listKey] || []
+      setDisc({ services: names })
+      if (names.length === 0) setError(`Nenhum ${cfg.entityNoun} encontrado.`)
     } catch (e) { setError('Falha de rede: ' + e.message) }
     finally { setLoading(false) }
   }
 
-  function toggleService(svc) {
+  function toggleEntity(name) {
     const sel = { ...d.selected }
-    if (sel[svc]) delete sel[svc]
-    else sel[svc] = { opsCount: null, operations: [], chosen: [] }
+    if (sel[name]) delete sel[name]
+    else sel[name] = { opsCount: null, operations: [], chosen: [] }
     setDisc({ selected: sel })
   }
 
+  // Fallback pra descoberta instável (ex.: kube_namespace via Spans Aggregate
+  // API às vezes retorna vazio nesse org por amostragem) — adiciona a entrada
+  // já selecionada, direto na mesma lista/formato de uma descoberta bem-sucedida.
+  function addManual() {
+    const v = manualInput.trim()
+    if (!v) return
+    const services = d.services.includes(v) ? d.services : [...d.services, v]
+    const selected = d.selected[v] ? d.selected : { ...d.selected, [v]: { opsCount: null, operations: [], chosen: [] } }
+    setDisc({ services, selected })
+    setManualInput('')
+  }
+
   async function analyze() {
-    if (selectedNames.length === 0) { setError('Selecione ao menos um serviço.'); return }
+    if (selectedNames.length === 0) { setError(`Selecione ao menos um ${cfg.entityNoun}.`); return }
     setError(''); setAnalyzing(true)
     try {
-      const r = await fetch(`/api/datadog/operations?services=${encodeURIComponent(selectedNames.join(','))}`)
+      const r = await fetch(cfg.opsUrl(selectedNames))
       const data = await r.json()
       if (!r.ok) { setError(data.error || 'Falha ao identificar operações.'); return }
       const sel = { ...d.selected }
-      for (const svc of selectedNames) {
-        const res = data.results?.[svc] || {}
+      for (const name of selectedNames) {
+        const res = data.results?.[name] || {}
         const operations = res.operations || []
         const primary = res.primary || operations[0] || 'http.request'
-        sel[svc] = {
+        sel[name] = {
           opsCount: res.count ?? operations.length,
           operations,
-          chosen: operations.length ? [primary] : [primary],
+          chosen: [primary],
           error: res.error || null,
         }
       }
@@ -135,10 +208,18 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
     finally { setAnalyzing(false) }
   }
 
-  function toggleOp(svc, op) {
-    const meta = d.selected[svc]
+  function toggleOp(name, op) {
+    const meta = d.selected[name]
     const chosen = meta.chosen.includes(op) ? meta.chosen.filter(o => o !== op) : [...meta.chosen, op]
-    setDisc({ selected: { ...d.selected, [svc]: { ...meta, chosen } } })
+    setDisc({ selected: { ...d.selected, [name]: { ...meta, chosen } } })
+  }
+  function selectAllOps(name) {
+    const meta = d.selected[name]
+    setDisc({ selected: { ...d.selected, [name]: { ...meta, chosen: [...meta.operations] } } })
+  }
+  function clearOps(name) {
+    const meta = d.selected[name]
+    setDisc({ selected: { ...d.selected, [name]: { ...meta, chosen: [] } } })
   }
   function toggleAlert(k) {
     setDisc({ alerts: { ...d.alerts, [k]: { ...d.alerts[k], enabled: !d.alerts[k].enabled } } })
@@ -148,19 +229,38 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   }
 
   function handleNext() {
-    if (selectedNames.length === 0) return setError('Selecione ao menos um serviço.')
-    const noOps = selectedNames.filter(svc => !(d.selected[svc]?.chosen?.length))
+    if (selectedNames.length === 0) return setError(`Selecione ao menos um ${cfg.entityNoun}.`)
+    const noOps = selectedNames.filter(name => !(d.selected[name]?.chosen?.length))
     if (noOps.length) return setError(`Escolha ao menos uma operação para: ${noOps.join(', ')}.`)
     if (!Object.values(d.alerts).some(a => a.enabled)) return setError('Selecione ao menos um tipo de alerta.')
     setError('')
     onNext()
   }
 
+  // Navegação entre as 3 sub-fases — valida só o que pertence à fase atual,
+  // peneirando os erros mais cedo (handleNext(), acima, revalida tudo de
+  // novo no fim como salvaguarda, ex.: usuário volta e desmarca algo).
+  function goSubNext() {
+    if (subStep === 0) {
+      if (selectedNames.length === 0) return setError(`Selecione ao menos um ${cfg.entityNoun}.`)
+    } else if (subStep === 1) {
+      const noOps = selectedNames.filter(name => !(d.selected[name]?.chosen?.length))
+      if (noOps.length) return setError(`Escolha ao menos uma operação para: ${noOps.join(', ')}.`)
+    }
+    setError('')
+    setSubStep(sub => Math.min(sub + 1, SUB_STEPS.length - 1))
+  }
+  function goSubBack() {
+    setError('')
+    if (subStep === 0) { onBack(); return }
+    setSubStep(sub => Math.max(sub - 1, 0))
+  }
+
   if (!keysConfigured) {
     return (
       <div style={s.card}>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-          Conecte-se ao Datadog (Etapa 1 ou em Configurações) para descobrir serviços.
+          Conecte-se ao Datadog (Etapa 1 ou em Configurações) para descobrir {cfg.entityNoun}s.
         </p>
         <div><button style={s.btnGhost} onClick={onBack}>← Voltar</button></div>
       </div>
@@ -169,74 +269,119 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
 
   return (
     <div style={s.card}>
-      <div>
-        <label style={s.label}>Serviços</label>
-        <div style={s.toolbar}>
-          <input style={s.search} value={svcSearch} onChange={e => setSvcSearch(e.target.value)} placeholder="Buscar serviço(s)… ex.: svc1, svc2, svc3" />
-          {['dev', 'hml', 'prd'].map(e => (
-            <button key={e} style={s.chip(envFilter.includes(e), ENV_META[e].c, ENV_META[e].bg)} onClick={() => toggleEnv(e)}>
-              {ENV_META[e].label}
-            </button>
-          ))}
-          <button style={s.btnGhost} onClick={discover} disabled={loading}>
-            {loading ? 'Descobrindo…' : 'Descobrir serviços'}
-          </button>
-        </div>
-
-        {d.services.length > 0 && (
-          <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={s.smallBtn} onClick={selectAllFiltered}>
-                Selecionar {filtered.length}{svcSearch || envFilter.length ? ' (filtrados)' : ''}
-              </button>
-              <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
-              <span style={s.counter}>{selectedNames.length} selecionado(s) · mostrando {filtered.length} de {d.services.length}</span>
-            </div>
-
-            <div style={s.svcList}>
-              {filtered.map(svc => {
-                const env = envOf(svc)
-                const on = !!d.selected[svc]
-                return (
-                  <label key={svc} style={{ ...s.svcRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
-                    <input type="checkbox" checked={on} onChange={() => toggleService(svc)} />
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{svc}</span>
-                    {env && <span style={s.envTag(ENV_META[env].c, ENV_META[env].bg)}>{ENV_META[env].label}</span>}
-                  </label>
-                )
-              })}
-              {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum serviço para esse filtro.</p>}
-            </div>
-          </>
-        )}
-        {d.services.length === 0 && !loading && (
-          <p style={s.hint}>Clique em &quot;Descobrir serviços&quot; para listar os serviços reportando ao Datadog (via {datadogSite}).</p>
-        )}
+      <div style={s.subNav}>
+        {SUB_STEPS.map((ss, i) => {
+          const state = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
+          return (
+            <span key={ss.key} style={s.subNavItem(state)}>
+              <span style={s.subNavDot(state)} />
+              {ss.label}
+            </span>
+          )
+        })}
       </div>
 
-      {selectedNames.length > 0 && (
+      {subStep === 0 && (
+        <>
+          <div>
+            <label style={s.label}>Escopo do filtro</label>
+            <div style={s.scopeToggle}>
+              <button style={s.scopeBtn(scopeType !== 'namespace')} onClick={() => setScopeType('service')}>Por Serviço</button>
+              <button style={s.scopeBtn(scopeType === 'namespace')} onClick={() => setScopeType('namespace')}>Por Namespace</button>
+            </div>
+            <p style={s.hint}>
+              {scopeType === 'namespace'
+                ? 'A query e as tags do monitor usam kube_namespace: em vez de service: — um monitor cobre todos os serviços do namespace, quebrados por serviço via group by.'
+                : 'Um monitor por serviço, escopado por service:.'}
+            </p>
+          </div>
+
+          <div>
+            <label style={s.label}>{cfg.listLabel}</label>
+            <div style={s.toolbar}>
+              <input style={s.search} value={search} onChange={e => setSearch(e.target.value)} placeholder={cfg.searchPlaceholder} />
+              <button style={s.btnGhost} onClick={discover} disabled={loading}>
+                {loading ? 'Descobrindo…' : cfg.discoverLabel}
+              </button>
+            </div>
+
+            {d.services.length > 0 && (
+              <>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button style={s.smallBtn} onClick={selectAllFiltered}>
+                    Selecionar {filtered.length}{search ? ' (filtrados)' : ''}
+                  </button>
+                  <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
+                  <span style={s.counter}>{selectedNames.length} selecionado(s) · mostrando {filtered.length} de {d.services.length}</span>
+                </div>
+
+                <div style={s.svcList}>
+                  {filtered.map(name => {
+                    const on = !!d.selected[name]
+                    return (
+                      <label key={name} style={{ ...s.svcRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                        <input type="checkbox" checked={on} onChange={() => toggleEntity(name)} />
+                        <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{name}</span>
+                      </label>
+                    )
+                  })}
+                  {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum {cfg.entityNoun} para esse filtro.</p>}
+                </div>
+              </>
+            )}
+            {d.services.length === 0 && !loading && (
+              <p style={s.hint}>{cfg.discoverHint(datadogSite)}</p>
+            )}
+
+            {cfg.allowManualEntry && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                <input
+                  style={s.search}
+                  value={manualInput}
+                  onChange={e => setManualInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManual() } }}
+                  placeholder={cfg.manualPlaceholder}
+                />
+                <button style={s.addBtn} onClick={addManual}>+ Adicionar</button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {subStep === 1 && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <label style={{ ...s.label, marginBottom: 0 }}>Operações por serviço</label>
+            <label style={{ ...s.label, marginBottom: 0 }}>{cfg.opsLabel}</label>
             <button style={s.btnGhost} onClick={analyze} disabled={analyzing}>
               {analyzing ? 'Identificando…' : 'Identificar operações'}
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {selectedNames.map(svc => {
-              const meta = d.selected[svc]
+            {selectedNames.map(name => {
+              const meta = d.selected[name]
               return (
-                <div key={svc} style={s.selBox}>
+                <div key={name} style={s.selBox}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{svc}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
                     {meta.error ? <span style={{ fontSize: 12, color: 'var(--danger)' }}>erro: {meta.error}</span>
                       : meta.opsCount == null ? <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>— clique em Identificar</span>
                       : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{meta.opsCount} operação(ões) · {meta.chosen.length} selecionada(s)</span>}
                   </div>
+                  {meta.opsCount != null && !meta.error && meta.operations.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <button style={s.smallBtn} onClick={() => selectAllOps(name)} disabled={meta.chosen.length === meta.operations.length}>
+                        Selecionar todas
+                      </button>
+                      <button style={s.smallBtn} onClick={() => clearOps(name)} disabled={meta.chosen.length === 0}>
+                        Limpar
+                      </button>
+                    </div>
+                  )}
                   {meta.opsCount != null && !meta.error && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(meta.operations.length ? meta.operations : meta.chosen).map(op => (
-                        <button key={op} style={s.opChip(meta.chosen.includes(op))} onClick={() => toggleOp(svc, op)}>
+                        <button key={op} style={s.opChip(meta.chosen.includes(op))} onClick={() => toggleOp(name, op)}>
                           {op}
                         </button>
                       ))}
@@ -250,13 +395,13 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
         </div>
       )}
 
-      {selectedNames.length > 0 && (
+      {subStep === 2 && (
         <div>
           <label style={s.label}>Alertas (anomaly detection) — parâmetros por tipo</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {ALERT_TYPES.map(a => {
-              const cfg = d.alerts[a.key]
-              const on = cfg.enabled
+              const cfgAlert = d.alerts[a.key]
+              const on = cfgAlert.enabled
               const open = openAlert === a.key
               return (
                 <div key={a.key} style={s.acc(on)}>
@@ -264,11 +409,11 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleAlert(a.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{a.label}</span>
                     <div style={s.pillRow}>
-                      <span style={s.pill}>{cfg.algorithm}</span>
-                      {cfg.algorithm !== 'basic' && <span style={s.pill}>{cfg.seasonality}</span>}
-                      <span style={s.pill}>{winShort(cfg.alertWindow)}</span>
-                      <span style={s.pill}>{dirLabel(cfg.direction)}</span>
-                      <span style={s.pill}>{cfg.deviations}σ</span>
+                      <span style={s.pill}>{cfgAlert.algorithm}</span>
+                      {cfgAlert.algorithm !== 'basic' && <span style={s.pill}>{cfgAlert.seasonality}</span>}
+                      <span style={s.pill}>{winShort(cfgAlert.alertWindow)}</span>
+                      <span style={s.pill}>{dirLabel(cfgAlert.direction)}</span>
+                      <span style={s.pill}>{cfgAlert.deviations}σ</span>
                     </div>
                     <span style={s.chev(open)}>▶</span>
                   </div>
@@ -276,31 +421,31 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                     <div style={s.accBody}>
                       <div>
                         <label style={s.miniLabel}>Algoritmo</label>
-                        <select style={s.select} value={cfg.algorithm} disabled={!on} onChange={e => setAlertParam(a.key, 'algorithm', e.target.value)}>
+                        <select style={s.select} value={cfgAlert.algorithm} disabled={!on} onChange={e => setAlertParam(a.key, 'algorithm', e.target.value)}>
                           <option value="basic">basic</option><option value="agile">agile</option><option value="robust">robust</option>
                         </select>
                       </div>
                       <div>
                         <label style={s.miniLabel}>Sazonalidade</label>
-                        <select style={s.select} value={cfg.seasonality} disabled={!on || cfg.algorithm === 'basic'} onChange={e => setAlertParam(a.key, 'seasonality', e.target.value)}>
+                        <select style={s.select} value={cfgAlert.seasonality} disabled={!on || cfgAlert.algorithm === 'basic'} onChange={e => setAlertParam(a.key, 'seasonality', e.target.value)}>
                           <option value="hourly">hourly</option><option value="daily">daily</option><option value="weekly">weekly</option>
                         </select>
                       </div>
                       <div>
                         <label style={s.miniLabel}>Alert window</label>
-                        <select style={s.select} value={cfg.alertWindow} disabled={!on} onChange={e => setAlertParam(a.key, 'alertWindow', e.target.value)}>
+                        <select style={s.select} value={cfgAlert.alertWindow} disabled={!on} onChange={e => setAlertParam(a.key, 'alertWindow', e.target.value)}>
                           {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                       <div>
                         <label style={s.miniLabel}>Direção</label>
-                        <select style={s.select} value={cfg.direction || 'above'} disabled={!on} onChange={e => setAlertParam(a.key, 'direction', e.target.value)}>
+                        <select style={s.select} value={cfgAlert.direction || 'above'} disabled={!on} onChange={e => setAlertParam(a.key, 'direction', e.target.value)}>
                           <option value="above">acima</option><option value="below">abaixo</option><option value="both">ambos</option>
                         </select>
                       </div>
                       <div>
                         <label style={s.miniLabel}>Anomalies</label>
-                        <input style={s.select} type="number" min="1" max="10" value={cfg.deviations} disabled={!on} onChange={e => setAlertParam(a.key, 'deviations', e.target.value)} />
+                        <input style={s.select} type="number" min="1" max="10" value={cfgAlert.deviations} disabled={!on} onChange={e => setAlertParam(a.key, 'deviations', e.target.value)} />
                       </div>
                     </div>
                   )}
@@ -315,8 +460,10 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
       {error && <div style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={handleNext}>Continuar →</button>
+        <button style={s.btnGhost} onClick={goSubBack}>← Voltar</button>
+        {subStep < SUB_STEPS.length - 1
+          ? <button style={s.btn} onClick={goSubNext}>Próximo →</button>
+          : <button style={s.btn} onClick={handleNext}>Continuar →</button>}
       </div>
     </div>
   )

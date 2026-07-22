@@ -28,7 +28,7 @@ export const ALERT_WINDOW_OPTIONS = [
 export const ALERT_TYPES = [
   {
     key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
-    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m',
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia na latência p95 (desvio do padrão histórico).',
     message: `🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).
 
@@ -49,7 +49,7 @@ export const ALERT_TYPES = [
   },
   {
     key: 'errorRate', label: 'Taxa de Erro', direction: 'above', def: 2,
-    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m',
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m', queryWindow: 'last_30m',
     hint: 'Anomalia na taxa de erros (erros/requisições).',
     message: `🔴 [Anomalia · Taxa de Erro] {{service.name}} — erros fora do padrão (atual: {{value}}%).
 
@@ -70,7 +70,7 @@ export const ALERT_TYPES = [
   },
   {
     key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 2,
-    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m',
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia de pico: requisições acima do padrão histórico.',
     message: `⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.
 
@@ -91,7 +91,7 @@ export const ALERT_TYPES = [
   },
   {
     key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 2,
-    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m',
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia de queda: requisições abaixo do padrão histórico.',
     message: `⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.
 
@@ -115,11 +115,37 @@ export const ALERT_TYPES = [
 export const ALERT_BY_KEY = Object.fromEntries(ALERT_TYPES.map(a => [a.key, a]))
 export const DEFAULT_GROUP_BY = ['service', 'resource_name']
 
+// Preferência de operation "primária" (entradas web primeiro) — usada tanto
+// para sugerir a operation dominante no modo Serviço (descoberta automática)
+// quanto como sugestão/fallback no modo Namespace (entrada manual).
+export const OPERATION_PREFERENCE = ['http.request', 'web.request', 'servlet.request', 'grpc.request', 'rack.request', 'express.request']
+export const DEFAULT_OPERATION = OPERATION_PREFERENCE[0]
+export function pickPrimaryOperation(ops) {
+  for (const p of OPERATION_PREFERENCE) if (ops.includes(p)) return p
+  return ops[0] || DEFAULT_OPERATION
+}
+
+// Operações de ENTRADA (root spans) mais comuns entre frameworks/protocolos —
+// usadas como sondas pra enumerar, via Metrics Query API, quais namespaces e
+// serviços têm tráfego (não confundir com OPERATION_PREFERENCE acima: aqui o
+// objetivo é COBERTURA — incluir kafka/grpc/etc. — não preferência de uma
+// operação primária). A tag kube_namespace não é propagada com a mesma
+// cobertura que service nas métricas de trace (confirmado em smoke-test:
+// filtrar direto por kube_namespace:<ns> perdia a maioria das operations) —
+// por isso namespace-operations/route.js primeiro descobre os SERVIÇOS do
+// namespace usando essas sondas, depois busca operations por serviço.
+export const NAMESPACE_PROBE_OPERATIONS = [
+  'http.request', 'servlet.request', 'grpc.server', 'rack.request',
+  'express.request', 'aspnet_core.request', 'kafka.consume',
+  'spring.handler', 'netty.request',
+]
+
 export function initialDiscovery() {
   return {
     env: '',
     services: [],   // nomes descobertos
-    selected: {},   // { svc: { opsCount, operations:[], chosen:[] } }
+    selected: {},   // { nome: { opsCount, operations:[], chosen:[] } } — nome é serviço ou namespace, conforme scopeType
+    scopeType: 'service', // 'service' | 'namespace' — escopo do filtro na query/tags
     alerts: Object.fromEntries(
       ALERT_TYPES.map(a => [a.key, {
         enabled: a.key === 'latency' || a.key === 'errorRate',
@@ -136,15 +162,17 @@ export function initialDiscovery() {
     // Personalização (Etapas 3)
     namePrefix: '[MonitorsCreator]',
     tags: [],
-    // Janela de avaliação global (o alert_window/algoritmo/sazonalidade/direção
-    // agora são POR TIPO de alerta — veja "alerts" acima).
-    queryWindow: 'last_4h',
+    // queryWindow não é mais global aqui — cada ALERT_TYPES já tem seu próprio
+    // default (~5x o alertWindow do tipo, recomendação do Datadog pra janela
+    // externa do avg() em anomalies()), usado em planPreview via
+    // cfg.queryWindow || a.queryWindow.
   }
 }
 
 // ── Construção de query/payload (fonte única) ──
-function scopeOf(service, env) {
-  const parts = [`service:${service}`]
+function scopeOf(scopeType, value, env) {
+  const tag = scopeType === 'namespace' ? 'kube_namespace' : 'service'
+  const parts = [`${tag}:${value}`]
   if (env && env !== '*') parts.push(`env:${env}`)
   return parts.join(',')
 }
@@ -166,10 +194,10 @@ function metricExpr(kind, op, sc, by) {
   }
 }
 
-export function buildAnomalyQuery({ kind, service, env, operation, deviations, groupBy, direction, algorithm = 'agile', seasonality = 'daily', queryWindow = 'last_4h', alertWindow = 'last_15m' }) {
-  const sc = scopeOf(service, env)
+export function buildAnomalyQuery({ kind, service, env, operation, scopeType = 'service', deviations, groupBy, direction, algorithm = 'agile', seasonality = 'daily', queryWindow = 'last_4h', alertWindow = 'last_15m' }) {
+  const sc = scopeOf(scopeType, service, env)
   const by = byClauseOf(groupBy)
-  const op = operation || 'http.request'
+  const op = operation || DEFAULT_OPERATION
   const dir = direction || ALERT_BY_KEY[kind]?.direction || 'above'
   // seasonality só se aplica a algoritmos != basic
   const seas = algorithm !== 'basic' ? `, seasonality='${seasonality}'` : ''
@@ -181,17 +209,19 @@ export function buildAnomalyQuery({ kind, service, env, operation, deviations, g
   )
 }
 
-export function buildMonitorPayload({ kind, service, env, operation, deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority }) {
+export function buildMonitorPayload({ kind, service, env, operation, scopeType = 'service', deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority }) {
   const label = ALERT_BY_KEY[kind]?.label || kind
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${service} · ${label}`.trim()
-  const baseTags = ['created_by:monitorscreator', `service:${service}`]
+  const scopeTag = scopeType === 'namespace' ? 'kube_namespace' : 'service'
+  const op = operation || DEFAULT_OPERATION
+  const baseTags = ['created_by:monitorscreator', `${scopeTag}:${service}`, `operation:${op}`]
   if (env && env !== '*') baseTags.push(`env:${env}`)
   for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
 
   return {
     name,
     type: 'query alert',
-    query: buildAnomalyQuery({ kind, service, env, operation, deviations, direction, groupBy, algorithm, seasonality, queryWindow, alertWindow }),
+    query: buildAnomalyQuery({ kind, service, env, operation: op, scopeType, deviations, direction, groupBy, algorithm, seasonality, queryWindow, alertWindow }),
     message: message || ALERT_BY_KEY[kind]?.message || '',
     tags: baseTags,
     // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5,
@@ -210,6 +240,10 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
       notify_audit: false,
       require_full_window: false,
       renotify_interval: 0,
+      // interval=60 na query (rollup de 60s) — doc do Datadog recomenda
+      // evaluation_delay >= esse rollup, pra evitar falso alarme por dado
+      // ainda incompleto no momento em que o monitor é avaliado.
+      evaluation_delay: 60,
     },
   }
 }
@@ -219,7 +253,8 @@ export function buildMonitorPayload({ kind, service, env, operation, deviations,
 export function planPreview(discovery) {
   const d = discovery || {}
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
-    namePrefix = '[MonitorsCreator]', tags = [], queryWindow = 'last_4h' } = d
+    namePrefix = '[MonitorsCreator]', tags = [],
+    scopeType = 'service' } = d
 
   const plan = []
   for (const [service, meta] of Object.entries(selected)) {
@@ -229,14 +264,14 @@ export function planPreview(discovery) {
         const cfg = alerts[a.key]
         if (!cfg?.enabled) continue
         const payload = buildMonitorPayload({
-          kind: a.key, service, env, operation,
+          kind: a.key, service, env, operation, scopeType,
           deviations: cfg.deviations, direction: cfg.direction, groupBy,
           message: messages[a.key], tags, namePrefix,
           // Parâmetros de anomalia POR TIPO (com fallback para o default do tipo)
           algorithm: cfg.algorithm || a.algorithm,
           seasonality: cfg.seasonality || a.seasonality,
           alertWindow: cfg.alertWindow || a.alertWindow,
-          queryWindow,
+          queryWindow: cfg.queryWindow || a.queryWindow,
           priority: cfg.priority,
         })
         plan.push({ kind: a.key, label: a.label, service, operation, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })

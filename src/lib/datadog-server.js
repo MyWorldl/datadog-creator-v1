@@ -211,6 +211,57 @@ export async function queryMetric(ctx, query, fromSec, toSec) {
   return { ok: true, points, seriesCount: series.length }
 }
 
+// ── Descoberta de operations (spans) por escopo, via Metrics List API ──
+// GET /api/v2/metrics?filter[tags]=<scopeTag>&window[seconds]=...
+// Lista as métricas submetidas com a tag de escopo (service:<svc> OU
+// kube_namespace:<ns>) e extrai o nome da operation dos nomes "trace.<op>.hits".
+// Requer escopo metrics_read na Application key.
+//   https://docs.datadoghq.com/api/latest/metrics/get-a-list-of-metrics/
+//
+// Por que Metrics e não a Spans Analytics Aggregate API: a Aggregate API
+// opera sobre uma AMOSTRA dos spans (traffic_type: "sampled"), então
+// group_by kube_namespace/operation_name volta VAZIO de forma imprevisível
+// (confirmado em smoke-test contra o Datadog real — retornava 0 operations
+// para namespaces que claramente tinham tráfego). As métricas de trace são
+// pré-agregadas e NÃO amostradas — enumeram operations de forma confiável,
+// idêntica ao que a UI do Trace Explorer mostra. É a MESMA estratégia já
+// usada (e comprovada) para descobrir operations por serviço.
+export async function traceOperations(ctx, scopeTag, windowSeconds = 86400) {
+  const r = await ddGet(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
+  if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
+  const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter(Boolean) : []
+  const ops = new Set()
+  for (const name of names) {
+    const m = /^trace\.(.+)\.hits$/.exec(name)
+    if (m) ops.add(m[1])
+  }
+  return { ok: true, operations: [...ops].sort() }
+}
+
+// ── Enumera valores distintos de uma tag via Metrics Query API ──
+// GET /api/v1/query com "<metric>{scope} by {tagKey}" — cada série volta com
+// o valor da tag no `scope`/`tag_set`, então dá pra enumerar os valores
+// distintos (ex.: todos os kube_namespace com tráfego APM). Diferente da
+// Spans Aggregate API, a Metrics Query API NÃO é amostrada — enumera de forma
+// confiável. Descarta "N/A" (spans sem a tag). Escopo timeseries_query.
+export async function metricTagValues(ctx, query, tagKey, fromSec, toSec) {
+  const r = await ddGet(ctx, `/api/v1/query?from=${fromSec}&to=${toSec}&query=${encodeURIComponent(query)}`)
+  if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
+  const series = Array.isArray(r.json?.series) ? r.json.series : []
+  const values = new Set()
+  for (const s of series) {
+    for (const t of (s.tag_set || [])) {
+      if (t.startsWith(tagKey + ':')) values.add(t.slice(tagKey.length + 1))
+    }
+    // Fallback: alguns retornos trazem só `scope` (ex.: "kube_namespace:x").
+    const scope = s.scope || ''
+    const m = new RegExp(`(?:^|,)${tagKey}:([^,]+)`).exec(scope)
+    if (m) values.add(m[1])
+  }
+  values.delete('N/A')
+  return { ok: true, values: [...values].filter(Boolean) }
+}
+
 // ── Uso estimado de um produto no período (agrega conforme a cobrança) ──
 // 'sum' -> soma com .as_count() (logs, RUM, synthetics)
 // 'max' -> pico via .rollup(max,3600)  (hosts de infra/APM, DBM, profiler…)

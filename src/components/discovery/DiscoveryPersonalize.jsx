@@ -38,8 +38,8 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
   const groupByOptions = isInfra ? COMMON_INFRA_GROUP_BY : COMMON_GROUP_BY
   const enabledKeySet = isInfra ? d.metrics : d.alerts
   const enabled = TYPES.filter(t => enabledKeySet[t.key]?.enabled)
-  const entityLabel = isInfra ? 'host' : 'serviço'
-  const entityTag = isInfra ? 'host' : 'service'
+  const entityLabel = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'namespace' : 'serviço')
+  const entityTag = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'kube_namespace' : 'service')
 
   function toggleGroup(tag) {
     const has = d.groupBy.includes(tag)
@@ -91,7 +91,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
             ))}
           </div>
         )}
-        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator e {entityTag}:&lt;{entityLabel}&gt;.</p>
+        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator, {entityTag}:&lt;{entityLabel}&gt;{!isInfra && <> e operation:&lt;operation&gt;</>}.</p>
       </div>
 
       {/* Group By */}

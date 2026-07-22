@@ -5,7 +5,7 @@ import { initialInfraDiscovery, planInfraPreview, buildInfraQuery, buildInfraMon
 
 test('threshold: query traz aritmética, group-by e o valor de critical', () => {
   const q = buildInfraQuery({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
-  assert.match(q, /^avg\(last_10m\):/)
+  assert.match(q, /^avg\(last_1h\):/)
   assert.match(q, /100 - avg:system\.cpu\.idle\{host:web\}/)
   assert.match(q, /by \{host\}/)
   assert.match(q, /> 90$/)
@@ -101,4 +101,22 @@ test('priority: definida na config, propaga pro payload de métrica E de service
   assert.equal(cpu.payload.priority, 1)
   assert.equal(hostUp.priority, 5)
   assert.equal(hostUp.payload.priority, 5)
+})
+
+test('queryWindow: default é last_1h (alinhado ao alertWindow de 15m, ~4x)', () => {
+  const d = initialInfraDiscovery()
+  assert.equal(d.metrics.cpu.queryWindow, 'last_1h')
+})
+
+test('evaluation_delay: presente por padrão (60s) nos monitores de métrica, ausente no service check', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.hostUp.enabled = true
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  const hostUp = plan.find(m => m.kind === 'hostUp')
+  assert.equal(cpu.payload.options.evaluation_delay, 60)
+  assert.ok(!('evaluation_delay' in hostUp.payload.options), 'service check não usa evaluation_delay')
 })
