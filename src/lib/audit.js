@@ -44,10 +44,36 @@ export function analyzeCoverage(monitors) {
   })
 }
 
-// Score de cobertura = % de itens do catálogo com pelo menos um monitor.
+// Score BINÁRIO (legado) = % de itens do catálogo com pelo menos um monitor.
+// Problema: trata "existe ≥1 monitor no ambiente" como 100% do item, mesmo que
+// só cubra 53% dos hosts. Mantido apenas para referência/compat — o score
+// exibido no anel passou a ser coverageScoreWeighted (abaixo).
 export function coverageScore(coverage) {
   if (!coverage.length) return 0
   return Math.round((coverage.filter(c => c.covered).length / coverage.length) * 100)
+}
+
+// Score REAL de cobertura = média simples dos percentuais reais por métrica.
+// Cada item do catálogo contribui com sua cobertura efetiva por entidade
+// (hostCoverage p/ Infra, serviceCoverage p/ APM), via coveragePercent — a
+// MESMA fonte dos cards individuais. Assim o anel reflete o que os cards já
+// mostram (ex.: CPU 53%, Rede 0%) em vez de "existe ≥1 monitor = 100%".
+//
+// Média SIMPLES por métrica (não ponderada por nº de entidades): cada uma das
+// N métricas do catálogo pesa igual, batendo com a leitura dos cards. Métricas
+// sem entidades (percent null — ex.: nenhum host) ficam de fora da média.
+export function coverageScoreWeighted(hostCoverage, serviceCoverage) {
+  const percents = []
+  for (const c of INFRA_CATALOG) {
+    const { percent } = coveragePercent(hostCoverage, c.key)
+    if (percent != null) percents.push(percent)
+  }
+  for (const c of APM_CATALOG) {
+    const { percent } = coveragePercent(serviceCoverage, c.key)
+    if (percent != null) percents.push(percent)
+  }
+  if (!percents.length) return 0
+  return Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
 }
 
 // ── Cobertura POR HOST das métricas de Infra (Feature: granularidade por host) ──
