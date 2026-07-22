@@ -20,6 +20,57 @@
 
 export const VERSION_HISTORY = [
   {
+    version: '1.29.0',
+    date: '2026-07-22',
+    title: 'AuditMonitors: cobertura por serviço (APM), % real, preview antes de criar',
+    notes: [
+      'Nova tabela "Cobertura de APM por serviço" (igual à de Infra por host) — lista quais serviços estão sem cada tipo de monitor.',
+      'Cards de métrica trocaram o binário "existe 1 monitor = 100%" por % real (cobertos/total), com cor por faixa: <=40% vermelho, 40-75% amarelo, >=75% verde.',
+      'Corrigido bug real descoberto no processo: a sugestão de monitores de Infra ignorava a cobertura por host e podia deixar de sugerir uma métrica pra 86 hosts só porque 1 host já tinha 1 monitor dela — agora a sugestão (Infra e o novo APM) é precisa por entidade.',
+      'Botão "Criar os que faltam" agora abre um preview da lista de monitores (nome/query, já refletindo os ajustes de queryWindow/evaluation_delay de hoje) com confirmação explícita antes de criar de verdade — pros dois fluxos, Infra e o novo de APM.',
+    ],
+  },
+  {
+    version: '1.28.0',
+    date: '2026-07-22',
+    title: 'MonitorsCreator (Infra): mesmos ajustes aplicados ao fluxo de serviços',
+    notes: [
+      'queryWindow padrão de infra subiu de last_10m para last_1h (~4x o alertWindow de 15m, alinhado à recomendação Datadog pro modo anomaly) e evaluation_delay:60 passou a ser o padrão nos monitores de métrica (antes nunca era ativado).',
+      'Etapa Configurar de Infraestrutura também virou um mini-wizard de 2 sub-fases (Hosts / Métricas), por consistência visual com o fluxo de Serviços/Namespace.',
+    ],
+  },
+  {
+    version: '1.27.0',
+    date: '2026-07-22',
+    title: 'MonitorsCreator: métricas alinhadas ao Datadog + Configurar em sub-etapas',
+    notes: [
+      'queryWindow (janela externa do avg() em anomalies()) agora escala por tipo de alerta (~5x o alert_window), em vez de um valor fixo de 4h pros 4 tipos — antes o errorRate avaliava com 48x o alert_window, muito acima do recomendado pela doc do Datadog.',
+      'Todo monitor criado agora define evaluation_delay:60, alinhado ao interval=60 da query (recomendação oficial pra evitar falso alarme por dado ainda incompleto).',
+      'Etapa Configurar virou um mini-wizard de 3 sub-fases (Entidades / Operações / Alertas) em vez de um card único com tudo empilhado — reduz o scroll longo e antecipa a validação de cada fase pro momento certo, em vez de só no fim.',
+    ],
+  },
+  {
+    version: '1.26.0',
+    date: '2026-07-21',
+    title: 'MonitorsCreator: descoberta automática de namespace/operation',
+    notes: [
+      'Modo Namespace ganhou descoberta automática (via Datadog Metrics API) tanto dos kube_namespace quanto das operations dentro de cada namespace — antes era tudo digitado manualmente.',
+      'A descoberta usa a API de métricas de trace (não amostrada) em vez da Spans Analytics (amostrada, que retornava listas vazias de forma imprevisível).',
+      'Operations por namespace são descobertas em 2 passos (namespace → serviços → operations por serviço) porque a tag kube_namespace não é propagada com a mesma cobertura que service nas métricas — filtrar direto perdia a maioria das operations.',
+      'Descoberta de namespace mantém entrada manual como complemento (cobre namespaces sem correlação nas sondas usadas).',
+      'Removidos os chips de filtro dev/hml/prd da tela Configurar (filtro client-side por nome, não tinha relação real com o ambiente consultado).',
+    ],
+  },
+  {
+    version: '1.25.0',
+    date: '2026-07-21',
+    title: 'MonitorsCreator: escopo por Namespace + tag de operation',
+    notes: [
+      'Novo toggle Por Serviço / Por Namespace na etapa Configurar — no modo namespace, um único monitor cobre todos os serviços de um kube_namespace (query e tags trocam service: por kube_namespace:).',
+      'Todo monitor criado agora recebe também a tag operation:<operation>, além das já existentes.',
+    ],
+  },
+  {
     version: '1.24.1',
     date: '2026-07-13',
     title: 'Prioridade dos monitores: padrão P3',

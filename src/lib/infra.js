@@ -234,9 +234,17 @@ export function initialInfraDiscovery() {
           direction: 'above',
           algorithm: 'robust',
           seasonality: 'weekly',
-          queryWindow: 'last_10m',
+          // queryWindow (janela externa do avg()) alinhado à recomendação do
+          // Datadog pro modo anomaly (~5x o alert_window de 15m) — mesmo
+          // valor já usado em discovery.js pros tipos com alertWindow=15m.
+          // Também vale pro modo threshold (mesmo campo): resulta numa média
+          // mais suave/menos sensível a picos passageiros.
+          queryWindow: 'last_1h',
           alertWindow: 'last_15m',
-          evaluationDelay: 0,
+          // interval=60 na query do modo anomaly (rollup de 60s) — doc do
+          // Datadog recomenda evaluation_delay >= esse rollup. Também útil no
+          // modo threshold pra métricas de integrações cloud que atrasam.
+          evaluationDelay: 60,
           priority: 3,
         }]
       })
@@ -259,7 +267,7 @@ function byClauseOf(groupBy) {
   return g.length ? ` by {${g.join(',')}}` : ''
 }
 
-export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_10m', alertWindow = 'last_15m' }) {
+export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m' }) {
   const t = INFRA_BY_KEY[kind]
   const scope = scopeOf(host, extraTags)
   const by = byClauseOf([...(groupBy || ['host']), ...(t.extraBy || [])])
@@ -388,9 +396,9 @@ export function planInfraPreview(infraDiscovery) {
             direction: cfg.direction || 'above',
             algorithm: cfg.algorithm || 'robust',
             seasonality: cfg.seasonality || 'weekly',
-            queryWindow: cfg.queryWindow || 'last_10m',
+            queryWindow: cfg.queryWindow || 'last_1h',
             alertWindow: cfg.alertWindow || 'last_15m',
-            evaluationDelay: cfg.evaluationDelay,
+            evaluationDelay: cfg.evaluationDelay ?? 60,
             priority: cfg.priority,
           })
       plan.push({ kind: t.key, label: t.label, service: host, operation: t.label, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })

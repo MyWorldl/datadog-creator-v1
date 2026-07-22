@@ -7,7 +7,10 @@
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, listMonitors, listHosts } from '@/lib/datadog-server'
-import { analyzeCoverage, coverageScore, buildSuggestedInfra, analyzeHostCoverage, INFRA_CATALOG } from '@/lib/audit'
+import {
+  analyzeCoverage, coverageScore, buildSuggestedInfra, buildSuggestedApm,
+  analyzeHostCoverage, analyzeServiceCoverage, INFRA_CATALOG, APM_CATALOG,
+} from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 
@@ -45,15 +48,17 @@ export async function GET() {
     if (data?.attributes?.services) return data.attributes.services
     return []
   })()
-  const serviceCount = new Set(apmServices).size
+  const services = [...new Set(apmServices)].sort()
+  const serviceCount = services.length
 
   const coverage = analyzeCoverage(monitors)
   const score = coverageScore(coverage)
-  const suggestedInfra = buildSuggestedInfra(coverage, hosts)
   const hostCoverage = analyzeHostCoverage(monitors, hosts)
+  const serviceCoverage = analyzeServiceCoverage(monitors, services)
+  const suggestedInfra = buildSuggestedInfra(hostCoverage)
+  const suggestedApm = buildSuggestedApm(serviceCoverage)
 
   const gaps = coverage.filter(c => !c.covered)
-  const apmGaps = gaps.filter(c => c.group === 'APM').map(c => c.label)
 
   // Histórico da % de cobertura (sparkline + delta) — só em compute fresco.
   const histId = cacheKey(['audit-hist', site, apiKey, appKey])
@@ -65,10 +70,12 @@ export async function GET() {
     environment: { hostCount: hosts.length, serviceCount, monitorCount: monitors.length, hostsPartial: !!hostsR.partial },
     coverage,
     hostCoverage,
+    serviceCoverage,
     infraMetrics: INFRA_CATALOG.map(c => ({ key: c.key, label: c.label })),
+    apmMetrics: APM_CATALOG.map(c => ({ key: c.key, label: c.label })),
     gapCount: gaps.length,
-    suggestedInfra: { gapKinds: suggestedInfra.gapKinds, hostCount: suggestedInfra.hostCount, monitorCount: suggestedInfra.monitorCount, infra: suggestedInfra.infra },
-    apmGaps,
+    suggestedInfra: { plan: suggestedInfra.plan, hostCount: suggestedInfra.hostCount, monitorCount: suggestedInfra.monitorCount },
+    suggestedApm: { plan: suggestedApm.plan, serviceCount: suggestedApm.serviceCount, monitorCount: suggestedApm.monitorCount, operationNote: suggestedApm.operationNote },
     history: hist.map(h => h.score),
     delta: computeDelta(hist),
     generatedAt: new Date().toISOString(),

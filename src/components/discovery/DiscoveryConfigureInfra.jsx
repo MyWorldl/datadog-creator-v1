@@ -5,6 +5,15 @@ import { useState } from 'react'
 import { INFRA_TYPES } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 
+// Sub-etapas internas de "Configurar" (infra) — mesmo padrão usado em
+// DiscoveryConfigure.jsx (fluxo de serviços/namespace), por consistência
+// visual entre os dois fluxos: divide a tela em fases menores, cada uma com
+// validação própria, em vez de um card único com tudo empilhado.
+const SUB_STEPS = [
+  { key: 'hosts', label: 'Hosts' },
+  { key: 'metrics', label: 'Métricas' },
+]
+
 const s = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
@@ -15,6 +24,17 @@ const s = {
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
+  // Sub-navegação (Hosts/Métricas)
+  subNav: { display: 'flex', gap: 18, marginBottom: 2 },
+  subNavItem: (state) => ({
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+    fontWeight: state === 'active' ? 700 : 500,
+    color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
+  }),
+  subNavDot: (state) => ({
+    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+    background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
+  }),
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
@@ -39,6 +59,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   const [error, setError] = useState('')
   const [hostSearch, setHostSearch] = useState('')
   const [openMetric, setOpenMetric] = useState(INFRA_TYPES[0]?.key || null)
+  const [subStep, setSubStep] = useState(0)
 
   const selectedNames = Object.keys(d.selected).filter(h => d.selected[h])
 
@@ -104,53 +125,82 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
     onNext()
   }
 
+  // Navegação entre as 2 sub-fases — valida só o que pertence à fase atual.
+  // handleNext(), acima, revalida tudo de novo no fim como salvaguarda.
+  function goSubNext() {
+    if (subStep === 0) {
+      if (selectedNames.length === 0) return setError('Selecione ao menos um host.')
+    }
+    setError('')
+    setSubStep(sub => Math.min(sub + 1, SUB_STEPS.length - 1))
+  }
+  function goSubBack() {
+    setError('')
+    if (subStep === 0) { onBack(); return }
+    setSubStep(sub => Math.max(sub - 1, 0))
+  }
+
   return (
     <div style={s.card}>
-      <div>
-        <label style={s.label}>Hosts</label>
-        <div style={s.toolbar}>
-          <input
-            style={s.search}
-            placeholder="Filtrar hosts (aceita vários termos separados por vírgula)"
-            value={hostSearch}
-            onChange={e => setHostSearch(e.target.value)}
-          />
-          <button style={s.btnGhost} onClick={discover} disabled={loading}>
-            {loading ? 'Descobrindo…' : 'Descobrir hosts'}
-          </button>
-        </div>
-
-        {d.hosts.length > 0 && (
-          <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-              <button style={s.smallBtn} onClick={selectAllFiltered}>
-                Selecionar {filtered.length}{hostSearch ? ' (filtrados)' : ''}
-              </button>
-              <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
-              <span style={s.counter}>{selectedNames.length} host(s) selecionado(s)</span>
-            </div>
-
-            <div style={s.hostList}>
-              {filtered.map(h => {
-                const on = !!d.selected[h.name]
-                return (
-                  <label key={h.name} style={{ ...s.hostRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
-                    <input type="checkbox" checked={on} onChange={() => toggleHost(h.name)} />
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{h.name}</span>
-                    <span style={s.statusTag(h.up)}>{h.up ? 'up' : 'down'}</span>
-                  </label>
-                )
-              })}
-              {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum host para esse filtro.</p>}
-            </div>
-          </>
-        )}
-        {d.hosts.length === 0 && !loading && (
-          <p style={s.hint}>Clique em &quot;Descobrir hosts&quot; para listar os hosts reportando ao Datadog.</p>
-        )}
+      <div style={s.subNav}>
+        {SUB_STEPS.map((ss, i) => {
+          const state = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
+          return (
+            <span key={ss.key} style={s.subNavItem(state)}>
+              <span style={s.subNavDot(state)} />
+              {ss.label}
+            </span>
+          )
+        })}
       </div>
 
-      {selectedNames.length > 0 && (
+      {subStep === 0 && (
+        <div>
+          <label style={s.label}>Hosts</label>
+          <div style={s.toolbar}>
+            <input
+              style={s.search}
+              placeholder="Filtrar hosts (aceita vários termos separados por vírgula)"
+              value={hostSearch}
+              onChange={e => setHostSearch(e.target.value)}
+            />
+            <button style={s.btnGhost} onClick={discover} disabled={loading}>
+              {loading ? 'Descobrindo…' : 'Descobrir hosts'}
+            </button>
+          </div>
+
+          {d.hosts.length > 0 && (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                <button style={s.smallBtn} onClick={selectAllFiltered}>
+                  Selecionar {filtered.length}{hostSearch ? ' (filtrados)' : ''}
+                </button>
+                <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
+                <span style={s.counter}>{selectedNames.length} host(s) selecionado(s)</span>
+              </div>
+
+              <div style={s.hostList}>
+                {filtered.map(h => {
+                  const on = !!d.selected[h.name]
+                  return (
+                    <label key={h.name} style={{ ...s.hostRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                      <input type="checkbox" checked={on} onChange={() => toggleHost(h.name)} />
+                      <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{h.name}</span>
+                      <span style={s.statusTag(h.up)}>{h.up ? 'up' : 'down'}</span>
+                    </label>
+                  )
+                })}
+                {filtered.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum host para esse filtro.</p>}
+              </div>
+            </>
+          )}
+          {d.hosts.length === 0 && !loading && (
+            <p style={s.hint}>Clique em &quot;Descobrir hosts&quot; para listar os hosts reportando ao Datadog.</p>
+          )}
+        </div>
+      )}
+
+      {subStep === 1 && (
         <div>
           <label style={s.label}>Métricas — parâmetros por tipo</label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -261,8 +311,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
       {error && <div style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={handleNext}>Continuar →</button>
+        <button style={s.btnGhost} onClick={goSubBack}>← Voltar</button>
+        {subStep < SUB_STEPS.length - 1
+          ? <button style={s.btn} onClick={goSubNext}>Próximo →</button>
+          : <button style={s.btn} onClick={handleNext}>Continuar →</button>}
       </div>
     </div>
   )

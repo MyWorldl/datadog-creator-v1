@@ -1,42 +1,24 @@
 // src/app/api/datadog/operations/route.js
 //
-// Para os serviços informados, descobre as OPERATIONS (spans) e quantas são.
-// Estratégia: lista as métricas submetidas com a tag service:<svc>
-//   GET /api/v2/metrics?filter[tags]=service:<svc>&window[seconds]=...
-// e extrai o nome da operation dos nomes "trace.<op>.hits".
-// Requer escopo metrics_read na Application key.
-//   https://docs.datadoghq.com/api/latest/metrics/get-a-list-of-metrics/
+// Para os serviços informados, descobre as OPERATIONS (spans) e quantas são,
+// via Metrics List API (helper traceOperations em datadog-server.js): lista
+// as métricas submetidas com a tag service:<svc> e extrai o nome da operation
+// dos nomes "trace.<op>.hits". Requer escopo metrics_read na Application key.
 //
 // Query: /api/datadog/operations?services=a,b,c
 // Resposta: { results: { a: { count, operations:[...], primary } , ... } }
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet } from '@/lib/datadog-server'
-
-// Escolhe a operation "primária" para os monitores (preferindo entradas web).
-function pickPrimary(ops) {
-  const pref = ['http.request', 'web.request', 'servlet.request', 'grpc.request', 'rack.request', 'express.request']
-  for (const p of pref) if (ops.includes(p)) return p
-  return ops[0] || 'http.request'
-}
+import { ctxFrom, traceOperations } from '@/lib/datadog-server'
+import { pickPrimaryOperation } from '@/lib/discovery'
 
 async function operationsForService(ctx, service) {
-  const tag = `service:${service}`
-  const r = await ddGet(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(tag)}&window[seconds]=86400`)
+  const r = await traceOperations(ctx, `service:${service}`)
   if (!r.ok) {
     return { error: r.status ? `Datadog respondeu ${r.status}` : (r.error || 'Falha de rede'), status: r.status, detail: r.detail }
   }
-  const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter(Boolean) : []
-
-  // trace.<op>.hits  -> <op>
-  const ops = new Set()
-  for (const name of names) {
-    const m = /^trace\.(.+)\.hits$/.exec(name)
-    if (m) ops.add(m[1])
-  }
-  const operations = [...ops].sort()
-  return { count: operations.length, operations, primary: pickPrimary(operations) }
+  return { count: r.operations.length, operations: r.operations, primary: pickPrimaryOperation(r.operations) }
 }
 
 export async function GET(request) {

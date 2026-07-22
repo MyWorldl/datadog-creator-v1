@@ -1,7 +1,7 @@
 // tests/discovery.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialDiscovery, planPreview, buildAnomalyQuery, ALERT_TYPES } from '../src/lib/discovery.js'
+import { initialDiscovery, planPreview, buildAnomalyQuery, ALERT_TYPES, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.js'
 
 // Monta uma discovery com 1 serviço + 1 operação e todos os alertas ligados.
 function fullPlan() {
@@ -73,4 +73,76 @@ test('priority: definida na config, propaga pro item do plano E pro payload (cam
   assert.equal(m.priority, 2)
   assert.equal(m.payload.priority, 2)
   assert.ok(!('priority' in m.payload.options), 'priority é campo de topo do monitor, não deve ficar dentro de options')
+})
+
+test('scopeType: padrão é "service" em initialDiscovery()', () => {
+  const d = initialDiscovery()
+  assert.equal(d.scopeType, 'service')
+})
+
+test('scopeType "namespace": query e tags usam kube_namespace: em vez de service:', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  d.selected = { payments: { opsCount: 1, operations: ['grpc.request'], chosen: ['grpc.request'] } }
+  d.alerts.latency.enabled = true
+  const [m] = planPreview(d)
+  assert.match(m.query, /kube_namespace:payments/)
+  assert.doesNotMatch(m.query, /service:payments/)
+  assert.ok(m.payload.tags.includes('kube_namespace:payments'))
+  assert.ok(!m.payload.tags.some(t => t.startsWith('service:')))
+})
+
+test('scopeType "service" (default, sem passar o campo): continua gerando service: — regressão', () => {
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  const [m] = planPreview(d)
+  assert.match(m.query, /service:web/)
+  assert.doesNotMatch(m.query, /kube_namespace:/)
+  assert.ok(m.payload.tags.includes('service:web'))
+})
+
+test('tag operation:<op> sempre presente no payload, nos dois modos', () => {
+  const svc = initialDiscovery()
+  svc.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  svc.alerts.latency.enabled = true
+  const [svcMonitor] = planPreview(svc)
+  assert.ok(svcMonitor.payload.tags.includes('operation:http.request'))
+
+  const ns = initialDiscovery()
+  ns.scopeType = 'namespace'
+  ns.selected = { payments: { opsCount: 1, operations: ['web.request'], chosen: ['web.request'] } }
+  ns.alerts.latency.enabled = true
+  const [nsMonitor] = planPreview(ns)
+  assert.ok(nsMonitor.payload.tags.includes('operation:web.request'))
+})
+
+test('operation ausente cai em DEFAULT_OPERATION de forma consistente na query e na tag', () => {
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 0, operations: [], chosen: [''] } } // chosen com string vazia -> operation falsy
+  d.alerts.latency.enabled = true
+  const [m] = planPreview(d)
+  assert.match(m.query, new RegExp(`trace\\.${DEFAULT_OPERATION}\\{`))
+  assert.ok(m.payload.tags.includes(`operation:${DEFAULT_OPERATION}`))
+})
+
+test('pickPrimaryOperation: respeita a ordem de preferência e cai no primeiro item quando nada bate', () => {
+  assert.equal(pickPrimaryOperation(['grpc.request', 'http.request']), 'http.request')
+  assert.equal(pickPrimaryOperation(['custom.op', 'another.op']), 'custom.op')
+  assert.equal(pickPrimaryOperation([]), DEFAULT_OPERATION)
+})
+
+test('queryWindow: escalado por tipo (~5x o alert_window) — errorRate usa last_30m, os demais last_1h', () => {
+  const byKind = Object.fromEntries(fullPlan().map(m => [m.kind, m]))
+  assert.match(byKind.errorRate.query, /^avg\(last_30m\):/)
+  assert.match(byKind.latency.query, /^avg\(last_1h\):/)
+  assert.match(byKind.highVolume.query, /^avg\(last_1h\):/)
+  assert.match(byKind.lowVolume.query, /^avg\(last_1h\):/)
+})
+
+test('evaluation_delay: presente em todo monitor, igual ao interval da query (60s)', () => {
+  for (const m of fullPlan()) {
+    assert.equal(m.payload.options.evaluation_delay, 60, `${m.kind}: evaluation_delay ausente ou diferente de 60`)
+    assert.match(m.query, /interval=60/)
+  }
 })

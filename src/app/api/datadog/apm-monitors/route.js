@@ -1,17 +1,18 @@
-// src/app/api/datadog/infra-monitors/route.js
+// src/app/api/datadog/apm-monitors/route.js
 //
-// Cria os monitores de INFRAESTRUTURA (CPU/Memória/Disco por host)
-// planejados no fluxo de descoberta. Aceita dois formatos de body:
-//  - { infra: <objeto de discovery> } — usado pelo wizard (DiscoveryCreate.jsx),
-//    roda planInfraPreview() aqui dentro.
-//  - { plan: [...] } — plano já expandido, usado pelo AuditMonitors
-//    (buildSuggestedInfra em lib/audit.js já devolve o plan pronto).
-// Idempotência + retry em 429: ver createPlanIdempotent em
-// lib/monitor-create-server.js (compartilhado com apm-monitors/route.js).
+// Cria os monitores de APM sugeridos pelo AuditMonitors pras lacunas de
+// cobertura por serviço (buildSuggestedApm, lib/audit.js já devolve o plan
+// pronto — mesmo formato de item que planPreview()).
+//
+// Diferente de service-monitors/route.js (usada pelo wizard, sem
+// idempotência — é a "Etapa 5", nunca roda 2x pro mesmo plano): a criação
+// pelo AuditMonitors PRECISA ser idempotente, porque reauditar depois de
+// criar parcialmente não pode duplicar. Por isso espelha infra-monitors/
+// route.js via createPlanIdempotent (lib/monitor-create-server.js) em vez de
+// reaproveitar service-monitors/route.js.
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { planInfraPreview } from '@/lib/infra'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
 
@@ -29,9 +30,9 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const plan = Array.isArray(body?.plan) ? body.plan : planInfraPreview(body?.infra || body)
+  const plan = Array.isArray(body?.plan) ? body.plan : []
   if (plan.length === 0) {
-    return Response.json({ error: 'Nada a criar: selecione host(s) e métrica(s) de infra.' }, { status: 400 })
+    return Response.json({ error: 'Nada a criar: nenhum monitor de APM no plano.' }, { status: 400 })
   }
 
   const ctx = ctxFrom({ apiKey, appKey, site })
