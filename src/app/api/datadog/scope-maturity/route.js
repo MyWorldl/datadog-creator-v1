@@ -126,7 +126,7 @@ export async function GET() {
   // 5. Monitores com Owner (tag team:/owner: ou creator)
   if (monitorsR.ok && monitors.length) {
     const withOwner = monitors.filter(m => (m.tags || []).some(t => t.startsWith('team:') || t.startsWith('owner:')) || m.creator?.email).length
-    add('monitorsOwner', 'Monitores com Owner', true, pct(withOwner, monitors.length), `${withOwner} de ${monitors.length} monitores com team/owner.`)
+    add('monitorsOwner', 'Monitores com Owner', true, pct(withOwner, monitors.length), `${withOwner} de ${monitors.length} monitores com team/owner. Datadog recomenda toda notificação rotear para um dono (tag team:/@handle) com runbook, para o alerta chegar a quem age.`)
   } else add('monitorsOwner', 'Monitores com Owner', false, 0, 'Sem dados de monitores.')
 
   // 6. Dashboards por Serviço (ratio dashboards / serviços)
@@ -165,7 +165,7 @@ export async function GET() {
 
   // 13. Alertas Falsos (score = 100 - flapping) — via Events (auto-recuperação rápida)
   if (ev.measured && ev.flappingRate != null) {
-    add('falseAlerts', 'Alertas Falsos', true, 100 - ev.flappingRate, `${ev.flapping} de ${ev.cycles} ciclos recuperaram em <10min (flapping, 7d).`)
+    add('falseAlerts', 'Alertas Falsos', true, 100 - ev.flappingRate, `${ev.flapping} de ${ev.cycles} ciclos recuperaram em <10min (flapping, 7d). Datadog recomenda alertar em sintomas e usar recovery threshold + janela de avaliação para cortar disparos transitórios.`)
   } else {
     add('falseAlerts', 'Alertas Falsos', false, 0, ev.measured ? 'Sem ciclos de alerta pareáveis no período.' : 'Requer Events API.')
   }
@@ -212,19 +212,19 @@ export async function GET() {
   const PILLARS = [
     { key: 'cobertura', label: 'Cobertura', dims: ['hostsAgent', 'hostsMonitorados', 'apm', 'cloud'],
       maduro: 'Monitora infraestrutura, aplicações, banco de dados, cloud, containers, Kubernetes, logs, traces e usuários finais.',
-      imaturo: 'Monitora apenas alguns servidores.' },
+      imaturo: 'Cobertura parcial: apenas alguns servidores com Agent, sem APM nas aplicações e sem integração de cloud — grandes áreas do ambiente ficam invisíveis (blind spots).' },
     { key: 'qualidade', label: 'Qualidade dos Monitores', dims: ['falseAlerts', 'monitorsOwner'],
-      maduro: 'Alertas relevantes, thresholds ajustados, composite monitors e monitor templates.',
-      imaturo: 'Muitos alertas falsos ou inexistentes.' },
+      maduro: 'Alertas acionáveis baseados em sintomas (não em causas), com thresholds de disparo e recuperação calibrados, tratamento de "no data", prioridades definidas, runbook no corpo do alerta, composite monitors para reduzir ruído e cada monitor com dono e canal de notificação.',
+      imaturo: 'Alertas em excesso ou por causa (não sintoma), com flapping e sem dono — gera fadiga de alerta (alert fatigue) e o time passa a ignorar notificações críticas.' },
     { key: 'observabilidade', label: 'Observabilidade', dims: ['observabilidade'],
       maduro: 'Métricas + Logs + APM + RUM + Synthetics + Profiling + Database Monitoring.',
-      imaturo: 'Apenas métricas.' },
+      imaturo: 'Só coleta métricas de infraestrutura, sem correlacionar logs e traces — diante de um incidente dá pra ver QUE algo quebrou, mas não POR QUE.' },
     { key: 'processos', label: 'Processos', dims: ['dashPerService', 'servicesSLO', 'errorBudget'],
       maduro: 'Dashboards usados em operação diária, incidentes, capacity planning e SLA/SLO.',
-      imaturo: 'Dashboards apenas para consulta.' },
+      imaturo: 'Dashboards só para consulta pontual, sem SLOs nem error budget — a operação é reativa (apaga incêndios) em vez de guiada por objetivos de confiabilidade.' },
     { key: 'governanca', label: 'Governança', dims: ['tagCompliance', 'logsCorrelated', 'logsNoService'],
       maduro: 'Tags padronizadas, RBAC, naming convention, custos controlados e ownership definido.',
-      imaturo: 'Sem padrão.' },
+      imaturo: 'Sem padrão de tags (env/service/team) nem ownership — dificulta filtrar, atribuir responsabilidade e controlar custo, e quebra a correlação entre sinais.' },
   ]
   const dimByKey = Object.fromEntries(dims.map(d => [d.key, d]))
   const pillars = PILLARS.map(p => {
@@ -234,11 +234,24 @@ export async function GET() {
     return { key: p.key, label: p.label, score: pScore, measured: mm.length > 0, maduro: p.maduro, imaturo: p.imaturo, dimensions: members }
   })
 
-  // Score geral = média dos pilares medidos. Nível 1-5 por faixa de 20 pontos.
+  // Score geral (círculo) = média dos pilares medidos.
   const measuredPillars = pillars.filter(p => p.measured)
   const score = measuredPillars.length ? clamp(measuredPillars.reduce((a, p) => a + p.score, 0) / measuredPillars.length) : 0
-  const level = Math.min(5, Math.floor(score / 20) + 1)
+
+  // Nível 1-5 por faixa de 20 pontos, mas TRAVADO PELO ELO MAIS FRACO: um pilar
+  // forte não pode mascarar um crítico. O nível não passa de (nível do pior
+  // pilar + 1), então enquanto houver pilar muito atrás o ambiente não "sobe".
+  // Mesma filosofia do refino do AuditMonitors (média não infla o resultado).
+  const bandLevel = (v) => Math.max(1, Math.min(5, Math.floor(v / 20) + 1))
   const LEVEL_LABELS = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
+  const levelFromScore = bandLevel(score)
+  const weakest = measuredPillars.length ? measuredPillars.reduce((a, p) => p.score < a.score ? p : a, measuredPillars[0]) : null
+  const levelCap = weakest ? bandLevel(weakest.score) + 1 : 5
+  const level = measuredPillars.length ? Math.min(levelFromScore, levelCap) : 1
+  // Se o teto do elo mais fraco rebaixou o nível, informa qual pilar segurou.
+  const levelNote = weakest && level < levelFromScore
+    ? `Nível limitado pelo pilar mais fraco: ${weakest.label} (${weakest.score}). Suba-o para destravar o próximo nível.`
+    : null
 
   // Histórico do score geral (sparkline + delta). Grava só em compute fresco
   // (cache hit retorna antes daqui), então no máximo 1 ponto por dia/conta.
@@ -249,6 +262,7 @@ export async function GET() {
     score,
     level,
     levelLabel: LEVEL_LABELS[level],
+    levelNote,
     pillars,
     site,
     generatedAt: new Date().toISOString(),
