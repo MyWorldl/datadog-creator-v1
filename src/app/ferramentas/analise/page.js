@@ -21,6 +21,13 @@ function ScoreRing({ value, color, size = 120, stroke = 10 }) {
 const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 // status da dimensão para o card (Modelo E): good | warn | bad | nd
 const smStatus = (dim) => !dim.measured ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
+// cor + tint por status, para o badge numérico do KPI
+const STATUS_TINT = {
+  good: { c: 'var(--success)', bg: 'var(--success-bg)' },
+  warn: { c: 'var(--warning)', bg: 'var(--warning-bg)' },
+  bad: { c: 'var(--danger)', bg: 'var(--danger-bg)' },
+  nd: { c: 'var(--text-muted)', bg: 'var(--bg-surface-2)' },
+}
 
 // Ícones temáticos por pilar (linha, estilo lucide — sinérgicos com o tema
 // escuro): cada pilar ganha um glyph de identidade em vez da forma de status.
@@ -143,24 +150,29 @@ export default function ScopeMaturityPage() {
                     status={smStatus(p)}
                     icon={PILLAR_ICON[p.key] || null}
                   >
-                    <p style={{ ...s.dimDetail, marginBottom: 6 }}>
-                      <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro:</span> {p.maduro}
-                    </p>
-                    <p style={{ ...s.dimDetail, marginBottom: 10 }}>
-                      <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo:</span> {p.imaturo}
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {p.dimensions.map(dim => (
-                        <div key={dim.key} style={{ borderTop: '1px solid var(--border)', paddingTop: 8 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{dim.label}</span>
-                            <span style={{ fontSize: 12.5, fontWeight: 700, color: dim.measured ? scoreColor(dim.score) : 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+                      <p style={{ ...s.dimDetail, margin: 0, flex: '1 1 200px' }}>
+                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro:</span> {p.maduro}
+                      </p>
+                      <p style={{ ...s.dimDetail, margin: 0, flex: '1 1 200px' }}>
+                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo:</span> {p.imaturo}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                      {p.dimensions.map(dim => {
+                        const tint = STATUS_TINT[smStatus(dim)]
+                        return (
+                          <div key={dim.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                            <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 9, background: tint.bg, color: tint.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: dim.measured ? 12.5 : 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                               {dim.measured ? dim.score : 'N/D'}
                             </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{dim.label}</div>
+                              <p style={{ ...s.dimDetail, margin: '2px 0 0' }}>{dim.detail}</p>
+                            </div>
                           </div>
-                          <p style={{ ...s.dimDetail, margin: '3px 0 0' }}>{dim.detail}</p>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </CollapsibleCard>
                 ))}
