@@ -8,7 +8,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, listMonitors, listHosts } from '@/lib/datadog-server'
 import {
-  analyzeCoverage, coverageScore, buildSuggestedInfra, buildSuggestedApm,
+  analyzeCoverage, coverageScoreWeighted, buildSuggestedInfra, buildSuggestedApm,
   analyzeHostCoverage, analyzeServiceCoverage, INFRA_CATALOG, APM_CATALOG,
 } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
@@ -52,9 +52,11 @@ export async function GET() {
   const serviceCount = services.length
 
   const coverage = analyzeCoverage(monitors)
-  const score = coverageScore(coverage)
   const hostCoverage = analyzeHostCoverage(monitors, hosts)
   const serviceCoverage = analyzeServiceCoverage(monitors, services)
+  // Score REAL = média dos % efetivos por métrica (mesma fonte dos cards),
+  // em vez do binário "existe ≥1 monitor = 100%".
+  const score = coverageScoreWeighted(hostCoverage, serviceCoverage)
   const suggestedInfra = buildSuggestedInfra(hostCoverage)
   const suggestedApm = buildSuggestedApm(serviceCoverage)
 

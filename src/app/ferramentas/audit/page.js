@@ -7,11 +7,11 @@ import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
 import { coveragePercent, percentBand } from '@/lib/audit'
 
-const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 // Cores por faixa de % de cobertura por entidade (host/serviço) — faixas de
 // negócio calculadas em lib/audit.js (percentBand); aqui só o mapeamento
-// pra CSS var, igual ao que scoreColor já faz pro score numérico do anel.
+// pra CSS var. O anel (scoreColor) usa a MESMA escala dos cards.
 const bandColor = (band) => band === 'red' ? 'var(--danger)' : band === 'yellow' ? 'var(--warning)' : band === 'green' ? 'var(--success)' : 'var(--text-muted)'
+const scoreColor = (v) => bandColor(percentBand(v))
 const bandBg = (band) => band === 'red' ? 'var(--danger-bg)' : band === 'yellow' ? 'var(--warning-bg)' : band === 'green' ? 'var(--success-bg)' : 'var(--bg-surface-2)'
 
 function Ring({ value, size = 120, stroke = 10 }) {
