@@ -150,13 +150,19 @@ export default function ScopeMaturityPage() {
                     status={smStatus(p)}
                     icon={PILLAR_ICON[p.key] || null}
                   >
-                    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-                      <p style={{ ...s.dimDetail, margin: 0, flex: '1 1 200px' }}>
-                        <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro:</span> {p.maduro}
-                      </p>
-                      <p style={{ ...s.dimDetail, margin: 0, flex: '1 1 200px' }}>
-                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo:</span> {p.imaturo}
-                      </p>
+                    <div style={{ background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 11 }}>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--success)' }} />
+                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro </span>— {p.maduro}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--danger)' }} />
+                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo </span>— {p.imaturo}
+                        </p>
+                      </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                       {p.dimensions.map(dim => {
