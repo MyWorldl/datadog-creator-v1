@@ -80,6 +80,7 @@ export default function CollapsibleCard({ title, score, status = 'nd', icon = nu
           <span className="whitespace-nowrap font-extrabold tabular-nums" style={{ color: st.color, fontSize: `${scoreFontPx}px` }}>
             {score}
           </span>
+          {typeof score === 'number' && <span className="text-[13px]" style={{ color: 'var(--text-muted)' }}>/100</span>}
           <svg
             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
@@ -90,6 +91,15 @@ export default function CollapsibleCard({ title, score, status = 'nd', icon = nu
           </svg>
         </span>
       </button>
+
+      {/* Barra de progresso do score (sempre visível — leitura rápida do pilar) */}
+      {typeof score === 'number' && (
+        <div className="px-5 pb-3.5">
+          <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: iconBg }}>
+            <div className="h-full rounded-full transition-all duration-500 ease-out" style={{ width: `${Math.max(0, Math.min(100, score))}%`, background: st.color }} />
+          </div>
+        </div>
+      )}
 
       {/* Corpo animado: 0fr (fechado) -> 1fr (aberto) */}
       <div
