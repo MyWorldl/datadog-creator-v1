@@ -114,7 +114,7 @@ export default function FinOpsPage() {
 
       <div style={s.tabs}>
         <button style={s.tab(tab === 'consumo')} onClick={() => setTab('consumo')}>Consumo</button>
-        <button style={s.tab(tab === 'alarme')} onClick={() => setTab('alarme')}>Análise &amp; Alarme</button>
+        <button style={s.tab(tab === 'alarme')} onClick={() => setTab('alarme')}>Alerta de consumo</button>
         <button style={s.tab(tab === 'custo')} onClick={() => setTab('custo')}>Custo estimado</button>
       </div>
 
@@ -199,10 +199,13 @@ export default function FinOpsPage() {
       {/* ── ANÁLISE & ALARME ── */}
       {tab === 'alarme' && (
         <div style={s.card}>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 14px' }}>
-            Cria um monitor de <strong>anomaly detection</strong> sobre a métrica de licenciamento escolhida, com
-            direção <strong>ambos</strong> — alarma tanto <strong>aumento</strong> quanto <strong>queda</strong> anormal do consumo.
-          </p>
+          <div style={{ ...s.warn, marginBottom: 14 }}>
+            ⚠️ <strong>Isto não é um alarme de gasto em dólares</strong> — não usa os preços da aba Custo nem tem
+            threshold em US$. Cria um monitor de <strong>anomaly detection</strong> sobre o <strong>volume bruto</strong> de
+            uso (hosts, GB, eventos…) da métrica de licenciamento escolhida, com direção <strong>ambos</strong> —
+            alarma quando esse volume sai do padrão histórico, seja aumento ou queda. Útil para pegar um pico de
+            consumo antes de virar surpresa na fatura, mas não converte isso em R$/US$.
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={s.label}>Métrica de licenciamento (uso estimado)</label>
@@ -247,7 +250,7 @@ export default function FinOpsPage() {
       {tab === 'custo' && (
         <div style={s.card}>
           <div style={s.warn}>
-            ⚠️ Estimativa por <strong>preço de lista</strong> (anual). O preço real contratado varia com committed use e descontos — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
+            ⚠️ Estimativa por <strong>preço de lista</strong> (anual), <strong>linear</strong> (mesmo $/unidade em qualquer volume). O preço real contratado varia com committed use, descontos e blocos degressivos por volume (mais visível em Custom Metrics) — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
           </div>
           {logsIndexedGap && (
             <div style={{ ...s.warn, borderColor: 'var(--danger)', color: 'var(--danger)' }}>
