@@ -19,6 +19,14 @@
 // contratado difere (committed use/descontos); por isso é editável na UI.
 //
 // Cálculo: custo ≈ (bytes ? valor/1e9 : valor) / per × price
+//
+// SIMPLIFICAÇÃO CONHECIDA: todo produto usa preço LINEAR (mesmo $/unidade em
+// qualquer volume). 'customMetrics' é o caso mais visível — a Datadog aplica
+// blocos degressivos (desconto por volume) em contas de volume muito alto,
+// que este cálculo não modela. Aproximação razoável pra maioria dos clientes;
+// para volumes muito grandes, o custo real tende a ficar ABAIXO do estimado
+// aqui (achado da auditoria — documentado, não corrigido, pois os blocos de
+// desconto não são públicos/fixos o bastante pra codificar com confiança).
 
 export const PRODUCTS = [
   { key: 'infra',        label: 'Infrastructure Pro',      unit: 'hosts (p99)',   price: 15,   per: 1,    bytes: false, fields: ['infra_host_top99p_sum'], estMetric: 'datadog.estimated_usage.hosts', estAgg: 'peak', estCount: false },
@@ -28,6 +36,17 @@ export const PRODUCTS = [
   { key: 'logsIngest',   label: 'Logs — Ingestão',         unit: 'GB ingeridos',  price: 0.10, per: 1,    bytes: true,  fields: ['ingested_events_bytes_sum'], estMetric: 'datadog.estimated_usage.logs.ingested_bytes', estAgg: 'sum', estCount: true },
   { key: 'logsIndexed',  label: 'Logs — Indexados (15d)',  unit: '1M eventos',    price: 1.70, per: 1e6,  bytes: false, fields: ['indexed_events_count_sum'], estMetric: null, estAgg: null, estCount: false },
   { key: 'apmIngest',    label: 'APM — Ingestão',          unit: 'GB de spans',   price: 0.10, per: 1,    bytes: true,  fields: ['apm_ingested_traces_bytes_sum', 'ingested_spans_bytes_sum', 'apm_ingested_bytes_sum'], estMetric: 'datadog.estimated_usage.apm.ingested_bytes', estAgg: 'sum', estCount: true },
+  // Ingestão de spans (acima) e indexação por retention filter são cobradas
+  // SEPARADAMENTE — mesma dicotomia de logsIngest/logsIndexed, que faltava
+  // pro lado de APM (achado da auditoria). Diferente de logsIndexed, aqui
+  // EXISTE uma estimated_usage metric própria (confirmado em
+  // https://docs.datadoghq.com/tracing/trace_retention/usage_metrics/), então
+  // não sofre do mesmo "gap silencioso" — 15d pra bater com o mesmo tier já
+  // usado em logsIndexed. Preço confirmado em https://www.datadoghq.com/pricing/list/.
+  // NÃO desconta a allocation gratuita (1M spans/host de APM, 65k/task
+  // Fargate) que a Datadog inclui — mesma simplificação já assumida pros
+  // demais produtos (preço de lista, sem tiers/allowance).
+  { key: 'apmIndexed',   label: 'APM — Spans Indexados (15d)', unit: '1M spans', price: 1.70, per: 1e6,  bytes: false, fields: ['indexed_spans_count_sum'], estMetric: 'datadog.estimated_usage.apm.indexed_spans', estAgg: 'sum', estCount: true },
   { key: 'dbm',          label: 'Database Monitoring',     unit: 'hosts (p99)',   price: 70,   per: 1,    bytes: false, fields: ['dbm_host_top99p_sum'], estMetric: 'datadog.estimated_usage.dbm.hosts', estAgg: 'peak', estCount: false },
   { key: 'rum',          label: 'RUM — Sessões',           unit: '1k sessões',    price: 0.15, per: 1e3,  bytes: false, fields: ['rum_session_count_sum', 'rum_units_sum'], estMetric: 'datadog.estimated_usage.rum.sessions', estAgg: 'sum', estCount: true },
   { key: 'synthApi',     label: 'Synthetics — API',        unit: '10k runs',      price: 5,    per: 1e4,  bytes: false, fields: ['synthetics_check_calls_count_sum'], estMetric: 'datadog.estimated_usage.synthetics.api_test_runs', estAgg: 'sum', estCount: true },

@@ -28,6 +28,19 @@ test('computeCost: valor nulo/NaN retorna null (defensivo)', () => {
   assert.equal(computeCost(NaN, 15, 1, false), null)
 })
 
+test('computeCost: base por 1M (APM spans indexados) — mesmo preço/base de logs indexados (15d)', () => {
+  assert.equal(computeCost(25e6, 1.70, 1e6, false), 42.5) // 25M/1M × $1.70
+})
+
+test('apmIndexed: diferente de logsIndexed, tem estMetric (não sofre do "gap silencioso" em Sub-Org)', () => {
+  const apmIndexed = PRODUCTS.find(p => p.key === 'apmIndexed')
+  const logsIndexed = PRODUCTS.find(p => p.key === 'logsIndexed')
+  assert.ok(apmIndexed, 'produto apmIndexed deveria existir no catálogo')
+  assert.equal(apmIndexed.estMetric, 'datadog.estimated_usage.apm.indexed_spans')
+  assert.equal(apmIndexed.estAgg, 'sum')
+  assert.equal(logsIndexed.estMetric, null, 'logsIndexed continua sem métrica estimada — limitação real da Datadog, não regressão')
+})
+
 test('catálogo tem produtos e cada um traz preço e base; métrica de uso é opcional mas válida quando existe', () => {
   assert.ok(PRODUCTS.length >= 10)
   for (const p of PRODUCTS) {
