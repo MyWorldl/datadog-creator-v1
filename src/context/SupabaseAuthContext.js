@@ -24,6 +24,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
+import { logError } from '@/lib/logger'
 
 const Ctx = createContext({ data: null, status: 'loading', refresh: async () => {} })
 
@@ -51,7 +52,7 @@ async function consumeAuthHashIfPresent() {
   } catch (err) {
     // Token expirado/inválido (link de convite velho, já usado, etc.) — cai
     // pra tela de login normalmente em vez de travar a página.
-    console.error('[auth] Falha ao aplicar sessão do link:', err?.message || err)
+    logError('auth', err, { hint: 'falha ao aplicar sessão do link (token expirado/inválido/já usado)' })
   }
   // Limpa o hash da URL (tokens/erro não devem ficar visíveis/persistidos ali).
   window.history.replaceState(null, '', window.location.pathname + window.location.search)

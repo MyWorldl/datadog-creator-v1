@@ -13,6 +13,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { logError } from './logger.js'
 
 async function buildClient() {
   const cookieStore = await cookies()
@@ -54,7 +55,7 @@ export async function getServerUser() {
     if (error || !user) return null
     return { id: user.id, email: user.email, name: user.user_metadata?.name || user.email }
   } catch (err) {
-    console.error('[supabase-server] Falha ao checar sessão:', err?.message || err)
+    logError('supabase-server', err)
     return null
   }
 }

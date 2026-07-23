@@ -8,8 +8,8 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { listConnections, createConnection } from '@/lib/connections'
-import { VALID_SITES } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
+import { createConnectionSchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function GET() {
   const user = await getServerUser()
@@ -38,14 +38,11 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const name = String(body?.name || '').trim()
-  const apiKey = String(body?.apiKey || '').trim()
-  const appKey = String(body?.appKey || '').trim()
-  const site = String(body?.site || '').trim()
-
-  if (apiKey.length < 10) return Response.json({ error: 'API Key parece inválida.' }, { status: 400 })
-  if (appKey.length < 10) return Response.json({ error: 'Application Key parece inválida.' }, { status: 400 })
-  if (!VALID_SITES.includes(site)) return Response.json({ error: 'Site do Datadog inválido.' }, { status: 400 })
+  const parsed = createConnectionSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+  }
+  const { name, apiKey, appKey, site } = parsed.data
 
   // Confere as chaves no Datadog ANTES de gravar — evita salvar credencial inválida.
   const ctx = ctxFrom({ apiKey, appKey, site })

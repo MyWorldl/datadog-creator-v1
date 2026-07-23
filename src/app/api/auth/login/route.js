@@ -21,6 +21,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { getClientIp, checkLoginRateLimit, recordFailedLogin, resetLoginAttempts } from '@/lib/rate-limit'
+import { logError } from '@/lib/logger'
 
 export async function POST(request) {
   const ip = getClientIp(request)
@@ -39,7 +40,7 @@ export async function POST(request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   if (!url || !key) {
-    console.error('[api/auth/login] NEXT_PUBLIC_SUPABASE_URL/ANON_KEY não configurados.')
+    logError('api/auth/login', 'NEXT_PUBLIC_SUPABASE_URL/ANON_KEY não configurados.')
     return Response.json({ ok: false, code: 'server_error' }, { status: 500 })
   }
 
