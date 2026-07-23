@@ -1,4 +1,5 @@
 /** @type {import('next').NextConfig} */
+import { withSentryConfig } from '@sentry/nextjs'
 
 // Origem do Supabase: o browser fala DIRETO com ela pra login/sessão
 // (createBrowserClient em src/lib/supabase-browser.js) — precisa entrar em
@@ -6,6 +7,19 @@
 function supabaseOrigin() {
   try {
     return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').origin
+  } catch {
+    return ''
+  }
+}
+
+// Mesma lógica pro Sentry: SEM NEXT_PUBLIC_SENTRY_DSN (ver
+// instrumentation-client.js), Sentry.init() nunca roda, então isto retorna
+// '' e não muda a CSP em nada. COM DSN configurado, o browser passa a
+// reportar erros pro domínio de ingest do Sentry — sem liberar isso aqui, a
+// própria CSP bloquearia o SDK de enviar os eventos.
+function sentryOrigin() {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_SENTRY_DSN || '').origin
   } catch {
     return ''
   }
@@ -22,7 +36,7 @@ const isDev = process.env.NODE_ENV !== 'production'
 // mesmo que consiga rodar). Endurecer script-src exigiria migrar a
 // estilização pra classes/nonce — fora do escopo desta rodada.
 function csp() {
-  const connectSrc = ["'self'", supabaseOrigin()].filter(Boolean).join(' ')
+  const connectSrc = ["'self'", supabaseOrigin(), sentryOrigin()].filter(Boolean).join(' ')
   const scriptSrc = ["'self'", "'unsafe-inline'", isDev ? "'unsafe-eval'" : null].filter(Boolean).join(' ')
   return [
     "default-src 'self'",
@@ -69,4 +83,18 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Upload de source maps é OPCIONAL e só ativa se SENTRY_ORG/SENTRY_PROJECT/
+// SENTRY_AUTH_TOKEN estiverem definidas (dados da conta Sentry do usuário —
+// não posso preencher isso por ele). Sem elas, withSentryConfig ainda
+// funciona normalmente (captura de erro via DSN continua ativa se
+// configurada) — só pula o upload, sem quebrar o build. `silent: true`
+// evita ruído no log de build enquanto não estiver configurado.
+const sentryBuildOptions = {
+  ...(process.env.SENTRY_ORG ? { org: process.env.SENTRY_ORG } : {}),
+  ...(process.env.SENTRY_PROJECT ? { project: process.env.SENTRY_PROJECT } : {}),
+  ...(process.env.SENTRY_AUTH_TOKEN ? { authToken: process.env.SENTRY_AUTH_TOKEN } : {}),
+  silent: true,
+  widenClientFileUpload: true,
+}
+
+export default withSentryConfig(nextConfig, sentryBuildOptions);
