@@ -8,6 +8,19 @@ export function ctxFrom({ apiKey, appKey, site }) {
   return { apiKey, appKey, site }
 }
 
+// Valida um token de usuário antes de interpolá-lo numa query DQL (nome de
+// métrica, valor de tag como env/kube_namespace). Não é uma fronteira entre
+// tenants — o usuário só afeta o PRÓPRIO ambiente Datadog, ao qual já tem
+// acesso total via a própria API key — mas evita que caracteres de sintaxe
+// DQL ({}, vírgula, aspas, quebra de linha) quebrem a query montada ou
+// produzam um escopo diferente do pretendido. Allowlist generosa o bastante
+// pra nomes de métrica (letras/dígitos/ponto/underscore/hífen) e valores de
+// tag (mesmo padrão + dois-pontos/barra, comuns em namespace/env).
+const SAFE_DQL_TOKEN = /^[a-zA-Z0-9_.:/-]+$/
+export function isSafeDqlToken(value) {
+  return typeof value === 'string' && value.length > 0 && value.length <= 200 && SAFE_DQL_TOKEN.test(value)
+}
+
 // Extrai texto + (se possível) JSON do corpo de uma resposta de erro, sem
 // lançar. Usado por ddGet/ddPost para dar contexto além do status HTTP.
 async function readErrorBody(r) {

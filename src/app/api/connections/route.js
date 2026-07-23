@@ -21,7 +21,10 @@ export async function GET() {
     const connections = await listConnections(user.id)
     return Response.json({ connections })
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 })
+    // Detalhe completo (pode incluir mensagem do driver Postgres/Supabase)
+    // só no log do servidor — o cliente recebe uma mensagem genérica.
+    console.error('[connections] falha ao listar:', e)
+    return Response.json({ error: 'Não foi possível carregar suas conexões. Tente novamente.' }, { status: 500 })
   }
 }
 
@@ -65,6 +68,7 @@ export async function POST(request) {
     const connection = await createConnection(user.id, { name, apiKey, appKey, site })
     return Response.json({ connection })
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 500 })
+    console.error('[connections] falha ao criar:', e)
+    return Response.json({ error: 'Não foi possível salvar a conexão. Tente novamente.' }, { status: 500 })
   }
 }

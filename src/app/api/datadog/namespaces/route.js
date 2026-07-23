@@ -25,7 +25,7 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, metricTagValues } from '@/lib/datadog-server'
+import { ctxFrom, metricTagValues, isSafeDqlToken } from '@/lib/datadog-server'
 import { NAMESPACE_PROBE_OPERATIONS } from '@/lib/discovery'
 
 export async function GET(request) {
@@ -44,6 +44,9 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url)
   const env = (searchParams.get('env') || '').trim()
+  if (env && !isSafeDqlToken(env)) {
+    return Response.json({ error: 'Valor de env inválido (use apenas letras, dígitos, ponto, underscore, hífen ou barra).' }, { status: 400 })
+  }
 
   const ctx = ctxFrom({ apiKey, appKey, site })
   const toSec = Math.floor(Date.now() / 1000)
