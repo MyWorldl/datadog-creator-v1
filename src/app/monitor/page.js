@@ -92,7 +92,7 @@ export default function Home() {
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {[
-                { key: 'services', label: 'Serviços (APM)' },
+                { key: 'services', label: 'APM' },
                 { key: 'infra', label: 'Infraestrutura (Hosts)' },
               ].map(opt => {
                 const on = config.resourceType === opt.key
