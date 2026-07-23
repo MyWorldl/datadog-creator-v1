@@ -1,0 +1,24 @@
+# .github/dependabot.yml
+#
+# Abre PR automático quando há atualização de dependência — inclusive
+# patches de segurança (ex.: o Next.js 16.2.10 -> 16.2.11 de 20/07/2026,
+# que corrigiu CVEs ativos e só foi pego aqui via auditoria manual).
+# Dependabot sinaliza esses casos sozinho, sem esperar a próxima auditoria.
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      # Agrupa patches/minors num PR só (reduz ruído); majors continuam
+      # separados, pra revisar breaking changes com atenção individual.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

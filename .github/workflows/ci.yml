@@ -31,6 +31,13 @@ jobs:
       - name: Versão do package.json bate com o histórico (Sistema -> Sobre)
         run: npm run check:version
 
+      # Gate contra vulnerabilidade alta/crítica em dependências — o mesmo
+      # tipo de CVE que exigiu o bump manual do Next.js 16.2.10 -> 16.2.11
+      # teria sido pego aqui, sem depender de auditoria manual. Moderado/baixo
+      # não bloqueia o PR (ver package.json -> overrides pros já tratados).
+      - name: Auditoria de dependências (npm audit, alto/crítico)
+        run: npm audit --audit-level=high
+
       - name: ESLint
         run: npm run lint
 
