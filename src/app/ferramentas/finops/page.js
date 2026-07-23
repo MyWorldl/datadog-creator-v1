@@ -95,6 +95,18 @@ export default function FinOpsPage() {
     return acc + (c || 0)
   }, 0) : 0
 
+  // Caso especial: "logsIndexed" não tem métrica estimada de fallback (não
+  // existe datadog.estimated_usage.* que distinga tiers de retenção) — em
+  // Sub-Org, onde usage/summary vem incompleto, essa linha simplesmente some
+  // do total. Diferente de "produto não usado" (ex.: DBM sem banco no
+  // ambiente): aqui HÁ ingestão de log real, então quase certamente há custo
+  // de indexação/retenção também — normalmente a MAIOR linha do gasto com
+  // logs — só que não sabemos quanto. Vale um aviso destacado, não um item a
+  // mais na lista muda de "sem dados para: X, Y, Z".
+  const logsIngestValue = data?.products.find(p => p.key === 'logsIngest')?.value ?? 0
+  const logsIndexedGap = !!data && data.missing.includes('logsIndexed') && logsIngestValue > 0
+  const missingExceptLogsIndexed = data ? data.missing.filter(k => k !== 'logsIndexed') : []
+
   return (
     <div style={{ maxWidth: 900 }}>
       <h1 style={s.h1}>Datadog FinOps Insights</h1>
@@ -146,7 +158,12 @@ export default function FinOpsPage() {
                 </table>
               </div>
               {data.products.length === 0 && <p style={{ ...s.note, marginTop: 12 }}>Nenhum campo de consumo reconhecido no retorno (org sem uso ou App key sem escopo).</p>}
-              {data.missing.length > 0 && <p style={{ ...s.note, marginTop: 10 }}>Sem dados para: {data.missing.join(', ')} (produto não usado ou campo ausente no seu plano).</p>}
+              {logsIndexedGap && (
+                <div style={{ ...s.warn, borderColor: 'var(--danger)', color: 'var(--danger)', marginTop: 12 }}>
+                  ⚠️ <strong>Logs — Indexados (15d) não entra no total</strong>: seu ambiente ingere logs ({fmtNum(logsIngestValue / 1e9)} GB no período), então quase certamente há custo de indexação/retenção também — normalmente a maior parcela do gasto com logs. Não existe métrica de uso estimado que a Datadog exponha para esse produto em Sub-Org, então ele fica de fora do consumo e do custo estimado abaixo até você conferir o valor real no Datadog (Plan &amp; Usage → Logs).
+                </div>
+              )}
+              {missingExceptLogsIndexed.length > 0 && <p style={{ ...s.note, marginTop: 10 }}>Sem dados para: {missingExceptLogsIndexed.join(', ')} (produto não usado ou campo ausente no seu plano).</p>}
               {Array.isArray(data.diagnostics) && data.diagnostics.length > 0 && (
                 <details style={{ marginTop: 16 }}>
                   <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>Diagnóstico das métricas (query, pontos e valor)</summary>
@@ -232,6 +249,11 @@ export default function FinOpsPage() {
           <div style={s.warn}>
             ⚠️ Estimativa por <strong>preço de lista</strong> (anual). O preço real contratado varia com committed use e descontos — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
           </div>
+          {logsIndexedGap && (
+            <div style={{ ...s.warn, borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+              ⚠️ <strong>Total incompleto</strong>: não inclui Logs — Indexados (15d) — sem dado disponível nesta org, mas há ingestão de log real ({fmtNum(logsIngestValue / 1e9)} GB), então o custo real de logs é maior que o mostrado abaixo.
+            </div>
+          )}
           {!data ? (
             <div>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Carregue o consumo primeiro para calcular o custo.</p>
@@ -268,8 +290,10 @@ export default function FinOpsPage() {
                   )
                 })}
                 <tr>
-                  <td style={{ ...s.td, ...s.totalRow }} colSpan={4}>Total estimado / mês</td>
-                  <td style={{ ...s.tdR, ...s.totalRow }}>{fmtMoney(totalCost)}</td>
+                  <td style={{ ...s.td, ...s.totalRow, ...(logsIndexedGap ? { color: 'var(--danger)' } : {}) }} colSpan={4}>
+                    Total estimado / mês{logsIndexedGap ? ' (incompleto — falta Logs indexados)' : ''}
+                  </td>
+                  <td style={{ ...s.tdR, ...s.totalRow, ...(logsIndexedGap ? { color: 'var(--danger)' } : {}) }}>{fmtMoney(totalCost)}</td>
                 </tr>
               </tbody>
             </table>

@@ -108,6 +108,30 @@ test('queryWindow: default é last_1h (alinhado ao alertWindow de 15m, ~4x)', ()
   assert.equal(d.metrics.cpu.queryWindow, 'last_1h')
 })
 
+test('recovery threshold: ausente por padrão (comportamento igual ao de sempre)', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  assert.ok(!('critical_recovery' in cpu.payload.options.thresholds))
+  assert.ok(!('warning_recovery' in cpu.payload.options.thresholds))
+})
+
+test('recovery threshold: definido no config, entra em options.thresholds.critical_recovery/warning_recovery', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.thresholds.criticalRecovery = 80
+  d.metrics.cpu.thresholds.warningRecovery = 70
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  assert.equal(cpu.payload.options.thresholds.critical_recovery, 80)
+  assert.equal(cpu.payload.options.thresholds.warning_recovery, 70)
+})
+
 test('evaluation_delay: presente por padrão (60s) nos monitores de métrica, ausente no service check', () => {
   const d = initialInfraDiscovery()
   d.selected = { web: true }
