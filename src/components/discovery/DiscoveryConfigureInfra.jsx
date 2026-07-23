@@ -108,7 +108,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   }
   function setMetricThreshold(key, level, value) {
     const cfg = d.metrics[key]
-    setInfra({ metrics: { ...d.metrics, [key]: { ...cfg, thresholds: { ...cfg.thresholds, [level]: Number(value) } } } })
+    // '' só acontece nos campos de recovery (opcionais, limpáveis) — vira
+    // null (sem recovery threshold), não 0 (que seria um valor real).
+    const parsed = value === '' ? null : Number(value)
+    setInfra({ metrics: { ...d.metrics, [key]: { ...cfg, thresholds: { ...cfg.thresholds, [level]: parsed } } } })
   }
   // Contagens do monitor de service check (ex.: Agent Down) — nº de
   // reportes com aquele status dentro da janela `window` para disparar.
@@ -225,7 +228,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                         <>
                           <span style={s.pill}>{cfg.mode}</span>
                           {isThreshold
-                            ? <span style={s.pill}>crit {cfg.thresholds.critical}{t.unit} / warn {cfg.thresholds.warning}{t.unit}</span>
+                            ? <>
+                                <span style={s.pill}>crit {cfg.thresholds.critical}{t.unit} / warn {cfg.thresholds.warning}{t.unit}</span>
+                                {Number.isFinite(cfg.thresholds.criticalRecovery) && <span style={s.pill}>recovery {cfg.thresholds.criticalRecovery}{t.unit}</span>}
+                              </>
                             : <span style={s.pill}>{cfg.deviations}σ · {cfg.algorithm}</span>}
                         </>
                       )}
@@ -268,6 +274,14 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                             <label style={s.miniLabel}>Warning ({t.unit})</label>
                             <input style={s.select} type="number" min="1" max="100" value={cfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
                           </div>
+                          <div>
+                            <label style={s.miniLabel}>Recovery critical ({t.unit}, opcional)</label>
+                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={cfg.thresholds.criticalRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'criticalRecovery', e.target.value)} />
+                          </div>
+                          <div>
+                            <label style={s.miniLabel}>Recovery warning ({t.unit}, opcional)</label>
+                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={cfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
+                          </div>
                         </>
                       ) : (
                         <>
@@ -303,7 +317,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
           </div>
           <p style={s.hint}>
             Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor. Ausência de
-            dados e renotificação seguem o padrão do Datadog.
+            dados e renotificação seguem o padrão do Datadog. Recovery (modo threshold) é opcional: deixe em branco
+            para recuperar assim que o valor cruzar de volta o próprio critical/warning, ou defina um valor MENOR
+            para exigir uma folga antes de considerar recuperado — evita o monitor abrir/fechar repetido (flapping)
+            quando o valor oscila perto do limite.
           </p>
         </div>
       )}

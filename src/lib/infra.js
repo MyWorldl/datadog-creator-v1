@@ -229,7 +229,14 @@ export function initialInfraDiscovery() {
         return [t.key, {
           enabled: t.key === 'cpu' || t.key === 'memory',
           mode: 'threshold',            // 'threshold' | 'anomaly'
-          thresholds: { ...t.defThresholds },
+          // criticalRecovery/warningRecovery: opcionais (null = sem recovery
+          // threshold, mesmo comportamento de sempre — o monitor recupera
+          // assim que o valor cruza de volta o próprio critical/warning).
+          // Quando definidos (só fazem sentido no modo 'threshold', que só
+          // dispara "acima de"), viram options.thresholds.critical_recovery/
+          // warning_recovery no payload — hysteresis pra cortar flapping em
+          // métricas que oscilam perto do limite. https://docs.datadoghq.com/monitors/guide/recovery-thresholds/
+          thresholds: { ...t.defThresholds, criticalRecovery: null, warningRecovery: null },
           deviations: t.defDeviations,
           direction: 'above',
           algorithm: 'robust',
@@ -304,7 +311,16 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
     options: {
       thresholds: mode === 'anomaly'
         ? { critical: 1.0 }
-        : { critical: thresholds.critical, warning: thresholds.warning },
+        : {
+            critical: thresholds.critical,
+            warning: thresholds.warning,
+            // Recovery threshold (hysteresis): só entra no payload se o
+            // usuário definiu um valor — omitido, o monitor mantém o
+            // comportamento padrão (recupera ao cruzar de volta o próprio
+            // critical/warning).
+            ...(Number.isFinite(thresholds.criticalRecovery) ? { critical_recovery: thresholds.criticalRecovery } : {}),
+            ...(Number.isFinite(thresholds.warningRecovery) ? { warning_recovery: thresholds.warningRecovery } : {}),
+          },
       ...(mode === 'anomaly' ? {
         threshold_windows: { trigger_window: alertWindow || 'last_15m', recovery_window: alertWindow || 'last_15m' },
       } : {}),
