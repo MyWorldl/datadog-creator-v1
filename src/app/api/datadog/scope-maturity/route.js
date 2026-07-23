@@ -168,13 +168,15 @@ export async function GET() {
     add('dashPerService', 'Dashboards por Serviço', true, pct(dashboards.length, servicesCount), `${dashboards.length} dashboards para ${servicesCount} serviços (densidade — proxy; cobertura real por serviço exigiria inspecionar cada dashboard).`)
   } else add('dashPerService', 'Dashboards por Serviço', false, 0, 'Requer dashboards e serviços APM.')
 
-  // 7. Serviços com SLO — SLOs miram os serviços CRÍTICOS/jornadas de usuário,
-  // não todos os serviços (Datadog). Por isso saturamos: ~20% dos serviços com
-  // SLO já reflete cobrir os críticos e pontua 100 (o antigo /todos-os-serviços
-  // punia injustamente ambientes com centenas de serviços).
+  // 7. Serviços com SLO — a Datadog recomenda SLO nos serviços CRÍTICOS/
+  // jornadas de usuário, não em todos (https://www.datadoghq.com/blog/establishing-service-level-objectives/),
+  // mas o corte de "~20%" abaixo é HEURÍSTICA DESTE APP, não um número
+  // documentado pela Datadog — satura em 20% pra não punir injustamente
+  // ambientes com centenas de serviços (o antigo /todos-os-serviços fazia
+  // isso). Deixe isso claro no texto exibido, pra não soar como benchmark oficial.
   if (sloR.ok && apmR.ok && servicesCount > 0) {
     const sloScore = slos.length === 0 ? 0 : Math.min(100, (slos.length / servicesCount) * 100 * 5)
-    add('servicesSLO', 'Serviços com SLO', true, sloScore, `${slos.length} SLO(s) para ${servicesCount} serviços (meta: cobrir os críticos; ~20% de cobertura já pontua cheio).`)
+    add('servicesSLO', 'Serviços com SLO', true, sloScore, `${slos.length} SLO(s) para ${servicesCount} serviços. Heurística deste app (não um número oficial da Datadog): cobrir ~20% dos serviços já pontua cheio, partindo da recomendação de focar SLO nos serviços críticos, não em todos.`)
   } else if (sloR.ok) {
     add('servicesSLO', 'Serviços com SLO', true, slos.length > 0 ? 60 : 0, `${slos.length} SLO(s) configurado(s).`)
   } else add('servicesSLO', 'Serviços com SLO', false, 0, 'Sem dados de SLO.')

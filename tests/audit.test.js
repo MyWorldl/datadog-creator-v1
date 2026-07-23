@@ -60,6 +60,26 @@ test('catálogo cobre Infra + APM', () => {
   assert.ok(AUDIT_CATALOG.length >= 10)
 })
 
+test('catálogo: lacunas adicionadas (latência de disco, throughput de rede, swap, inodes) detectam pelo nome de métrica real', () => {
+  const byKey = Object.fromEntries(AUDIT_CATALOG.map(c => [c.key, c]))
+  assert.equal(byKey.diskLatency.detect('avg:system.disk.read_time{*} > 100'), true)
+  assert.equal(byKey.diskLatency.detect('avg:system.disk.write_time{*} > 100'), true)
+  assert.equal(byKey.diskLatency.detect('avg:system.cpu.idle{*}'), false)
+  assert.equal(byKey.networkThroughput.detect('avg:system.net.bytes_rcvd{*} > 1e9'), true)
+  assert.equal(byKey.networkThroughput.detect('avg:system.net.bytes_sent{*} > 1e9'), true)
+  assert.equal(byKey.swap.detect('avg:system.swap.pct_free{*} < 0.5'), true)
+  assert.equal(byKey.swap.detect('avg:system.swap.used{*} > 1e9'), true)
+  assert.equal(byKey.inodes.detect('avg:system.fs.inodes.in_use{*} > 0.9'), true)
+})
+
+test('catálogo: itens sem monitor pronto no MonitorsCreator (infraKind:null) não entram na leva sugerida', () => {
+  const gapHost = { host: 'web', metrics: Object.fromEntries(AUDIT_CATALOG.filter(c => c.group === 'Infra').map(c => [c.key, false])), gapCount: 999 }
+  const sug = buildSuggestedInfra([gapHost])
+  assert.ok(!sug.plan.some(m => ['diskLatency', 'networkThroughput', 'swap', 'inodes'].includes(m.kind)),
+    'catálogo sem infraKind não deve gerar item na leva sugerida (ainda não há builder pra esses tipos)')
+  assert.ok(sug.plan.some(m => m.kind === 'cpu'), 'os tipos com infraKind continuam sendo sugeridos normalmente')
+})
+
 test('analyzeHostCoverage: {*} cobre todos os hosts; host:X cobre só X', () => {
   const monitors = [
     { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' }, // CPU amplo

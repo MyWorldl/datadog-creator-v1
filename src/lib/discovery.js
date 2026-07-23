@@ -162,6 +162,19 @@ export function initialDiscovery() {
     // Personalização (Etapas 3)
     namePrefix: '[MonitorsCreator]',
     tags: [],
+    // '' = mantém o @equipe-ops de cada template; preenchido, substitui esse
+    // mention em TODOS os monitores do plano (roteamento de notificação sem
+    // precisar editar mensagem por mensagem — ver buildMonitorPayload).
+    notifyTarget: '',
+    // Ambos abaixo preservam o comportamento de sempre por padrão (false/0).
+    // notify_no_data=false é intencional pra monitores de SERVIÇO (ausência de
+    // dado pode só significar baixo tráfego, não incidente — diferente de
+    // infra, onde host sem dado já É o incidente); exposto pra quem quiser
+    // ligar em alertas de criticidade alta. renotify_interval=0 nunca reforça
+    // a notificação; um valor em minutos reforça enquanto o monitor
+    // permanecer em alerta — útil pra P1/P2.
+    notifyNoData: false,
+    renotifyInterval: 0,
     // queryWindow não é mais global aqui — cada ALERT_TYPES já tem seu próprio
     // default (~5x o alertWindow do tipo, recomendação do Datadog pra janela
     // externa do avg() em anomalies()), usado em planPreview via
@@ -209,7 +222,7 @@ export function buildAnomalyQuery({ kind, service, env, operation, scopeType = '
   )
 }
 
-export function buildMonitorPayload({ kind, service, env, operation, scopeType = 'service', deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority }) {
+export function buildMonitorPayload({ kind, service, env, operation, scopeType = 'service', deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority, notifyTarget, notifyNoData, renotifyInterval }) {
   const label = ALERT_BY_KEY[kind]?.label || kind
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${service} · ${label}`.trim()
   const scopeTag = scopeType === 'namespace' ? 'kube_namespace' : 'service'
@@ -218,11 +231,17 @@ export function buildMonitorPayload({ kind, service, env, operation, scopeType =
   if (env && env !== '*') baseTags.push(`env:${env}`)
   for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
 
+  let resolvedMessage = message || ALERT_BY_KEY[kind]?.message || ''
+  // Roteamento de notificação: '' preserva o @equipe-ops do template; um
+  // valor troca o mention em QUALQUER mensagem (padrão ou já editada pelo
+  // usuário) sem precisar reescrever mensagem por mensagem.
+  if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-ops', notifyTarget)
+
   return {
     name,
     type: 'query alert',
     query: buildAnomalyQuery({ kind, service, env, operation: op, scopeType, deviations, direction, groupBy, algorithm, seasonality, queryWindow, alertWindow }),
-    message: message || ALERT_BY_KEY[kind]?.message || '',
+    message: resolvedMessage,
     tags: baseTags,
     // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5,
     // omitido quando não definido (o Datadog trata ausência como "sem prioridade").
@@ -236,10 +255,12 @@ export function buildMonitorPayload({ kind, service, env, operation, scopeType =
         recovery_window: alertWindow || 'last_15m',
       },
       thresholds: { critical: 1.0 },
-      notify_no_data: false,
+      // Ambos configuráveis (default preserva o comportamento de sempre) —
+      // ver o comentário em initialDiscovery() sobre o porquê de cada default.
+      notify_no_data: !!notifyNoData,
       notify_audit: false,
       require_full_window: false,
-      renotify_interval: 0,
+      renotify_interval: Number(renotifyInterval) || 0,
       // interval=60 na query (rollup de 60s) — doc do Datadog recomenda
       // evaluation_delay >= esse rollup, pra evitar falso alarme por dado
       // ainda incompleto no momento em que o monitor é avaliado.
@@ -254,7 +275,7 @@ export function planPreview(discovery) {
   const d = discovery || {}
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
     namePrefix = '[MonitorsCreator]', tags = [],
-    scopeType = 'service' } = d
+    scopeType = 'service', notifyTarget = '', notifyNoData = false, renotifyInterval = 0 } = d
 
   const plan = []
   for (const [service, meta] of Object.entries(selected)) {
@@ -273,6 +294,7 @@ export function planPreview(discovery) {
           alertWindow: cfg.alertWindow || a.alertWindow,
           queryWindow: cfg.queryWindow || a.queryWindow,
           priority: cfg.priority,
+          notifyTarget, notifyNoData, renotifyInterval,
         })
         plan.push({ kind: a.key, label: a.label, service, operation, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
       }

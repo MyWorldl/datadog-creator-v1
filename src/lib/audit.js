@@ -24,10 +24,23 @@ export const AUDIT_CATALOG = [
   { key: 'cpu', group: 'Infra', label: 'CPU', infraKind: 'cpu', detect: q => any(q, 'system.cpu.idle', 'system.cpu.user', 'system.cpu.system') },
   { key: 'memory', group: 'Infra', label: 'Memória', infraKind: 'memory', detect: q => any(q, 'system.mem.pct_usable', 'system.mem.usable', 'system.mem.used') },
   { key: 'disk', group: 'Infra', label: 'Disco (espaço)', infraKind: 'disk', detect: q => any(q, 'system.disk.in_use', 'system.disk.used') },
-  { key: 'diskIO', group: 'Infra', label: 'Disco I/O', infraKind: 'diskIO', detect: q => q.includes('system.io.util') },
+  { key: 'diskIO', group: 'Infra', label: 'Disco I/O (saturação)', infraKind: 'diskIO', detect: q => q.includes('system.io.util') },
   { key: 'network', group: 'Infra', label: 'Rede (erros)', infraKind: 'network', detect: q => any(q, 'system.net.packets_in.error', 'system.net.packets_out.error') },
   { key: 'load', group: 'Infra', label: 'Load', infraKind: 'load', detect: q => any(q, 'system.load.norm.5', 'system.load.1', 'system.load.5', 'system.load.15') },
   { key: 'hostUp', group: 'Infra', label: 'Agent Down', infraKind: 'hostUp', detect: q => q.includes('datadog.agent.up') },
+  // Abaixo: causas clássicas de incidente que o catálogo não cobria (achado
+  // da auditoria). infraKind:null de propósito — o MonitorsCreator ainda não
+  // tem um tipo de monitor pronto pra essas métricas, então elas entram na
+  // detecção/cobertura (cards, tabela por host) mas NÃO na leva de "monitores
+  // sugeridos" (buildSuggestedInfra já ignora infraKind falsy). Nomes de
+  // métrica confirmados em https://docs.datadoghq.com/integrations/disk/,
+  // https://docs.datadoghq.com/integrations/network/ e no histórico do
+  // Agent (system.swap.pct_free) — não em https://docs.datadoghq.com/integrations/system/,
+  // que não lista os subchecks disk/network/swap em detalhe.
+  { key: 'diskLatency', group: 'Infra', label: 'Disco (latência I/O)', infraKind: null, detect: q => any(q, 'system.disk.read_time', 'system.disk.write_time') },
+  { key: 'networkThroughput', group: 'Infra', label: 'Rede (throughput)', infraKind: null, detect: q => any(q, 'system.net.bytes_rcvd', 'system.net.bytes_sent') },
+  { key: 'swap', group: 'Infra', label: 'Swap', infraKind: null, detect: q => any(q, 'system.swap.used', 'system.swap.pct_free', 'system.swap.free') },
+  { key: 'inodes', group: 'Infra', label: 'Inodes / File Descriptors', infraKind: null, detect: q => any(q, 'system.fs.inodes.free', 'system.fs.inodes.in_use', 'system.fs.inodes.used') },
   // ── APM (serviço) — apm liga no tipo de alerta do discovery.js ──
   { key: 'apmLatency', group: 'APM', label: 'Latência (APM)', apm: 'latency', detect: q => q.includes('trace.') && (/p\d\d:trace\./.test(q) || q.includes('.duration') || (q.includes('avg:trace.') && !q.includes('.hits') && !q.includes('.errors'))) },
   { key: 'apmErrors', group: 'APM', label: 'Erros (APM)', apm: 'errorRate', detect: q => q.includes('trace.') && q.includes('.errors') },

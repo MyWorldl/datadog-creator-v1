@@ -146,3 +146,36 @@ test('evaluation_delay: presente em todo monitor, igual ao interval da query (60
     assert.match(m.query, /interval=60/)
   }
 })
+
+test('notify_no_data/renotify_interval: false/0 por padrão (comportamento de sempre), configuráveis via discovery state', () => {
+  const off = fullPlan()
+  for (const m of off) {
+    assert.equal(m.payload.options.notify_no_data, false)
+    assert.equal(m.payload.options.renotify_interval, 0)
+  }
+
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  d.notifyNoData = true
+  d.renotifyInterval = 30
+  const on = planPreview(d)
+  assert.equal(on[0].payload.options.notify_no_data, true)
+  assert.equal(on[0].payload.options.renotify_interval, 30)
+})
+
+test('notifyTarget: vazio preserva @equipe-ops; definido substitui em TODAS as mensagens do plano', () => {
+  const untouched = fullPlan()
+  assert.ok(untouched.every(m => m.payload.message.includes('@equipe-ops')))
+
+  const d = initialDiscovery()
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  d.alerts.errorRate.enabled = true
+  d.notifyTarget = '@slack-checkout-alerts'
+  const routed = planPreview(d)
+  for (const m of routed) {
+    assert.ok(m.payload.message.includes('@slack-checkout-alerts'), `${m.kind}: mention não substituído`)
+    assert.ok(!m.payload.message.includes('@equipe-ops'), `${m.kind}: @equipe-ops não deveria mais aparecer`)
+  }
+})

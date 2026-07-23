@@ -94,6 +94,48 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
         <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator, {entityTag}:&lt;{entityLabel}&gt;{!isInfra && <> e operation:&lt;operation&gt;</>}.</p>
       </div>
 
+      {/* Notificação */}
+      <div>
+        <label style={s.label}>Notificação padrão (opcional)</label>
+        <input
+          style={s.input}
+          value={d.notifyTarget || ''}
+          onChange={e => setDisc({ notifyTarget: e.target.value })}
+          placeholder={isInfra ? '@equipe-infra' : '@equipe-ops'}
+        />
+        <p style={s.hint}>
+          Substitui {isInfra ? '@equipe-infra' : '@equipe-ops'} em TODAS as mensagens do plano (mesmo nas já
+          personalizadas acima) — evita editar mensagem por mensagem pra rotear pra outro time/canal
+          (ex.: @slack-checkout, @pagerduty-oncall). Em branco, mantém o padrão de cada template.
+        </p>
+      </div>
+
+      {!isInfra && (
+        <div>
+          <label style={s.label}>Alertas sem dado / renotificação (aplicado a todos os tipos habilitados)</label>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              <input type="checkbox" checked={!!d.notifyNoData} onChange={e => setDisc({ notifyNoData: e.target.checked })} />
+              Notificar quando o serviço parar de reportar dado
+            </label>
+            <div>
+              <label style={s.hint}>Reforçar notificação a cada (min, 0 = nunca)</label>
+              <input
+                style={{ ...s.input, width: 100 }}
+                type="number" min="0" step="5"
+                value={d.renotifyInterval ?? 0}
+                onChange={e => setDisc({ renotifyInterval: Number(e.target.value) || 0 })}
+              />
+            </div>
+          </div>
+          <p style={s.hint}>
+            Ausência de dado em monitor de SERVIÇO pode só significar baixo tráfego, não incidente — por isso vem
+            desligado por padrão; ligue para tipos de criticidade alta. Renotificação reforça a notificação
+            enquanto o monitor seguir em alerta (útil para P1/P2).
+          </p>
+        </div>
+      )}
+
       {/* Group By */}
       <div>
         <label style={s.label}>Group By (dimensões do monitor)</label>
