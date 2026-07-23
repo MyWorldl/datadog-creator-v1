@@ -6,10 +6,10 @@ import { useEffect, useState } from 'react'
 import { useSession } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import { coveragePercent } from '@/lib/audit'
-import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops, IconSettings, IconInfo } from '@/components/Icons'
+import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/components/Icons'
 
-// Grade de ferramentas segmentada nas MESMAS categorias da sidebar
-// (Observabilidade / Financeiro / Sistema) — ver components/Sidebar.jsx.
+// Grade de ferramentas da Home — Observabilidade e Financeiro. "Sistema"
+// (Configurações/Sobre) fica só na sidebar, não repete aqui.
 const sections = [
   {
     title: 'Observabilidade',
@@ -23,13 +23,6 @@ const sections = [
     title: 'Financeiro',
     items: [
       { href: '/ferramentas/finops', Icon: IconFinops, title: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme e custo estimado.', cta: 'Ver consumo' },
-    ],
-  },
-  {
-    title: 'Sistema',
-    items: [
-      { href: '/configuracoes', Icon: IconSettings, title: 'Configurações', desc: 'Tema e conexão da sessão.', cta: 'Ajustar' },
-      { href: '/sistema/sobre', Icon: IconInfo, title: 'Sobre', desc: 'Versão e informações da aplicação.', cta: 'Abrir' },
     ],
   },
 ]
@@ -147,7 +140,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 style={s.h1}>{heading} 👋</h1>
+      <h1 style={s.h1}>{heading}</h1>
       <p style={s.sub}>Visão geral do ambiente {keysConfigured ? `· ${datadogSite}` : ''}.</p>
 
       {keysConfigured && (
