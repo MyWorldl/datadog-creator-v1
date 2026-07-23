@@ -12,13 +12,15 @@
 // Mantido de propósito com a MESMA assinatura de antes ({ apiKey, appKey, site })
 // para não exigir mudanças nas ~10 rotas que já consomem isso.
 
-import { getServerUser } from '@/lib/supabase-server'
+import { getServerUser } from './supabase-server.js'
 import { getActiveConnectionKeys } from './connections'
+import { logError } from './logger.js'
+import { VALID_SITES } from './datadog-sites.js'
 
-export const VALID_SITES = [
-  'datadoghq.com', 'us3.datadoghq.com', 'us5.datadoghq.com',
-  'datadoghq.eu', 'ap1.datadoghq.com', 'ap2.datadoghq.com', 'ddog-gov.com',
-]
+// Reexportado pra não quebrar quem já importava VALID_SITES daqui — a
+// definição em si vive em datadog-sites.js (ver comentário lá: precisa
+// ficar isolada de next/headers pra ser importável em teste/schemas.js).
+export { VALID_SITES }
 
 export async function readSessionKeys() {
   const user = await getServerUser()
@@ -31,7 +33,7 @@ export async function readSessionKeys() {
   } catch (e) {
     // Supabase/criptografia mal configurados, ou erro de rede com o banco:
     // trata como "sem credenciais" em vez de derrubar a rota inteira.
-    console.error('[session-keys] falha ao ler conexão ativa:', e.message)
+    logError('session-keys', e, { hint: 'falha ao ler conexão ativa' })
     return { apiKey: '', appKey: '', site: '' }
   }
 }

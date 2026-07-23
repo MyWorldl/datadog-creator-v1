@@ -9,8 +9,9 @@
 // 403 normalmente = Application key sem permissão/escopo.
 
 import { getServerUser } from '@/lib/supabase-server'
-import { readSessionKeys, VALID_SITES } from '@/lib/session-keys'
+import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
+import { datadogKeysSchema, firstIssueMessage } from '@/lib/schemas'
 
 function friendlyReason(r, site) {
   if (!r.status) return 'Falha de rede: ' + (r.error || 'desconhecida')
@@ -72,13 +73,11 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const apiKey = String(body?.apiKey || '').trim()
-  const appKey = String(body?.appKey || '').trim()
-  const site = String(body?.site || '').trim()
-
-  if (apiKey.length < 10) return Response.json({ valid: false, reason: 'API Key parece inválida.' })
-  if (appKey.length < 10) return Response.json({ valid: false, reason: 'Application Key parece inválida.' })
-  if (!VALID_SITES.includes(site)) return Response.json({ valid: false, reason: 'Site do Datadog inválido.' })
+  const parsed = datadogKeysSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ valid: false, reason: firstIssueMessage(parsed.error) })
+  }
+  const { apiKey, appKey, site } = parsed.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
   const r = await ddGet(ctx, '/api/v2/validate_keys')
