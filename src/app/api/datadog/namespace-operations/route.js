@@ -20,7 +20,7 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, traceOperations, metricTagValues } from '@/lib/datadog-server'
+import { ctxFrom, traceOperations, metricTagValues, isSafeDqlToken } from '@/lib/datadog-server'
 import { pickPrimaryOperation, NAMESPACE_PROBE_OPERATIONS } from '@/lib/discovery'
 
 async function servicesForNamespace(ctx, namespace, fromSec, toSec) {
@@ -77,6 +77,10 @@ export async function GET(request) {
 
   if (namespaces.length === 0) {
     return Response.json({ error: 'Informe ao menos um namespace.' }, { status: 400 })
+  }
+  const invalid = namespaces.filter(ns => !isSafeDqlToken(ns))
+  if (invalid.length > 0) {
+    return Response.json({ error: `Namespace inválido: ${invalid.join(', ')} (use apenas letras, dígitos, ponto, underscore, hífen ou barra).` }, { status: 400 })
   }
 
   const toSec = Math.floor(Date.now() / 1000)

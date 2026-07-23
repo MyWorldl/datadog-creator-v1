@@ -11,7 +11,7 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddPost } from '@/lib/datadog-server'
+import { ctxFrom, ddPost, isSafeDqlToken } from '@/lib/datadog-server'
 
 const ALGORITHMS = ['basic', 'agile', 'robust']
 const SEASONS = ['hourly', 'daily', 'weekly']
@@ -31,6 +31,7 @@ export async function POST(request) {
 
   const metric = (body?.metric || '').trim()
   if (!metric) return Response.json({ error: 'Informe a métrica de licenciamento.' }, { status: 400 })
+  if (!isSafeDqlToken(metric)) return Response.json({ error: 'Nome de métrica inválido (use apenas letras, dígitos, ponto, underscore ou hífen).' }, { status: 400 })
 
   const deviations = Number(body?.deviations) > 0 ? Number(body.deviations) : 3
   const algorithm = ALGORITHMS.includes(body?.algorithm) ? body.algorithm : 'agile'

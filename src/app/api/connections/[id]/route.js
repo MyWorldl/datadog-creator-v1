@@ -17,7 +17,14 @@ export async function PATCH(request, { params }) {
     await activateConnection(user.id, id)
     return Response.json({ ok: true })
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 400 })
+    // "Conexão não encontrada." é uma mensagem segura e específica lançada
+    // de propósito (lib/connections.js) — as demais (prefixo "Falha ao")
+    // embutem o erro cru do driver Postgres/Supabase, não repassar ao cliente.
+    if (e.message === 'Conexão não encontrada.') {
+      return Response.json({ error: e.message }, { status: 404 })
+    }
+    console.error('[connections] falha ao ativar:', e)
+    return Response.json({ error: 'Não foi possível trocar de conexão. Tente novamente.' }, { status: 500 })
   }
 }
 
@@ -32,6 +39,7 @@ export async function DELETE(request, { params }) {
     await deleteConnection(user.id, id)
     return Response.json({ ok: true })
   } catch (e) {
-    return Response.json({ error: e.message }, { status: 400 })
+    console.error('[connections] falha ao remover:', e)
+    return Response.json({ error: 'Não foi possível remover a conexão. Tente novamente.' }, { status: 500 })
   }
 }
