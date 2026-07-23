@@ -260,6 +260,10 @@ export function initialInfraDiscovery() {
     messages: Object.fromEntries(INFRA_TYPES.map(t => [t.key, t.message])),
     namePrefix: '[MonitorsCreator]',
     tags: [],
+    // '' = mantém o @equipe-infra de cada template; preenchido, substitui
+    // esse mention em todos os monitores do plano — mesmo mecanismo de
+    // discovery.js (roteamento sem editar mensagem por mensagem).
+    notifyTarget: '',
   }
 }
 
@@ -293,18 +297,21 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   return `avg(${queryWindow}):${m} > ${thresholds.critical}`
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority }) {
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
   const baseTags = ['created_by:monitorscreator', `host:${host}`, `infra_metric:${kind}`]
   for (const tg of (tags || [])) if (tg && !baseTags.includes(tg)) baseTags.push(tg)
 
+  let resolvedMessage = message || t.message
+  if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-infra', notifyTarget)
+
   return {
     name,
     type: 'query alert',
     query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow }),
-    message: message || t.message,
+    message: resolvedMessage,
     tags: baseTags,
     // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5.
     ...(priority ? { priority } : {}),
@@ -351,18 +358,21 @@ function buildHostCheckQuery({ host, extraTags, check, window = 4 }) {
   return `"${check}".over(${over}).by("host").last(${window}).count_by_status()`
 }
 
-function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, priority }) {
+function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, priority, notifyTarget }) {
   const t = INFRA_BY_KEY[kind]
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
   const baseTags = ['created_by:monitorscreator', `host:${host}`, `infra_metric:${kind}`]
   for (const tg of (tags || [])) if (tg && !baseTags.includes(tg)) baseTags.push(tg)
 
+  let resolvedMessage = message || t.message
+  if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-infra', notifyTarget)
+
   return {
     name,
     type: 'service check',
     query: buildHostCheckQuery({ host, extraTags, check: t.check, window: window || t.defWindow }),
-    message: message || t.message,
+    message: resolvedMessage,
     tags: baseTags,
     ...(priority ? { priority } : {}),
     options: {
@@ -388,7 +398,7 @@ export function buildInfraMonitorPayload(args) {
 // previstos. Um monitor por (host selecionado × métrica habilitada).
 export function planInfraPreview(infraDiscovery) {
   const d = infraDiscovery || {}
-  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {} } = d
+  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '' } = d
   const hosts = Object.keys(selected).filter(h => selected[h])
 
   const plan = []
@@ -399,13 +409,13 @@ export function planInfraPreview(infraDiscovery) {
 
       const payload = t.kind === 'check'
         ? buildInfraMonitorPayload({
-            kind: t.key, host, tags, namePrefix, message: messages[t.key],
+            kind: t.key, host, tags, namePrefix, message: messages[t.key], notifyTarget,
             counts: cfg.counts || t.defCounts,
             window: cfg.window || t.defWindow,
             priority: cfg.priority,
           })
         : buildInfraMonitorPayload({
-            kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key],
+            kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key], notifyTarget,
             mode: cfg.mode || 'threshold',
             thresholds: cfg.thresholds || t.defThresholds,
             deviations: cfg.deviations || t.defDeviations,

@@ -453,7 +453,11 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
               )
             })}
           </div>
-          <p style={s.hint}>Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor.</p>
+          <p style={s.hint}>
+            Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor. A Datadog
+            recomenda pelo menos 3x o período de sazonalidade de histórico pro algoritmo calibrar bem (ex.: ~3
+            semanas pra weekly) — monitores muito novos podem levar alguns dias pra ficar precisos.
+          </p>
         </div>
       )}
 

@@ -144,3 +144,18 @@ test('evaluation_delay: presente por padrão (60s) nos monitores de métrica, au
   assert.equal(cpu.payload.options.evaluation_delay, 60)
   assert.ok(!('evaluation_delay' in hostUp.payload.options), 'service check não usa evaluation_delay')
 })
+
+test('notifyTarget: vazio preserva @equipe-infra; definido substitui na mensagem de métrica E de service check', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { web: true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.hostUp.enabled = true
+  d.notifyTarget = '@pagerduty-infra-oncall'
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  const hostUp = plan.find(m => m.kind === 'hostUp')
+  assert.ok(cpu.payload.message.includes('@pagerduty-infra-oncall'))
+  assert.ok(!cpu.payload.message.includes('@equipe-infra'))
+  assert.ok(hostUp.payload.message.includes('@pagerduty-infra-oncall'))
+})

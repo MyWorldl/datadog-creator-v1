@@ -320,7 +320,8 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
             dados e renotificação seguem o padrão do Datadog. Recovery (modo threshold) é opcional: deixe em branco
             para recuperar assim que o valor cruzar de volta o próprio critical/warning, ou defina um valor MENOR
             para exigir uma folga antes de considerar recuperado — evita o monitor abrir/fechar repetido (flapping)
-            quando o valor oscila perto do limite.
+            quando o valor oscila perto do limite. No modo anomaly, a Datadog recomenda pelo menos 3x o período de
+            sazonalidade de histórico pro algoritmo calibrar bem (ex.: ~3 semanas pra weekly).
           </p>
         </div>
       )}
