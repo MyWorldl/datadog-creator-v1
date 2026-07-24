@@ -11,7 +11,7 @@
 // bater rate limit da API do Datadog. Um 429 é retentado (até 3x) em vez de
 // ser reportado como falha definitiva.
 
-import { ddPost, listMonitors } from './datadog-server.js'
+import { ddPost, listMonitors } from './datadog-server.ts'
 
 const MONITORSCREATOR_TAG = 'created_by:monitorscreator'
 

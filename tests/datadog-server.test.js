@@ -1,7 +1,7 @@
 // tests/datadog-server.test.js — node --test, sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isSafeDqlToken } from '../src/lib/datadog-server.js'
+import { isSafeDqlToken } from '../src/lib/datadog-server.ts'
 
 test('isSafeDqlToken: aceita nomes de métrica e valores de tag comuns', () => {
   assert.equal(isSafeDqlToken('datadog.estimated_usage.hosts'), true)
