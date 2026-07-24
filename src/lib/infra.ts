@@ -1,7 +1,7 @@
-// src/lib/infra.js
+// src/lib/infra.ts
 //
 // Fluxo de descoberta de HOSTS -> monitores de infraestrutura (CPU/Memória/
-// Disco/Rede/I-O/Load/Agent). Espelha o padrão de src/lib/discovery.js:
+// Disco/Rede/I-O/Load/Agent). Espelha o padrão de src/lib/discovery.ts:
 // fonte única de query/payload, usada tanto no preview do cliente quanto na
 // rota /api/datadog/infra-monitors, evitando lógica duplicada.
 //
@@ -27,7 +27,46 @@
 // (ex.: aws.ec2.cpuutilization). Ajuste INFRA_TYPES[].metric conforme a
 // origem real dos seus hosts.
 
-export const INFRA_TYPES = [
+export type InfraKind = 'cpu' | 'memory' | 'disk' | 'diskIO' | 'network' | 'load' | 'hostUp'
+export type InfraMode = 'threshold' | 'anomaly' | 'check'
+
+export interface InfraThresholds {
+  critical: number
+  warning: number
+}
+
+export interface InfraCounts {
+  critical: number
+  warning: number
+  ok?: number
+}
+
+interface InfraTypeBase {
+  key: InfraKind
+  label: string
+  unit: string
+  hint: string
+  message: string
+}
+
+interface InfraMetricType extends InfraTypeBase {
+  kind: 'metric'
+  metric: (scope: string, by?: string) => string
+  defThresholds: InfraThresholds
+  defDeviations: number
+  extraBy?: string[]
+}
+
+interface InfraCheckType extends InfraTypeBase {
+  kind: 'check'
+  check: string
+  defCounts: InfraCounts
+  defWindow: number
+}
+
+export type InfraType = InfraMetricType | InfraCheckType
+
+export const INFRA_TYPES: InfraType[] = [
   {
     key: 'cpu', kind: 'metric', label: 'CPU', unit: '%',
     // 100 - idle = uso total de CPU.
@@ -208,10 +247,45 @@ export const INFRA_TYPES = [
 @equipe-infra`,
   },
 ]
-export const INFRA_BY_KEY = Object.fromEntries(INFRA_TYPES.map(t => [t.key, t]))
+export const INFRA_BY_KEY: Record<string, InfraType> = Object.fromEntries(INFRA_TYPES.map(t => [t.key, t]))
 export const DEFAULT_INFRA_GROUP_BY = ['host']
 
-export function initialInfraDiscovery() {
+export interface InfraMetricConfig {
+  enabled: boolean
+  mode: 'threshold' | 'anomaly'
+  thresholds: InfraThresholds & { criticalRecovery: number | null; warningRecovery: number | null }
+  deviations: number
+  direction: 'above' | 'below'
+  algorithm: string
+  seasonality: string
+  queryWindow: string
+  alertWindow: string
+  evaluationDelay: number
+  priority: number | null
+}
+
+export interface InfraCheckConfig {
+  enabled: boolean
+  mode: 'check'
+  counts: InfraCounts
+  window: number
+  priority: number | null
+}
+
+export type InfraConfig = InfraMetricConfig | InfraCheckConfig
+
+export interface InfraDiscoveryState {
+  hosts: string[]
+  selected: Record<string, boolean>
+  metrics: Record<string, InfraConfig>
+  groupBy: string[]
+  messages: Record<string, string>
+  namePrefix: string
+  tags: string[]
+  notifyTarget: string
+}
+
+export function initialInfraDiscovery(): InfraDiscoveryState {
   return {
     hosts: [],       // nomes descobertos
     selected: {},    // { host: true }  (seleção simples, sem operations)
@@ -243,7 +317,7 @@ export function initialInfraDiscovery() {
           seasonality: 'weekly',
           // queryWindow (janela externa do avg()) alinhado à recomendação do
           // Datadog pro modo anomaly (~5x o alert_window de 15m) — mesmo
-          // valor já usado em discovery.js pros tipos com alertWindow=15m.
+          // valor já usado em discovery.ts pros tipos com alertWindow=15m.
           // Também vale pro modo threshold (mesmo campo): resulta numa média
           // mais suave/menos sensível a picos passageiros.
           queryWindow: 'last_1h',
@@ -262,24 +336,39 @@ export function initialInfraDiscovery() {
     tags: [],
     // '' = mantém o @equipe-infra de cada template; preenchido, substitui
     // esse mention em todos os monitores do plano — mesmo mecanismo de
-    // discovery.js (roteamento sem editar mensagem por mensagem).
+    // discovery.ts (roteamento sem editar mensagem por mensagem).
     notifyTarget: '',
   }
 }
 
 // ── Construção de query/payload (fonte única) ──
-function scopeOf(host, extraTags) {
+function scopeOf(host: string, extraTags?: string[]): string {
   const parts = [`host:${host}`]
   for (const t of (extraTags || [])) if (t) parts.push(t)
   return parts.join(',')
 }
-function byClauseOf(groupBy) {
+function byClauseOf(groupBy?: string[]): string {
   const g = (groupBy || []).filter(Boolean)
   return g.length ? ` by {${g.join(',')}}` : ''
 }
 
-export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m' }) {
-  const t = INFRA_BY_KEY[kind]
+export interface BuildInfraQueryArgs {
+  kind: string
+  host: string
+  extraTags?: string[]
+  groupBy?: string[]
+  mode?: 'threshold' | 'anomaly'
+  thresholds: InfraThresholds
+  deviations?: number
+  direction?: string
+  algorithm?: string
+  seasonality?: string
+  queryWindow?: string
+  alertWindow?: string
+}
+
+export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m' }: BuildInfraQueryArgs): string {
+  const t = INFRA_BY_KEY[kind] as InfraMetricType
   const scope = scopeOf(host, extraTags)
   const by = byClauseOf([...(groupBy || ['host']), ...(t.extraBy || [])])
   // `by` é passado PARA DENTRO de metric() (não concatenado depois) porque
@@ -297,8 +386,29 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   return `avg(${queryWindow}):${m} > ${thresholds.critical}`
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }) {
-  const t = INFRA_BY_KEY[kind]
+export interface InfraMonitorPayload {
+  name: string
+  type: string
+  query: string
+  message: string
+  tags: string[]
+  priority?: number
+  options: Record<string, unknown>
+}
+
+interface BuildMetricInfraArgs extends BuildInfraQueryArgs {
+  message?: string
+  tags?: string[]
+  namePrefix?: string
+  noDataMinutes?: number
+  evaluationDelay?: number
+  priority?: number | null
+  notifyTarget?: string
+  thresholds: InfraThresholds & { criticalRecovery?: number | null; warningRecovery?: number | null }
+}
+
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }: BuildMetricInfraArgs): InfraMonitorPayload {
+  const t = INFRA_BY_KEY[kind] as InfraMetricType
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
   const baseTags = ['created_by:monitorscreator', `host:${host}`, `infra_metric:${kind}`]
@@ -352,14 +462,27 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
 // status, dentro da janela `last(window)`, necessário para disparar.
 // Doc: https://docs.datadoghq.com/monitors/types/host/ e
 // https://docs.datadoghq.com/api/latest/monitors/#create-a-monitor
-function buildHostCheckQuery({ host, extraTags, check, window = 4 }) {
+function buildHostCheckQuery({ host, extraTags, check, window = 4 }: { host: string; extraTags?: string[]; check: string; window?: number }): string {
   const scope = scopeOf(host, extraTags)
   const over = scope.split(',').map(s => `"${s}"`).join(', ')
   return `"${check}".over(${over}).by("host").last(${window}).count_by_status()`
 }
 
-function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, priority, notifyTarget }) {
-  const t = INFRA_BY_KEY[kind]
+interface BuildHostCheckArgs {
+  kind: string
+  host: string
+  extraTags?: string[]
+  counts?: InfraCounts
+  window?: number
+  message?: string
+  tags?: string[]
+  namePrefix?: string
+  priority?: number | null
+  notifyTarget?: string
+}
+
+function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, message, tags, namePrefix, priority, notifyTarget }: BuildHostCheckArgs): InfraMonitorPayload {
+  const t = INFRA_BY_KEY[kind] as InfraCheckType
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
 
   const baseTags = ['created_by:monitorscreator', `host:${host}`, `infra_metric:${kind}`]
@@ -389,36 +512,48 @@ function buildHostCheckMonitorPayload({ kind, host, extraTags, counts, window, m
 
 // Dispatcher único usado pelo preview e pela rota de criação — decide entre
 // o payload de métrica e o de service check conforme INFRA_BY_KEY[kind].kind.
-export function buildInfraMonitorPayload(args) {
+export function buildInfraMonitorPayload(args: BuildMetricInfraArgs | BuildHostCheckArgs): InfraMonitorPayload {
   const t = INFRA_BY_KEY[args.kind]
-  return t?.kind === 'check' ? buildHostCheckMonitorPayload(args) : buildMetricInfraMonitorPayload(args)
+  return t?.kind === 'check' ? buildHostCheckMonitorPayload(args as BuildHostCheckArgs) : buildMetricInfraMonitorPayload(args as BuildMetricInfraArgs)
+}
+
+export interface InfraPlanItem {
+  kind: string
+  label: string
+  service: string
+  operation: string
+  name: string
+  query: string
+  message: string
+  priority: number | null
+  payload: InfraMonitorPayload
 }
 
 // Expande o estado de descoberta de infra em uma lista de monitores
 // previstos. Um monitor por (host selecionado × métrica habilitada).
-export function planInfraPreview(infraDiscovery) {
+export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): InfraPlanItem[] {
   const d = infraDiscovery || {}
   const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '' } = d
   const hosts = Object.keys(selected).filter(h => selected[h])
 
-  const plan = []
+  const plan: InfraPlanItem[] = []
   for (const host of hosts) {
     for (const t of INFRA_TYPES) {
       const cfg = metrics[t.key]
       if (!cfg?.enabled) continue
 
-      const payload = t.kind === 'check'
+      const payload = cfg.mode === 'check'
         ? buildInfraMonitorPayload({
             kind: t.key, host, tags, namePrefix, message: messages[t.key], notifyTarget,
-            counts: cfg.counts || t.defCounts,
-            window: cfg.window || t.defWindow,
+            counts: cfg.counts || (t as InfraCheckType).defCounts,
+            window: cfg.window || (t as InfraCheckType).defWindow,
             priority: cfg.priority,
           })
         : buildInfraMonitorPayload({
             kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key], notifyTarget,
             mode: cfg.mode || 'threshold',
-            thresholds: cfg.thresholds || t.defThresholds,
-            deviations: cfg.deviations || t.defDeviations,
+            thresholds: cfg.thresholds || (t as InfraMetricType).defThresholds,
+            deviations: cfg.deviations || (t as InfraMetricType).defDeviations,
             direction: cfg.direction || 'above',
             algorithm: cfg.algorithm || 'robust',
             seasonality: cfg.seasonality || 'weekly',

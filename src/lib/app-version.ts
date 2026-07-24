@@ -1,4 +1,4 @@
-// src/lib/app-version.js
+// src/lib/app-version.ts
 //
 // HISTÓRICO DE VERSÕES — fonte única de verdade.
 //
@@ -18,7 +18,14 @@
 // (veja COMMIT_SHA abaixo), mas a versão "humana" e a descrição continuam
 // vindo daqui, porque descrevem O QUE mudou — algo que só você sabe.
 
-export const VERSION_HISTORY = [
+export interface VersionEntry {
+  version: string
+  date: string
+  title: string
+  notes: string[]
+}
+
+export const VERSION_HISTORY: VersionEntry[] = [
   {
     version: '1.29.0',
     date: '2026-07-22',

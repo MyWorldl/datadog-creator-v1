@@ -1,7 +1,7 @@
 // src/app/api/datadog/apm-monitors/route.js
 //
 // Cria os monitores de APM sugeridos pelo AuditMonitors pras lacunas de
-// cobertura por serviço (buildSuggestedApm, lib/audit.js já devolve o plan
+// cobertura por serviço (buildSuggestedApm, lib/audit.ts já devolve o plan
 // pronto — mesmo formato de item que planPreview()).
 //
 // Diferente de service-monitors/route.js (usada pelo wizard, sem

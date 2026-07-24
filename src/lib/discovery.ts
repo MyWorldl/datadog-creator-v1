@@ -1,4 +1,4 @@
-// src/lib/discovery.js
+// src/lib/discovery.ts
 //
 // Fluxo de descoberta de serviços -> monitores de ANOMALY DETECTION.
 // Centraliza tipos de alerta, defaults, mensagens-template e a construção
@@ -13,11 +13,20 @@
 //   {{service.name}}  -> nome do serviço (via group by service)
 //   {{value}}         -> valor avaliado
 
+export type AlertDirection = 'above' | 'below' | 'both'
+export type AlertKey = 'latency' | 'errorRate' | 'highVolume' | 'lowVolume'
+export type ScopeType = 'service' | 'namespace'
+
+export interface AlertWindowOption {
+  value: string
+  label: string
+}
+
 // Opções do seletor "Alert window" — usadas tanto no fluxo de serviços
 // quanto no de infra. O `value` é o formato que o Datadog espera
 // (trigger_window/alert_window); o `label` é só o texto exibido, sem o
 // prefixo "last_" (que ficava parecendo um sublinhado colado ao número).
-export const ALERT_WINDOW_OPTIONS = [
+export const ALERT_WINDOW_OPTIONS: AlertWindowOption[] = [
   { value: 'last_5m', label: '5m' },
   { value: 'last_10m', label: '10m' },
   { value: 'last_15m', label: '15m' },
@@ -25,7 +34,20 @@ export const ALERT_WINDOW_OPTIONS = [
   { value: 'last_1h', label: '1h' },
 ]
 
-export const ALERT_TYPES = [
+export interface AlertType {
+  key: AlertKey
+  label: string
+  direction: AlertDirection
+  def: number
+  algorithm: string
+  seasonality: string
+  alertWindow: string
+  queryWindow: string
+  hint: string
+  message: string
+}
+
+export const ALERT_TYPES: AlertType[] = [
   {
     key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
     algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
@@ -112,7 +134,7 @@ export const ALERT_TYPES = [
   },
 ]
 
-export const ALERT_BY_KEY = Object.fromEntries(ALERT_TYPES.map(a => [a.key, a]))
+export const ALERT_BY_KEY: Record<string, AlertType> = Object.fromEntries(ALERT_TYPES.map(a => [a.key, a]))
 export const DEFAULT_GROUP_BY = ['service', 'resource_name']
 
 // Preferência de operation "primária" (entradas web primeiro) — usada tanto
@@ -120,7 +142,7 @@ export const DEFAULT_GROUP_BY = ['service', 'resource_name']
 // quanto como sugestão/fallback no modo Namespace (entrada manual).
 export const OPERATION_PREFERENCE = ['http.request', 'web.request', 'servlet.request', 'grpc.request', 'rack.request', 'express.request']
 export const DEFAULT_OPERATION = OPERATION_PREFERENCE[0]
-export function pickPrimaryOperation(ops) {
+export function pickPrimaryOperation(ops: string[]): string {
   for (const p of OPERATION_PREFERENCE) if (ops.includes(p)) return p
   return ops[0] || DEFAULT_OPERATION
 }
@@ -140,7 +162,42 @@ export const NAMESPACE_PROBE_OPERATIONS = [
   'spring.handler', 'netty.request',
 ]
 
-export function initialDiscovery() {
+export interface AlertConfig {
+  enabled: boolean
+  deviations: number
+  direction: AlertDirection
+  algorithm: string
+  seasonality: string
+  alertWindow: string
+  // Não definido por initialDiscovery() (cada ALERT_TYPES já tem seu próprio
+  // default) — mas a UI de personalização permite sobrescrever por tipo.
+  queryWindow?: string
+  priority: number | null
+}
+
+export interface SelectedMeta {
+  opsCount?: number
+  operations?: string[]
+  chosen?: string[]
+  operation?: string
+}
+
+export interface DiscoveryState {
+  env: string
+  services: string[]
+  selected: Record<string, SelectedMeta>
+  scopeType: ScopeType
+  alerts: Record<string, AlertConfig>
+  groupBy: string[]
+  messages: Record<string, string>
+  namePrefix: string
+  tags: string[]
+  notifyTarget: string
+  notifyNoData: boolean
+  renotifyInterval: number
+}
+
+export function initialDiscovery(): DiscoveryState {
   return {
     env: '',
     services: [],   // nomes descobertos
@@ -183,17 +240,17 @@ export function initialDiscovery() {
 }
 
 // ── Construção de query/payload (fonte única) ──
-function scopeOf(scopeType, value, env) {
+function scopeOf(scopeType: ScopeType, value: string, env?: string): string {
   const tag = scopeType === 'namespace' ? 'kube_namespace' : 'service'
   const parts = [`${tag}:${value}`]
   if (env && env !== '*') parts.push(`env:${env}`)
   return parts.join(',')
 }
-function byClauseOf(groupBy) {
+function byClauseOf(groupBy?: string[]): string {
   const g = (groupBy || []).filter(Boolean)
   return g.length ? ` by {${g.join(',')}}` : ''
 }
-function metricExpr(kind, op, sc, by) {
+function metricExpr(kind: string, op: string, sc: string, by: string): string {
   switch (kind) {
     case 'latency':
       return `p95:trace.${op}{${sc}}${by}`
@@ -207,7 +264,22 @@ function metricExpr(kind, op, sc, by) {
   }
 }
 
-export function buildAnomalyQuery({ kind, service, env, operation, scopeType = 'service', deviations, groupBy, direction, algorithm = 'agile', seasonality = 'daily', queryWindow = 'last_4h', alertWindow = 'last_15m' }) {
+export interface BuildAnomalyQueryArgs {
+  kind: string
+  service: string
+  env?: string
+  operation?: string
+  scopeType?: ScopeType
+  deviations: number
+  groupBy?: string[]
+  direction?: AlertDirection
+  algorithm?: string
+  seasonality?: string
+  queryWindow?: string
+  alertWindow?: string
+}
+
+export function buildAnomalyQuery({ kind, service, env, operation, scopeType = 'service', deviations, groupBy, direction, algorithm = 'agile', seasonality = 'daily', queryWindow = 'last_4h', alertWindow = 'last_15m' }: BuildAnomalyQueryArgs): string {
   const sc = scopeOf(scopeType, service, env)
   const by = byClauseOf(groupBy)
   const op = operation || DEFAULT_OPERATION
@@ -222,7 +294,47 @@ export function buildAnomalyQuery({ kind, service, env, operation, scopeType = '
   )
 }
 
-export function buildMonitorPayload({ kind, service, env, operation, scopeType = 'service', deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority, notifyTarget, notifyNoData, renotifyInterval }) {
+export interface BuildMonitorPayloadArgs {
+  kind: string
+  service: string
+  env?: string
+  operation?: string
+  scopeType?: ScopeType
+  deviations: number
+  direction?: AlertDirection
+  groupBy?: string[]
+  message?: string
+  tags?: string[]
+  namePrefix?: string
+  algorithm?: string
+  seasonality?: string
+  queryWindow?: string
+  alertWindow?: string
+  priority?: number | null
+  notifyTarget?: string
+  notifyNoData?: boolean
+  renotifyInterval?: number
+}
+
+export interface MonitorPayload {
+  name: string
+  type: string
+  query: string
+  message: string
+  tags: string[]
+  priority?: number
+  options: {
+    threshold_windows: { trigger_window: string; recovery_window: string }
+    thresholds: { critical: number }
+    notify_no_data: boolean
+    notify_audit: boolean
+    require_full_window: boolean
+    renotify_interval: number
+    evaluation_delay: number
+  }
+}
+
+export function buildMonitorPayload({ kind, service, env, operation, scopeType = 'service', deviations, direction, groupBy, message, tags, namePrefix, algorithm, seasonality, queryWindow, alertWindow, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildMonitorPayloadArgs): MonitorPayload {
   const label = ALERT_BY_KEY[kind]?.label || kind
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${service} · ${label}`.trim()
   const scopeTag = scopeType === 'namespace' ? 'kube_namespace' : 'service'
@@ -269,15 +381,27 @@ export function buildMonitorPayload({ kind, service, env, operation, scopeType =
   }
 }
 
+export interface PlanItem {
+  kind: string
+  label: string
+  service: string
+  operation: string
+  name: string
+  query: string
+  message: string
+  priority: number | null
+  payload: MonitorPayload
+}
+
 // Expande o estado de descoberta em uma lista de monitores previstos.
 // Um monitor por (serviço × operação escolhida × tipo habilitado).
-export function planPreview(discovery) {
+export function planPreview(discovery: Partial<DiscoveryState>): PlanItem[] {
   const d = discovery || {}
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
     namePrefix = '[MonitorsCreator]', tags = [],
     scopeType = 'service', notifyTarget = '', notifyNoData = false, renotifyInterval = 0 } = d
 
-  const plan = []
+  const plan: PlanItem[] = []
   for (const [service, meta] of Object.entries(selected)) {
     const ops = (meta?.chosen && meta.chosen.length) ? meta.chosen : (meta?.operation ? [meta.operation] : [])
     for (const operation of ops) {

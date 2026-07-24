@@ -8,7 +8,7 @@ import MonitorPlanList from '@/components/discovery/MonitorPlanList'
 import { coveragePercent, percentBand } from '@/lib/audit'
 
 // Cores por faixa de % de cobertura por entidade (host/serviço) — faixas de
-// negócio calculadas em lib/audit.js (percentBand); aqui só o mapeamento
+// negócio calculadas em lib/audit.ts (percentBand); aqui só o mapeamento
 // pra CSS var. O anel (scoreColor) usa a MESMA escala dos cards.
 const bandColor = (band) => band === 'red' ? 'var(--danger)' : band === 'yellow' ? 'var(--warning)' : band === 'green' ? 'var(--success)' : 'var(--text-muted)'
 const scoreColor = (v) => bandColor(percentBand(v))

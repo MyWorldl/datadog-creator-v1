@@ -5,7 +5,7 @@
 // "criar os que faltam" do AuditMonitors. Cada item só precisa de
 // {name, query, kind} + message OU payload.message (planPreview()/
 // planInfraPreview() sempre setam os dois; os planos montados diretamente em
-// lib/audit.js — buildSuggestedApm — só setam payload.message).
+// lib/audit.ts — buildSuggestedApm — só setam payload.message).
 'use client'
 
 const s = {

@@ -1,4 +1,4 @@
-// src/lib/audit.js
+// src/lib/audit.ts
 //
 // AuditMonitors: analisa o ambiente e identifica quais MÉTRICAS-CHAVE já têm
 // monitor e quais estão SEM cobertura, cruzando um catálogo de métricas
@@ -9,18 +9,27 @@
 // pelo menos um monitor — o que também pega monitores criados fora do app.
 //
 // Nomes de métrica:
-//  - Infra: Datadog Agent padrão (integração system) — espelham lib/infra.js.
+//  - Infra: Datadog Agent padrão (integração system) — espelham lib/infra.ts.
 //    https://docs.datadoghq.com/integrations/system/
 //  - APM: trace.<span>.hits, trace.<span>.errors e trace.<span>/.duration.
 //    https://docs.datadoghq.com/tracing/metrics/metrics_namespace/
 
-import { initialInfraDiscovery, planInfraPreview } from './infra.js'
-import { buildMonitorPayload, DEFAULT_OPERATION, ALERT_BY_KEY, DEFAULT_GROUP_BY } from './discovery.js'
+import { initialInfraDiscovery, planInfraPreview, type InfraPlanItem } from './infra.ts'
+import { buildMonitorPayload, DEFAULT_OPERATION, ALERT_BY_KEY, DEFAULT_GROUP_BY, type PlanItem } from './discovery.ts'
 
-const any = (q, ...subs) => subs.some(s => q.includes(s))
+const any = (q: string, ...subs: string[]): boolean => subs.some(s => q.includes(s))
 
-export const AUDIT_CATALOG = [
-  // ── Infra (host) — infraKind liga na sugestão via lib/infra.js ──
+export interface AuditCatalogItem {
+  key: string
+  group: 'Infra' | 'APM'
+  label: string
+  infraKind?: string | null
+  apm?: string | null
+  detect: (query: string) => boolean
+}
+
+export const AUDIT_CATALOG: AuditCatalogItem[] = [
+  // ── Infra (host) — infraKind liga na sugestão via lib/infra.ts ──
   { key: 'cpu', group: 'Infra', label: 'CPU', infraKind: 'cpu', detect: q => any(q, 'system.cpu.idle', 'system.cpu.user', 'system.cpu.system') },
   { key: 'memory', group: 'Infra', label: 'Memória', infraKind: 'memory', detect: q => any(q, 'system.mem.pct_usable', 'system.mem.usable', 'system.mem.used') },
   { key: 'disk', group: 'Infra', label: 'Disco (espaço)', infraKind: 'disk', detect: q => any(q, 'system.disk.in_use', 'system.disk.used') },
@@ -41,14 +50,29 @@ export const AUDIT_CATALOG = [
   { key: 'networkThroughput', group: 'Infra', label: 'Rede (throughput)', infraKind: null, detect: q => any(q, 'system.net.bytes_rcvd', 'system.net.bytes_sent') },
   { key: 'swap', group: 'Infra', label: 'Swap', infraKind: null, detect: q => any(q, 'system.swap.used', 'system.swap.pct_free', 'system.swap.free') },
   { key: 'inodes', group: 'Infra', label: 'Inodes / File Descriptors', infraKind: null, detect: q => any(q, 'system.fs.inodes.free', 'system.fs.inodes.in_use', 'system.fs.inodes.used') },
-  // ── APM (serviço) — apm liga no tipo de alerta do discovery.js ──
+  // ── APM (serviço) — apm liga no tipo de alerta do discovery.ts ──
   { key: 'apmLatency', group: 'APM', label: 'Latência (APM)', apm: 'latency', detect: q => q.includes('trace.') && (/p\d\d:trace\./.test(q) || q.includes('.duration') || (q.includes('avg:trace.') && !q.includes('.hits') && !q.includes('.errors'))) },
   { key: 'apmErrors', group: 'APM', label: 'Erros (APM)', apm: 'errorRate', detect: q => q.includes('trace.') && q.includes('.errors') },
   { key: 'apmHits', group: 'APM', label: 'Throughput (APM)', apm: 'highVolume', detect: q => q.includes('trace.') && q.includes('.hits') },
 ]
 
+export interface DatadogMonitor {
+  query?: string
+  [key: string]: unknown
+}
+
+export interface CoverageItem {
+  key: string
+  group: 'Infra' | 'APM'
+  label: string
+  covered: boolean
+  monitorCount: number
+  infraKind: string | null
+  apm: string | null
+}
+
 // Cruza o catálogo com as queries dos monitores. Retorna cobertura por item.
-export function analyzeCoverage(monitors) {
+export function analyzeCoverage(monitors: DatadogMonitor[]): CoverageItem[] {
   const queries = (monitors || []).map(m => String(m?.query || ''))
   return AUDIT_CATALOG.map(c => {
     let monitorCount = 0
@@ -61,7 +85,7 @@ export function analyzeCoverage(monitors) {
 // Problema: trata "existe ≥1 monitor no ambiente" como 100% do item, mesmo que
 // só cubra 53% dos hosts. Mantido apenas para referência/compat — o score
 // exibido no anel passou a ser coverageScoreWeighted (abaixo).
-export function coverageScore(coverage) {
+export function coverageScore(coverage: CoverageItem[]): number {
   if (!coverage.length) return 0
   return Math.round((coverage.filter(c => c.covered).length / coverage.length) * 100)
 }
@@ -75,8 +99,8 @@ export function coverageScore(coverage) {
 // Média SIMPLES por métrica (não ponderada por nº de entidades): cada uma das
 // N métricas do catálogo pesa igual, batendo com a leitura dos cards. Métricas
 // sem entidades (percent null — ex.: nenhum host) ficam de fora da média.
-export function coverageScoreWeighted(hostCoverage, serviceCoverage) {
-  const percents = []
+export function coverageScoreWeighted(hostCoverage: HostCoverageRow[], serviceCoverage: ServiceCoverageRow[]): number {
+  const percents: number[] = []
   for (const c of INFRA_CATALOG) {
     const { percent } = coveragePercent(hostCoverage, c.key)
     if (percent != null) percents.push(percent)
@@ -99,13 +123,19 @@ export function coverageScoreWeighted(hostCoverage, serviceCoverage) {
 export const INFRA_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'Infra')
 export const APM_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'APM')
 
-export function analyzeHostCoverage(monitors, hostNames) {
+export interface HostCoverageRow {
+  host: string
+  metrics: Record<string, boolean>
+  gapCount: number
+}
+
+export function analyzeHostCoverage(monitors: DatadogMonitor[], hostNames: string[]): HostCoverageRow[] {
   const queries = (monitors || []).map(m => String(m?.query || ''))
-  const broad = {}
-  const specific = {}
+  const broad: Record<string, boolean> = {}
+  const specific: Record<string, Set<string>> = {}
   for (const c of INFRA_CATALOG) {
     broad[c.key] = queries.some(q => { try { return c.detect(q) && q.includes('{*}') } catch { return false } })
-    const set = new Set()
+    const set = new Set<string>()
     for (const q of queries) {
       try {
         if (!c.detect(q)) continue
@@ -115,7 +145,7 @@ export function analyzeHostCoverage(monitors, hostNames) {
     specific[c.key] = set
   }
   return (hostNames || []).map(host => {
-    const metrics = {}
+    const metrics: Record<string, boolean> = {}
     let gapCount = 0
     for (const c of INFRA_CATALOG) {
       const covered = broad[c.key] || specific[c.key].has(host)
@@ -126,23 +156,29 @@ export function analyzeHostCoverage(monitors, hostNames) {
   })
 }
 
+export interface ServiceCoverageRow {
+  service: string
+  metrics: Record<string, boolean>
+  gapCount: number
+}
+
 // ── Cobertura POR SERVIÇO das métricas de APM (mesma heurística acima, agora
 // pra service:<nome> em vez de host:<nome>) ──
 // LIMITAÇÃO CONHECIDA E DELIBERADA: um monitor de NAMESPACE (scopeType:
-// 'namespace' em discovery.js) escopa a query por kube_namespace:X, nunca por
+// 'namespace' em discovery.ts) escopa a query por kube_namespace:X, nunca por
 // service:Y — mesmo cobrindo Y na prática via `by {service}`, esta função não
 // reconhece isso e marca Y como lacuna. Mitigar exigiria mapear
 // serviço->namespace (custo de N chamadas extras, mesmo problema de custo já
-// documentado em NAMESPACE_PROBE_OPERATIONS, discovery.js) — mantido como
+// documentado em NAMESPACE_PROBE_OPERATIONS, discovery.ts) — mantido como
 // limitação documentada, mesma filosofia conservadora de analyzeHostCoverage:
 // pode marcar lacuna a mais, nunca a menos.
-export function analyzeServiceCoverage(monitors, serviceNames) {
+export function analyzeServiceCoverage(monitors: DatadogMonitor[], serviceNames: string[]): ServiceCoverageRow[] {
   const queries = (monitors || []).map(m => String(m?.query || ''))
-  const broad = {}
-  const specific = {}
+  const broad: Record<string, boolean> = {}
+  const specific: Record<string, Set<string>> = {}
   for (const c of APM_CATALOG) {
     broad[c.key] = queries.some(q => { try { return c.detect(q) && q.includes('{*}') } catch { return false } })
-    const set = new Set()
+    const set = new Set<string>()
     for (const q of queries) {
       try {
         if (!c.detect(q)) continue
@@ -152,7 +188,7 @@ export function analyzeServiceCoverage(monitors, serviceNames) {
     specific[c.key] = set
   }
   return (serviceNames || []).map(service => {
-    const metrics = {}
+    const metrics: Record<string, boolean> = {}
     let gapCount = 0
     for (const c of APM_CATALOG) {
       const covered = broad[c.key] || specific[c.key].has(service)
@@ -163,11 +199,17 @@ export function analyzeServiceCoverage(monitors, serviceNames) {
   })
 }
 
+export interface CoveragePercentResult {
+  coveredCount: number
+  totalCount: number
+  percent: number | null
+}
+
 // % de entidades cobertas para 1 item do catálogo, a partir da matriz
 // por-entidade (hostCoverage p/ Infra, serviceCoverage p/ APM — mesmo shape
 // {metrics:{<key>:bool}}). Fonte única pros cards (refino: % real em vez de
 // "existe ≥1 monitor no ambiente = 100%") e pra qualquer outro uso futuro.
-export function coveragePercent(entityRows, key) {
+export function coveragePercent(entityRows: (HostCoverageRow | ServiceCoverageRow)[], key: string): CoveragePercentResult {
   const rows = entityRows || []
   const totalCount = rows.length
   if (totalCount === 0) return { coveredCount: 0, totalCount: 0, percent: null }
@@ -175,25 +217,33 @@ export function coveragePercent(entityRows, key) {
   return { coveredCount, totalCount, percent: Math.round((coveredCount / totalCount) * 100) }
 }
 
+export type PercentBand = 'red' | 'yellow' | 'green' | null
+
 // Faixa de cor a partir do %, faixas de negócio (não CSS — page.js mapeia
 // band -> var(--css)): <=40 vermelho, 40-75 amarelo, >=75 verde.
-export function percentBand(percent) {
+export function percentBand(percent: number | null): PercentBand {
   if (percent == null) return null
   if (percent <= 40) return 'red'
   if (percent < 75) return 'yellow'
   return 'green'
 }
 
+export interface SuggestedInfraResult {
+  plan: InfraPlanItem[]
+  hostCount: number
+  monitorCount: number
+}
+
 // Monta a lista de monitores de Infra sugeridos pras lacunas, host por host —
 // só as métricas REALMENTE faltantes daquele host entram (hosts 100%
 // cobertos não geram nenhum item). Reaproveita planInfraPreview (já com
 // queryWindow/evaluationDelay corretos) — só orquestra por host.
-export function buildSuggestedInfra(hostCoverage) {
+export function buildSuggestedInfra(hostCoverage: HostCoverageRow[]): SuggestedInfraResult {
   const base = initialInfraDiscovery()
-  let plan = []
+  let plan: InfraPlanItem[] = []
   let hostCount = 0
   for (const hc of (hostCoverage || [])) {
-    const gapKinds = INFRA_CATALOG.filter(c => c.infraKind && !hc.metrics[c.key]).map(c => c.infraKind)
+    const gapKinds = INFRA_CATALOG.filter(c => c.infraKind && !hc.metrics[c.key]).map(c => c.infraKind as string)
     if (!gapKinds.length) continue
     hostCount++
     const d = {
@@ -206,6 +256,13 @@ export function buildSuggestedInfra(hostCoverage) {
   return { plan, hostCount, monitorCount: plan.length }
 }
 
+export interface SuggestedApmResult {
+  plan: PlanItem[]
+  serviceCount: number
+  monitorCount: number
+  operationNote: string
+}
+
 // Monta a lista de monitores de APM sugeridos pras lacunas, serviço por
 // serviço — só os tipos REALMENTE faltantes daquele serviço entram. Não passa
 // por planPreview()/initialDiscovery() (que assumem os MESMOS tipos
@@ -214,11 +271,11 @@ export function buildSuggestedInfra(hostCoverage) {
 // nisso); chama buildMonitorPayload diretamente por (serviço × tipo-em-gap).
 // Usa DEFAULT_OPERATION (sem descoberta real de operations — custaria 1
 // chamada extra por serviço em gap) — ver operationNote pra avisar na UI.
-export function buildSuggestedApm(serviceCoverage) {
-  const plan = []
+export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[]): SuggestedApmResult {
+  const plan: PlanItem[] = []
   let serviceCount = 0
   for (const sc of (serviceCoverage || [])) {
-    const gapTypes = APM_CATALOG.filter(c => c.apm && !sc.metrics[c.key]).map(c => c.apm)
+    const gapTypes = APM_CATALOG.filter(c => c.apm && !sc.metrics[c.key]).map(c => c.apm as string)
     if (!gapTypes.length) continue
     serviceCount++
     for (const kind of gapTypes) {
@@ -234,7 +291,7 @@ export function buildSuggestedApm(serviceCoverage) {
         seasonality: a.seasonality, alertWindow: a.alertWindow, queryWindow: a.queryWindow,
         priority: 3, // mesmo default P3 usado em initialDiscovery()
       })
-      plan.push({ kind, service: sc.service, operation: DEFAULT_OPERATION, name: payload.name, query: payload.query, message: payload.message, priority: 3, payload })
+      plan.push({ kind, label: a.label, service: sc.service, operation: DEFAULT_OPERATION, name: payload.name, query: payload.query, message: payload.message, priority: 3, payload })
     }
   }
   return {

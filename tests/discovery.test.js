@@ -1,7 +1,7 @@
 // tests/discovery.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialDiscovery, planPreview, buildAnomalyQuery, ALERT_TYPES, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.js'
+import { initialDiscovery, planPreview, buildAnomalyQuery, ALERT_TYPES, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.ts'
 
 // Monta uma discovery com 1 serviço + 1 operação e todos os alertas ligados.
 function fullPlan() {
