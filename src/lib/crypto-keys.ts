@@ -1,4 +1,4 @@
-// src/lib/crypto-keys.js
+// src/lib/crypto-keys.ts
 //
 // Criptografia (AES-256-GCM) das credenciais do Datadog ANTES de gravar no
 // Supabase. O banco guarda só o texto cifrado — quem tiver acesso de leitura
@@ -30,6 +30,9 @@
 // Formato do valor cifrado (tudo em 1 string base64): iv(12) + tag(16) + ciphertext.
 // A versão da chave NÃO fica dentro desse payload — fica em `key_version`,
 // coluna separada (ver src/lib/connections.js).
+//
+// Primeiro arquivo migrado pra TypeScript (achado da auditoria: código de
+// criptografia/dinheiro é onde um erro de contrato entre tipos dói mais).
 
 import crypto from 'node:crypto'
 
@@ -37,23 +40,28 @@ const ALGORITHM = 'aes-256-gcm'
 const IV_LEN = 12
 const TAG_LEN = 16
 
+export interface EncryptResult {
+  value: string
+  keyVersion: number
+}
+
 // Parsing sempre sob demanda (nunca no import do módulo) e sem cache — o
 // custo de reparsear um JSON pequeno por chamada é desprezível, e cachear
 // complicaria testes que mutam process.env em runtime.
-function loadKeys() {
+function loadKeys(): Map<number, Buffer> {
   const raw = process.env.CONNECTIONS_ENCRYPTION_KEYS || ''
   if (!raw) {
     throw new Error('CONNECTIONS_ENCRYPTION_KEYS não configurada no ambiente.')
   }
-  let map
+  let map: Record<string, string>
   try {
     map = JSON.parse(raw)
   } catch {
     throw new Error('CONNECTIONS_ENCRYPTION_KEYS não é um JSON válido.')
   }
-  const keys = new Map()
+  const keys = new Map<number, Buffer>()
   for (const [version, rawKey] of Object.entries(map)) {
-    let key
+    let key: Buffer
     if (/^[0-9a-fA-F]{64}$/.test(rawKey)) {
       key = Buffer.from(rawKey, 'hex')
     } else {
@@ -67,7 +75,7 @@ function loadKeys() {
   return keys
 }
 
-function loadCurrentVersion() {
+function loadCurrentVersion(): number {
   const raw = process.env.CONNECTIONS_ENCRYPTION_KEY_VERSION || ''
   if (!raw) {
     throw new Error('CONNECTIONS_ENCRYPTION_KEY_VERSION não configurada no ambiente.')
@@ -78,7 +86,7 @@ function loadCurrentVersion() {
 // Busca a chave de uma versão específica. Erro nunca vaza a chave em si, só
 // números de versão — propaga até src/lib/session-keys.js, que já isola
 // isso por usuário (não derruba a aplicação inteira).
-function keyForVersion(keys, version) {
+function keyForVersion(keys: Map<number, Buffer>, version: number): Buffer {
   const key = keys.get(version)
   if (!key) {
     const available = [...keys.keys()].sort((a, b) => a - b).join(', ')
@@ -94,7 +102,7 @@ function keyForVersion(keys, version) {
 
 // Cifra sempre com a chave CURRENT. Retorna a versão usada junto, pra quem
 // chamar gravar na coluna `key_version` da linha.
-export function encryptSecret(plainText) {
+export function encryptSecret(plainText: string): EncryptResult {
   const keys = loadKeys()
   const version = loadCurrentVersion()
   const key = keyForVersion(keys, version)
@@ -111,7 +119,7 @@ export function encryptSecret(plainText) {
 // Decifra com a chave da versão indicada (não necessariamente a CURRENT —
 // dados antigos continuam legíveis enquanto a chave da versão deles existir
 // em CONNECTIONS_ENCRYPTION_KEYS).
-export function decryptSecret(payload, keyVersion) {
+export function decryptSecret(payload: string, keyVersion: number | string): string {
   const keys = loadKeys()
   const key = keyForVersion(keys, Number(keyVersion))
 

@@ -14,7 +14,7 @@
 //   node --env-file=.env.local scripts/reencrypt-connections.mjs [--dry-run]
 
 import { createClient } from '@supabase/supabase-js'
-import { encryptSecret, decryptSecret } from '../src/lib/crypto-keys.js'
+import { encryptSecret, decryptSecret } from '../src/lib/crypto-keys.ts'
 
 const dryRun = process.argv.includes('--dry-run')
 
