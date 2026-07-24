@@ -1,7 +1,7 @@
 // src/app/api/datadog/operations/route.js
 //
 // Para os serviços informados, descobre as OPERATIONS (spans) e quantas são,
-// via Metrics List API (helper traceOperations em datadog-server.js): lista
+// via Metrics List API (helper traceOperations em datadog-server.ts): lista
 // as métricas submetidas com a tag service:<svc> e extrai o nome da operation
 // dos nomes "trace.<op>.hits". Requer escopo metrics_read na Application key.
 //

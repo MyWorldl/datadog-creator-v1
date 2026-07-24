@@ -10,7 +10,7 @@
 // amostrada e o group_by kube_namespace volta VAZIO de forma imprevisível
 // (confirmado em smoke-test contra o Datadog real — 0 namespaces em toda
 // repetição). A Metrics Query API é pré-agregada e não amostrada — enumera
-// os namespaces de forma consistente. Ver metricTagValues em datadog-server.js.
+// os namespaces de forma consistente. Ver metricTagValues em datadog-server.ts.
 //
 // Por que VÁRIAS métricas-sonda (não só http.request): um namespace só aparece
 // se emitir a métrica consultada. http.request cobre a maioria, mas serviços

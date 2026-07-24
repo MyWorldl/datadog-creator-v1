@@ -1,10 +1,18 @@
-// src/lib/datadog-server.js
+// src/lib/datadog-server.ts
 //
 // Helpers server-side para coletar dados do Datadog (usados por
 // scope-maturity e audit-monitors). Tudo defensivo: em falha,
 // retorna null e a dimensão vira "N/D" em vez de quebrar.
 
-export function ctxFrom({ apiKey, appKey, site }) {
+import type { Product } from './finops-pricing.ts'
+
+export interface DatadogCtx {
+  apiKey: string
+  appKey: string
+  site: string
+}
+
+export function ctxFrom({ apiKey, appKey, site }: DatadogCtx): DatadogCtx {
   return { apiKey, appKey, site }
 }
 
@@ -17,28 +25,45 @@ export function ctxFrom({ apiKey, appKey, site }) {
 // pra nomes de métrica (letras/dígitos/ponto/underscore/hífen) e valores de
 // tag (mesmo padrão + dois-pontos/barra, comuns em namespace/env).
 const SAFE_DQL_TOKEN = /^[a-zA-Z0-9_.:/-]+$/
-export function isSafeDqlToken(value) {
+export function isSafeDqlToken(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0 && value.length <= 200 && SAFE_DQL_TOKEN.test(value)
 }
 
+interface ErrorBody {
+  detail: string
+  json: unknown
+}
+
 // Extrai texto + (se possível) JSON do corpo de uma resposta de erro, sem
-// lançar. Usado por ddGet/ddPost para dar contexto além do status HTTP.
-async function readErrorBody(r) {
+// lançar. Usado por ddGet/ddPost para dar contexto além do status HTTP — o
+// corpo de erro do Datadog costuma trazer { errors: [...] }, que as rotas
+// leem via r.json?.errors (mesmo campo `json` do caso de sucesso, só que
+// com outro shape nesse caminho — daí o cast pontual em ddGet/ddPost).
+async function readErrorBody(r: Response): Promise<ErrorBody> {
   const text = await r.text().catch(() => '')
-  let json = null
+  let json: unknown = null
   try { json = text ? JSON.parse(text) : null } catch { /* corpo não é JSON */ }
   return { detail: text.slice(0, 300), json }
 }
 
-export async function ddGet(ctx, path) {
+export interface DdResult<T = unknown> {
+  ok: boolean
+  status?: number
+  json?: T
+  detail?: string
+  error?: string
+  partial?: boolean
+}
+
+export async function ddGet<T = unknown>(ctx: DatadogCtx, path: string): Promise<DdResult<T>> {
   try {
     const r = await fetch(`https://api.${ctx.site}${path}`, {
       headers: { 'DD-API-KEY': ctx.apiKey, 'DD-APPLICATION-KEY': ctx.appKey, Accept: 'application/json' },
       cache: 'no-store',
     })
-    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) }
+    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) } as DdResult<T>
     return { ok: true, json: await r.json() }
-  } catch (e) { return { ok: false, error: e.message } }
+  } catch (e) { return { ok: false, error: (e as Error).message } }
 }
 
 // Lista TODOS os monitores paginando. Motivo: em GET /api/v1/monitor, se o
@@ -48,10 +73,10 @@ export async function ddGet(ctx, path) {
 // maxPages para nunca entrar em loop. Retorna { ok, json:[...] } para manter
 // o mesmo formato dos consumidores (monitorsR.json).
 // Doc: https://docs.datadoghq.com/api/latest/monitors/#get-all-monitor-details
-export async function listMonitors(ctx, pageSize = 1000, maxPages = 50) {
-  const all = []
+export async function listMonitors(ctx: DatadogCtx, pageSize = 1000, maxPages = 50): Promise<DdResult<unknown[]>> {
+  const all: unknown[] = []
   for (let page = 0; page < maxPages; page++) {
-    const r = await ddGet(ctx, `/api/v1/monitor?page=${page}&page_size=${pageSize}`)
+    const r = await ddGet<unknown[]>(ctx, `/api/v1/monitor?page=${page}&page_size=${pageSize}`)
     if (!r.ok) {
       // Falhou no meio: se já temos algo, devolve como sucesso parcial.
       if (all.length > 0) return { ok: true, json: all, partial: true }
@@ -69,13 +94,13 @@ export async function listMonitors(ctx, pageSize = 1000, maxPages = 50) {
 // podem ter milhares de hosts. `filter` aceita a sintaxe de busca de hosts
 // do Datadog (ex.: "env:prod", "tag_key:value"). Doc:
 // https://docs.datadoghq.com/api/latest/hosts/#get-all-hosts-for-your-organization
-export async function listHosts(ctx, filter = '', pageSize = 1000, maxPages = 20) {
-  const all = []
+export async function listHosts(ctx: DatadogCtx, filter = '', pageSize = 1000, maxPages = 20): Promise<DdResult<unknown[]>> {
+  const all: unknown[] = []
   for (let page = 0; page < maxPages; page++) {
     const start = page * pageSize
     const qs = new URLSearchParams({ start: String(start), count: String(pageSize) })
     if (filter) qs.set('filter', filter)
-    const r = await ddGet(ctx, `/api/v1/hosts?${qs.toString()}`)
+    const r = await ddGet<{ host_list?: unknown[] }>(ctx, `/api/v1/hosts?${qs.toString()}`)
     if (!r.ok) {
       if (all.length > 0) return { ok: true, json: all, partial: true }
       return { ok: false, status: r.status, error: r.error, detail: r.detail }
@@ -87,7 +112,7 @@ export async function listHosts(ctx, filter = '', pageSize = 1000, maxPages = 20
   return { ok: true, json: all }
 }
 
-export async function ddPost(ctx, path, body) {
+export async function ddPost<T = unknown>(ctx: DatadogCtx, path: string, body: unknown): Promise<DdResult<T>> {
   try {
     const r = await fetch(`https://api.${ctx.site}${path}`, {
       method: 'POST',
@@ -98,9 +123,9 @@ export async function ddPost(ctx, path, body) {
       body: JSON.stringify(body),
       cache: 'no-store',
     })
-    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) }
+    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) } as DdResult<T>
     return { ok: true, json: await r.json() }
-  } catch (e) { return { ok: false, error: e.message } }
+  } catch (e) { return { ok: false, error: (e as Error).message } }
 }
 
 // ── Metrics: último valor de uma query no intervalo (fromMs/toMs em ms) ──
@@ -110,12 +135,12 @@ export async function ddPost(ctx, path, body) {
 // via API de métricas, sem a restrição de multi-org do usage/summary.
 // ── Logs Analytics: contagem total para uma query (janela em ms) ──
 // POST /api/v2/logs/analytics/aggregate  -> data.buckets[0].computes.c0
-export async function logsCount(ctx, query, fromMs, toMs) {
+export async function logsCount(ctx: DatadogCtx, query: string, fromMs: number, toMs: number): Promise<number | null> {
   const body = {
     compute: [{ type: 'total', aggregation: 'count' }],
     filter: { from: String(fromMs), to: String(toMs), query: query || '*' },
   }
-  const r = await ddPost(ctx, '/api/v2/logs/analytics/aggregate', body)
+  const r = await ddPost<{ data?: { buckets?: { computes?: { c0?: number } }[] } }>(ctx, '/api/v2/logs/analytics/aggregate', body)
   if (!r.ok) return null
   const buckets = r.json?.data?.buckets
   if (!Array.isArray(buckets)) return null
@@ -124,10 +149,17 @@ export async function logsCount(ctx, query, fromMs, toMs) {
   return typeof c0 === 'number' ? c0 : 0
 }
 
+export interface SloBudgetResult {
+  measured: boolean
+  pct?: number
+  evaluated?: number
+  detail?: string
+}
+
 // ── SLO: % de SLOs cumprindo o target (via history) ──
 // Limita a N SLOs para não estourar chamadas.
-export async function sloBudget(ctx, maxSlos = 15) {
-  const list = await ddGet(ctx, '/api/v1/slo?limit=1000')
+export async function sloBudget(ctx: DatadogCtx, maxSlos = 15): Promise<SloBudgetResult> {
+  const list = await ddGet<{ data?: { id: string; thresholds?: { target?: number }[] }[] }>(ctx, '/api/v1/slo?limit=1000')
   if (!list.ok) return { measured: false, detail: 'Sem acesso à API de SLO.' }
   const slos = Array.isArray(list.json?.data) ? list.json.data : []
   if (slos.length === 0) return { measured: true, pct: 0, evaluated: 0, detail: 'Nenhum SLO configurado.' }
@@ -140,7 +172,7 @@ export async function sloBudget(ctx, maxSlos = 15) {
   // de um `for` sequencial com await (que podia levar vários segundos
   // com o subset cheio de 15 SLOs).
   const histories = await Promise.all(
-    subset.map(slo => ddGet(ctx, `/api/v1/slo/${slo.id}/history?from_ts=${from}&to_ts=${now}`))
+    subset.map(slo => ddGet<{ data?: { overall?: { sli_value?: number } } }>(ctx, `/api/v1/slo/${slo.id}/history?from_ts=${from}&to_ts=${now}`))
   )
 
   let ok = 0, evaluated = 0
@@ -163,13 +195,33 @@ export async function sloBudget(ctx, maxSlos = 15) {
   }
 }
 
+export interface AlertEventsResult {
+  measured: boolean
+  total?: number
+  triggers?: number
+  recoveries?: number
+  cycles?: number
+  flapping?: number
+  flappingRate?: number | null
+  instant?: number
+  instantRate?: number | null
+}
+
+interface AlertEvent {
+  alert_type?: string
+  aggregation_key?: string
+  monitor_id?: string | number
+  id?: string | number
+  date_happened?: number
+}
+
 // ── Eventos de alerta (últimos N dias): pareia disparo→recuperação por
 //    monitor (aggregation_key) e mede flapping = auto-recuperação rápida.
 //    GET /api/v1/events?start&end&sources=alert&unaggregated=true
-export async function alertEvents(ctx, days = 7) {
+export async function alertEvents(ctx: DatadogCtx, days = 7): Promise<AlertEventsResult> {
   const now = Math.floor(Date.now() / 1000)
   const start = now - days * 24 * 3600
-  const r = await ddGet(ctx, `/api/v1/events?start=${start}&end=${now}&sources=alert&unaggregated=true`)
+  const r = await ddGet<{ events?: AlertEvent[] }>(ctx, `/api/v1/events?start=${start}&end=${now}&sources=alert&unaggregated=true`)
   if (!r.ok) return { measured: false }
   const events = Array.isArray(r.json?.events) ? r.json.events : []
   const triggers = events.filter(e => e.alert_type === 'error' || e.alert_type === 'warning').length
@@ -180,26 +232,26 @@ export async function alertEvents(ctx, days = 7) {
   // - instant:  recuperou em < 2min  (auto-resolvido "quase instantâneo")
   const FLAP_SECONDS = 600
   const INSTANT_SECONDS = 120
-  const byKey = {}
+  const byKey: Record<string, AlertEvent[]> = {}
   for (const e of events) {
     // Agrupa por ciclo do mesmo monitor. Desde 1º/mar/2025 o aggregation_key
     // dos eventos de monitor é único por Monitor ID + Grupo (bom para parear
     // disparo→recuperação). Fallback para monitor_id/id se vier ausente.
     // Doc: https://docs.datadoghq.com/api/latest/events/
-    const k = e.aggregation_key || e.monitor_id || e.id
+    const k = String(e.aggregation_key || e.monitor_id || e.id)
     ;(byKey[k] = byKey[k] || []).push(e)
   }
   let cycles = 0, flapping = 0, instant = 0
   for (const list of Object.values(byKey)) {
     list.sort((a, b) => (a.date_happened || 0) - (b.date_happened || 0))
-    let triggerTs = null
+    let triggerTs: number | null = null
     for (const e of list) {
       const t = e.alert_type
       if ((t === 'error' || t === 'warning') && triggerTs == null) {
-        triggerTs = e.date_happened
+        triggerTs = e.date_happened ?? null
       } else if ((t === 'success' || t === 'recovery') && triggerTs != null) {
         cycles++
-        const dt = e.date_happened - triggerTs
+        const dt = (e.date_happened || 0) - triggerTs
         if (dt <= FLAP_SECONDS) flapping++
         if (dt <= INSTANT_SECONDS) instant++
         triggerTs = null
@@ -211,17 +263,33 @@ export async function alertEvents(ctx, days = 7) {
   return { measured: true, total: events.length, triggers, recoveries, cycles, flapping, flappingRate, instant, instantRate }
 }
 
+export interface QueryMetricResult {
+  ok: boolean
+  status?: number
+  error?: string
+  points?: number[]
+  seriesCount?: number
+}
+
 // ── Metrics Query API: pontos de uma métrica no intervalo ──
 // GET /api/v1/query?from=<unix_s>&to=<unix_s>&query=<query>
 // Funciona em QUALQUER org (escopo timeseries_query) — base do FinOps quando
 // a conta não é parent-org. Doc: https://docs.datadoghq.com/api/latest/metrics/#query-timeseries-points
-export async function queryMetric(ctx, query, fromSec, toSec) {
-  const r = await ddGet(ctx, `/api/v1/query?from=${fromSec}&to=${toSec}&query=${encodeURIComponent(query)}`)
+export async function queryMetric(ctx: DatadogCtx, query: string, fromSec: number, toSec: number): Promise<QueryMetricResult> {
+  const r = await ddGet<{ series?: { pointlist?: [number, number | null][] }[] }>(ctx, `/api/v1/query?from=${fromSec}&to=${toSec}&query=${encodeURIComponent(query)}`)
   if (!r.ok) return { ok: false, status: r.status, error: r.error }
   const series = Array.isArray(r.json?.series) ? r.json.series : []
-  const points = []
+  const points: number[] = []
   for (const s of series) for (const p of (s.pointlist || [])) if (p && p[1] != null) points.push(p[1])
   return { ok: true, points, seriesCount: series.length }
+}
+
+export interface TraceOperationsResult {
+  ok: boolean
+  status?: number
+  error?: string
+  detail?: string
+  operations?: string[]
 }
 
 // ── Descoberta de operations (spans) por escopo, via Metrics List API ──
@@ -239,16 +307,24 @@ export async function queryMetric(ctx, query, fromSec, toSec) {
 // pré-agregadas e NÃO amostradas — enumeram operations de forma confiável,
 // idêntica ao que a UI do Trace Explorer mostra. É a MESMA estratégia já
 // usada (e comprovada) para descobrir operations por serviço.
-export async function traceOperations(ctx, scopeTag, windowSeconds = 86400) {
-  const r = await ddGet(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
+export async function traceOperations(ctx: DatadogCtx, scopeTag: string, windowSeconds = 86400): Promise<TraceOperationsResult> {
+  const r = await ddGet<{ data?: { id?: string }[] }>(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
   if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
-  const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter(Boolean) : []
-  const ops = new Set()
+  const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter((id): id is string => Boolean(id)) : []
+  const ops = new Set<string>()
   for (const name of names) {
     const m = /^trace\.(.+)\.hits$/.exec(name)
     if (m) ops.add(m[1])
   }
   return { ok: true, operations: [...ops].sort() }
+}
+
+export interface MetricTagValuesResult {
+  ok: boolean
+  status?: number
+  error?: string
+  detail?: string
+  values?: string[]
 }
 
 // ── Enumera valores distintos de uma tag via Metrics Query API ──
@@ -257,11 +333,11 @@ export async function traceOperations(ctx, scopeTag, windowSeconds = 86400) {
 // distintos (ex.: todos os kube_namespace com tráfego APM). Diferente da
 // Spans Aggregate API, a Metrics Query API NÃO é amostrada — enumera de forma
 // confiável. Descarta "N/A" (spans sem a tag). Escopo timeseries_query.
-export async function metricTagValues(ctx, query, tagKey, fromSec, toSec) {
-  const r = await ddGet(ctx, `/api/v1/query?from=${fromSec}&to=${toSec}&query=${encodeURIComponent(query)}`)
+export async function metricTagValues(ctx: DatadogCtx, query: string, tagKey: string, fromSec: number, toSec: number): Promise<MetricTagValuesResult> {
+  const r = await ddGet<{ series?: { tag_set?: string[]; scope?: string }[] }>(ctx, `/api/v1/query?from=${fromSec}&to=${toSec}&query=${encodeURIComponent(query)}`)
   if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
   const series = Array.isArray(r.json?.series) ? r.json.series : []
-  const values = new Set()
+  const values = new Set<string>()
   for (const s of series) {
     for (const t of (s.tag_set || [])) {
       if (t.startsWith(tagKey + ':')) values.add(t.slice(tagKey.length + 1))
@@ -280,10 +356,20 @@ export async function metricTagValues(ctx, query, tagKey, fromSec, toSec) {
 // 'max' -> pico via .rollup(max,3600)  (hosts de infra/APM, DBM, profiler…)
 // 'avg' -> média                        (custom metrics, fargate…)
 // Percentil (0-100) de um array já ordenado em ordem crescente.
-function pctile(sortedAsc, p) {
+function pctile(sortedAsc: number[], p: number): number | null {
   if (!sortedAsc.length) return null
   const i = Math.min(sortedAsc.length - 1, Math.max(0, Math.ceil((p / 100) * sortedAsc.length) - 1))
   return sortedAsc[i]
+}
+
+export interface EstimatedUsageResult {
+  ok: boolean
+  unavailable?: boolean
+  status?: number
+  query?: string
+  value?: number | null
+  empty?: boolean
+  points?: number
 }
 
 // Uso estimado de um produto no período, agregando conforme o Datadog FATURA:
@@ -294,7 +380,7 @@ function pctile(sortedAsc, p) {
 //  - 'avg'  -> média do mês (containers, custom metrics).
 // Doc de métricas e tipos: https://docs.datadoghq.com/account_management/billing/usage_metrics/
 // Doc de como cada uso é faturado: https://docs.datadoghq.com/account_management/plan_and_usage/cost_details/
-export async function estimatedUsage(ctx, product, fromSec, toSec) {
+export async function estimatedUsage(ctx: DatadogCtx, product: Pick<Product, 'estMetric' | 'estAgg'>, fromSec: number, toSec: number): Promise<EstimatedUsageResult> {
   const m = product?.estMetric
   if (!m) return { ok: false, unavailable: true }
   const agg = product.estAgg || 'avg'
@@ -304,11 +390,11 @@ export async function estimatedUsage(ctx, product, fromSec, toSec) {
         : `avg:${m}{*}.rollup(avg, 3600)`
   const r = await queryMetric(ctx, query, fromSec, toSec)
   if (!r.ok) return { ok: false, status: r.status, query }
-  const pts = r.points
+  const pts = r.points || []
   if (pts.length === 0) return { ok: true, value: null, empty: true, query, points: 0 }
-  let value
+  let value: number
   if (agg === 'sum') value = pts.reduce((a, b) => a + b, 0)
-  else if (agg === 'peak') value = pctile([...pts].sort((a, b) => a - b), 99)
+  else if (agg === 'peak') value = pctile([...pts].sort((a, b) => a - b), 99) as number
   else value = pts.reduce((a, b) => a + b, 0) / pts.length
   return { ok: true, value, query, points: pts.length }
 }

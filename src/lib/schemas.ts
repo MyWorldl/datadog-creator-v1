@@ -8,7 +8,7 @@
 
 import { z } from 'zod'
 import { VALID_SITES } from './datadog-sites.ts'
-import { isSafeDqlToken } from './datadog-server.js'
+import { isSafeDqlToken } from './datadog-server.ts'
 
 // Mesmo limiar (10 chars) que a checagem manual já usava — não é validação
 // de formato real da chave (a Datadog não documenta um formato público
@@ -38,7 +38,7 @@ export function firstIssueMessage(zodError: z.ZodError | { issues?: { message?: 
 // um único lugar validando "isto vira parte de uma query DQL", em vez de
 // reimplementar a allowlist em cada schema. Reforço de contrato/robustez
 // contra query malformada, não fronteira de segurança entre tenants (ver
-// comentário em datadog-server.js).
+// comentário em datadog-server.ts).
 const dqlToken = (label: string) => z.string().trim().refine(isSafeDqlToken, {
   message: `${label} inválido (use apenas letras, dígitos, ponto, underscore, hífen ou barra).`,
 })
