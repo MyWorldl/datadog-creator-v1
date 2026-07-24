@@ -8,6 +8,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planPreview } from '@/lib/discovery'
 import { ctxFrom, ddPost } from '@/lib/datadog-server'
+import { discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function POST(request) {
   const user = await getServerUser()
@@ -23,8 +24,9 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const discovery = body?.discovery || body
-  const plan = planPreview(discovery)
+  const parsed = discoveryBodySchema.safeParse(body?.discovery || body)
+  if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+  const plan = planPreview(parsed.data)
   if (plan.length === 0) {
     return Response.json({ error: 'Nada a criar: selecione serviço(s), operação(ões) e tipo(s) de alerta.' }, { status: 400 })
   }

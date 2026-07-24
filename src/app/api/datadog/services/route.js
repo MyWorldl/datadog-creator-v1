@@ -9,6 +9,7 @@
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
+import { envQuerySchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function GET(request) {
   const user = await getServerUser()
@@ -25,7 +26,11 @@ export async function GET(request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const env = (searchParams.get('env') || '*').trim() || '*'
+  const parsedEnv = envQuerySchema.safeParse(searchParams.get('env')?.trim() || undefined)
+  if (!parsedEnv.success) {
+    return Response.json({ error: firstIssueMessage(parsedEnv.error) }, { status: 400 })
+  }
+  const env = parsedEnv.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
   const r = await ddGet(ctx, `/api/v2/apm/services?filter[env]=${encodeURIComponent(env)}`)

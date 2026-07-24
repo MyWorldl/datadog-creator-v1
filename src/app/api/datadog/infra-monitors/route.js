@@ -14,6 +14,7 @@ import { readSessionKeys } from '@/lib/session-keys'
 import { planInfraPreview } from '@/lib/infra'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
+import { planSchema, discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function POST(request) {
   const user = await getServerUser()
@@ -29,7 +30,16 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const plan = Array.isArray(body?.plan) ? body.plan : planInfraPreview(body?.infra || body)
+  let plan
+  if (Array.isArray(body?.plan)) {
+    const parsed = planSchema.safeParse(body.plan)
+    if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+    plan = parsed.data
+  } else {
+    const parsed = discoveryBodySchema.safeParse(body?.infra || body)
+    if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+    plan = planInfraPreview(parsed.data)
+  }
   if (plan.length === 0) {
     return Response.json({ error: 'Nada a criar: selecione host(s) e métrica(s) de infra.' }, { status: 400 })
   }

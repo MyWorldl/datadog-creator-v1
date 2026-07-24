@@ -15,6 +15,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
+import { planSchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function POST(request) {
   const user = await getServerUser()
@@ -30,10 +31,12 @@ export async function POST(request) {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const plan = Array.isArray(body?.plan) ? body.plan : []
-  if (plan.length === 0) {
+  if (!Array.isArray(body?.plan) || body.plan.length === 0) {
     return Response.json({ error: 'Nada a criar: nenhum monitor de APM no plano.' }, { status: 400 })
   }
+  const parsed = planSchema.safeParse(body.plan)
+  if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+  const plan = parsed.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
   const result = await createPlanIdempotent(ctx, plan)

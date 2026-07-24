@@ -25,6 +25,7 @@ import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, estimatedUsage } from '@/lib/datadog-server'
 import { PRODUCTS } from '@/lib/finops-pricing'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
+import { monthQuerySchema, firstIssueMessage } from '@/lib/schemas'
 
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min
 
@@ -116,9 +117,15 @@ export async function GET(request) {
   }
   const ctx = ctxFrom({ apiKey, appKey, site })
 
-  // Mês corrente por padrão (aceita ?month=YYYY-MM).
+  // Mês corrente por padrão (aceita ?month=YYYY-MM). Formato validado aqui —
+  // um mês malformado quebrava monthBoundsMs em silêncio (NaN nas datas).
   const url = new URL(request.url)
-  const month = url.searchParams.get('month') || monthStr(new Date())
+  const rawMonth = url.searchParams.get('month')
+  const parsedMonth = monthQuerySchema.safeParse(rawMonth || undefined)
+  if (!parsedMonth.success) {
+    return Response.json({ error: firstIssueMessage(parsedMonth.error) }, { status: 400 })
+  }
+  const month = parsedMonth.data || monthStr(new Date())
 
   // Cache curto: usage/summary + fallback de métricas podem somar várias
   // chamadas; evita refazer tudo em refreshes seguidos no mesmo mês.
