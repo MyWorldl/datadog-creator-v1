@@ -1,4 +1,4 @@
-// src/app/api/datadog/finops/route.js
+// src/app/api/datadog/finops/route.ts
 //
 // Volume de consumo por produto (licenciamento). Tenta primeiro a Usage
 // Metering API:
@@ -20,21 +20,46 @@
 // O custo é calculado no cliente (preços editáveis), pois preço de
 // lista ≠ preço contratado.
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet, estimatedUsage } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, estimatedUsage, type DatadogCtx } from '@/lib/datadog-server'
 import { PRODUCTS } from '@/lib/finops-pricing'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { monthQuerySchema, firstIssueMessage } from '@/lib/schemas'
 
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min
 
-function monthStr(d) {
+interface ProductResult {
+  key: string
+  label: string
+  unit: string
+  price: number
+  per: number
+  bytes: boolean
+  estMetric: string | null
+  estAgg?: string | null
+  value: number
+  field: string
+}
+
+interface SourceResult {
+  ok: boolean
+  status?: number
+  error?: string
+  products?: ProductResult[]
+  missing?: string[]
+  diagnostics?: unknown[]
+  startDate?: string | null
+  endDate?: string | null
+}
+
+function monthStr(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 // Limites (ms) do mês solicitado, truncados em "agora" se for o mês corrente.
-function monthBoundsMs(month) {
+function monthBoundsMs(month: string): { start: number; end: number } {
   const [y, m] = month.split('-').map(Number)
   const start = Date.UTC(y, m - 1, 1, 0, 0, 0)
   const endOfMonth = Date.UTC(y, m, 1, 0, 0, 0) - 1
@@ -42,12 +67,12 @@ function monthBoundsMs(month) {
   return { start, end: Math.max(end, start + 60_000) }
 }
 
-async function viaUsageSummary(ctx, month) {
-  const res = await ddGet(ctx, `/api/v1/usage/summary?start_month=${month}&end_month=${month}`)
+async function viaUsageSummary(ctx: DatadogCtx, month: string): Promise<SourceResult> {
+  const res = await ddGet<Record<string, unknown>>(ctx, `/api/v1/usage/summary?start_month=${month}&end_month=${month}`)
   if (!res.ok) return { ok: false, status: res.status, error: res.error }
 
   const summary = res.json || {}
-  const pick = (fields) => {
+  const pick = (fields: string[]): { value: number; field: string } | null => {
     for (const f of fields) {
       const v = summary[f]
       if (typeof v === 'number') return { value: v, field: f }
@@ -55,8 +80,8 @@ async function viaUsageSummary(ctx, month) {
     return null
   }
 
-  const products = []
-  const missing = []
+  const products: ProductResult[] = []
+  const missing: string[] = []
   for (const p of PRODUCTS) {
     const found = pick(p.fields)
     if (found) {
@@ -69,24 +94,24 @@ async function viaUsageSummary(ctx, month) {
     }
   }
 
-  return { ok: true, products, missing, startDate: summary.start_date || null, endDate: summary.end_date || null }
+  return { ok: true, products, missing, startDate: (summary.start_date as string) || null, endDate: (summary.end_date as string) || null }
 }
 
-async function viaEstimatedUsageMetrics(ctx, month) {
+async function viaEstimatedUsageMetrics(ctx: DatadogCtx, month: string): Promise<SourceResult> {
   const { start, end } = monthBoundsMs(month)
   const fromSec = Math.floor(start / 1000)
   const toSec = Math.floor(end / 1000)
 
   // Agrega cada métrica conforme a cobrança (soma/pico/média) — em paralelo.
   const results = await Promise.all(PRODUCTS.map(async (p) => {
-    if (!p.estMetric) return { p, ok: false, reason: 'sem métrica estimada' }
+    if (!p.estMetric) return { p, ok: false, reason: 'sem métrica estimada' as string | undefined, u: undefined }
     const u = await estimatedUsage(ctx, p, fromSec, toSec)
-    return { p, u, ok: u.ok && u.value != null }
+    return { p, u, ok: u.ok && u.value != null, reason: undefined as string | undefined }
   }))
 
-  const products = []
-  const missing = []
-  const diagnostics = [] // visibilidade do que a Metrics API devolveu por métrica
+  const products: ProductResult[] = []
+  const missing: string[] = []
+  const diagnostics: unknown[] = [] // visibilidade do que a Metrics API devolveu por métrica
   for (const { p, u, ok, reason } of results) {
     diagnostics.push({
       key: p.key, label: p.label, metric: p.estMetric, agg: p.estAgg,
@@ -97,7 +122,7 @@ async function viaEstimatedUsageMetrics(ctx, month) {
     if (ok) {
       products.push({
         key: p.key, label: p.label, unit: p.unit, price: p.price, per: p.per, bytes: p.bytes,
-        estMetric: p.estMetric, estAgg: p.estAgg, value: u.value, field: p.estMetric,
+        estMetric: p.estMetric, estAgg: p.estAgg, value: u!.value as number, field: p.estMetric as string,
       })
     } else {
       missing.push(p.key)
@@ -107,7 +132,7 @@ async function viaEstimatedUsageMetrics(ctx, month) {
   return { ok: products.length > 0, products, missing, diagnostics, startDate: new Date(start).toISOString(), endDate: new Date(end).toISOString() }
 }
 
-export async function GET(request) {
+export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
@@ -135,7 +160,7 @@ export async function GET(request) {
 
   let result = await viaUsageSummary(ctx, month)
   let source = 'usage_summary'
-  let warning = null
+  let warning: string | null = null
 
   // O usage/summary agrega no nível PARENT-org ("for all organizations").
   // Numa Sub-Org, ele costuma voltar quase vazio — às vezes 200 sem nada,
@@ -161,7 +186,7 @@ export async function GET(request) {
     const fallback = await viaEstimatedUsageMetrics(ctx, month)
     // Usa o fallback se ele trouxer pelo menos tantos produtos quanto o summary
     // (evita "rebaixar" um summary completo por acidente).
-    if (fallback.ok && fallback.products.length >= summaryCount) {
+    if (fallback.ok && (fallback.products?.length ?? 0) >= summaryCount) {
       result = fallback
       source = 'estimated_usage_metrics'
       warning = `${summaryHint} Exibindo consumo via métricas datadog.estimated_usage.* (Metrics API), que respondem por org (inclusive Sub-Org). Agregado como o Datadog fatura (hosts=pico p99, custom metrics/containers=média, logs/RUM/synthetics=soma). Estimativa em tempo real, ~10–20% de diferença média vs. o faturável.`

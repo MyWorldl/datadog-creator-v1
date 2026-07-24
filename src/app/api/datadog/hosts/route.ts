@@ -1,4 +1,4 @@
-// src/app/api/datadog/hosts/route.js
+// src/app/api/datadog/hosts/route.ts
 //
 // Descobre os hosts de infraestrutura do ambiente do usuário.
 // Doc: GET /api/v1/hosts  (escopo hosts_read)
@@ -8,12 +8,22 @@
 // Query opcional: /api/datadog/hosts?filter=env:prod
 // (filter usa a sintaxe de busca de hosts do Datadog; vazio = todos)
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, listHosts } from '@/lib/datadog-server'
 import { hostFilterSchema, firstIssueMessage } from '@/lib/schemas'
 
-export async function GET(request) {
+interface HostRaw {
+  host_name?: string
+  name?: string
+  up?: boolean
+  is_muted?: boolean
+  last_reported_time?: number
+  tags_by_source?: Record<string, string[]>
+}
+
+export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -57,7 +67,7 @@ export async function GET(request) {
   // Formato leve para a UI: nome, se está reportando (up) e tags relevantes.
   // tags_by_source agrega tags por origem (Agent, AWS, etc.) — juntamos tudo
   // num array plano e mantemos só o necessário para exibir/filtrar por env.
-  const hosts = r.json
+  const hosts = (r.json as HostRaw[])
     .map(h => {
       const allTags = Object.values(h.tags_by_source || {}).flat()
       return {
@@ -69,7 +79,7 @@ export async function GET(request) {
       }
     })
     .filter(h => h.name)
-    .sort((a, b) => a.name.localeCompare(b.name))
+    .sort((a, b) => (a.name as string).localeCompare(b.name as string))
 
   return Response.json({ filter: filter || '*', count: hosts.length, hosts, partial: !!r.partial })
 }

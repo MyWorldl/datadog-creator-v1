@@ -1,4 +1,4 @@
-// src/app/api/connections/route.js
+// src/app/api/connections/route.ts
 //
 // Gerencia as conexões Datadog (múltiplas orgs) do usuário logado.
 // As chaves ficam cifradas no Supabase — nunca voltam pro browser.
@@ -6,12 +6,13 @@
 //   GET  -> lista as conexões do usuário (id, nome, site, ativa?) — sem chaves
 //   POST -> cria uma nova conexão (valida as chaves contra o Datadog antes de salvar)
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { listConnections, createConnection } from '@/lib/connections'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 import { createConnectionSchema, firstIssueMessage } from '@/lib/schemas'
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const user = await getServerUser()
   if (!user?.id) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -28,7 +29,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user?.id) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })

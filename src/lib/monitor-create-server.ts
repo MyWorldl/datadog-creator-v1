@@ -1,7 +1,7 @@
 // src/lib/monitor-create-server.ts
 //
 // Criação idempotente de um plano de monitores (Infra ou APM) — extraído de
-// infra-monitors/route.js pra ser reaproveitado também por apm-monitors/route.js.
+// infra-monitors/route.ts pra ser reaproveitado também por apm-monitors/route.ts.
 //
 // Idempotência: antes de criar, busca os monitores já existentes com a tag
 // created_by:monitorscreator e pula (skip) qualquer item do plano cujo NOME
@@ -13,9 +13,22 @@
 
 import { ddPost, listMonitors } from './datadog-server.ts'
 import type { DatadogCtx } from './datadog-server.ts'
-import type { Plan } from './schemas.ts'
 
 const MONITORSCREATOR_TAG = 'created_by:monitorscreator'
+
+// Formato mínimo comum aos 3 shapes de plano que passam por aqui: o array já
+// validado por schemas.ts (Plan, passthrough) vindo do AuditMonitors/wizard,
+// e os InfraPlanItem[]/PlanItem[] montados por infra.ts/discovery.ts a partir
+// de um discovery bruto. Sem index signature no payload (diferente de Plan)
+// de propósito — isso é o que permite qualquer um dos 3 shapes reais ser
+// aceito aqui sem cast, já que todos têm pelo menos name/type/query.
+export interface MonitorPlanEntry {
+  kind?: unknown
+  service?: unknown
+  operation?: unknown
+  query?: unknown
+  payload: { name: string; type: string; query: string }
+}
 
 function sleep(ms: number): Promise<void> { return new Promise(res => setTimeout(res, ms)) }
 
@@ -50,7 +63,7 @@ export interface CreatePlanResult {
   results: PlanResultItem[]
 }
 
-export async function createPlanIdempotent(ctx: DatadogCtx, plan: Plan): Promise<CreatePlanResult> {
+export async function createPlanIdempotent(ctx: DatadogCtx, plan: MonitorPlanEntry[]): Promise<CreatePlanResult> {
   // Idempotência: nomes de monitores já existentes criados pelo app. Falha na
   // listagem não bloqueia a criação — só desativa a checagem (melhor criar
   // com risco de duplicar do que travar o usuário).

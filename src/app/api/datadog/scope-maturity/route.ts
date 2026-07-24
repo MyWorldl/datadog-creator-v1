@@ -1,4 +1,4 @@
-// src/app/api/datadog/scope-maturity/route.js
+// src/app/api/datadog/scope-maturity/route.ts
 //
 // Calcula um score de maturidade (0-100) do ambiente Datadog a partir de
 // dados coletados NO SERVIDOR (via chaves da sessão) — sem chamadas do
@@ -12,7 +12,7 @@
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
-import { analyzeHostCoverage, INFRA_CATALOG } from '@/lib/audit'
+import { analyzeHostCoverage, INFRA_CATALOG, type DatadogMonitor } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 
@@ -22,10 +22,29 @@ import { recordScore, computeDelta } from '@/lib/score-history'
 const REQUIRED_TAGS = ['env', 'service', 'version']
 const CACHE_TTL_MS = 2 * 60 * 1000 // 2 min — suficiente pra absorver refreshes/múltiplos usuários
 
-function pct(n, d) { return d > 0 ? Math.round((n / d) * 100) : 0 }
-function clamp(n) { return Math.max(0, Math.min(100, Math.round(n))) }
+function pct(n: number, d: number): number { return d > 0 ? Math.round((n / d) * 100) : 0 }
+function clamp(n: number): number { return Math.max(0, Math.min(100, Math.round(n))) }
 
-export async function GET() {
+interface HostRaw {
+  host_name?: string
+  name?: string
+  sources?: string[]
+  tags_by_source?: Record<string, string[]>
+}
+
+interface DimensionEntry {
+  key: string
+  label: string
+  measured: boolean
+  score: number | null
+  detail: string
+}
+
+interface ApmServicesResponse {
+  data?: { id?: string; attributes?: { services?: string[] } }[] | { attributes?: { services?: string[] } }
+}
+
+export async function GET(): Promise<Response> {
   const user = await getServerUser()
   if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
@@ -44,14 +63,14 @@ export async function GET() {
   // Coletas (em paralelo)
   const [monitorsR, hostsR, totalsR, apmR, dashR, sloR, awsR, gcpR, azureR] = await Promise.all([
     listMonitors(ctx),
-    ddGet(ctx, '/api/v1/hosts?count=1000'),
-    ddGet(ctx, '/api/v1/hosts/totals'),
-    ddGet(ctx, '/api/v2/apm/services?filter[env]=*'),
-    ddGet(ctx, '/api/v1/dashboard'),
-    ddGet(ctx, '/api/v1/slo?limit=1000'),
-    ddGet(ctx, '/api/v1/integration/aws'),
-    ddGet(ctx, '/api/v1/integration/gcp'),
-    ddGet(ctx, '/api/v1/integration/azure'),
+    ddGet<{ host_list?: HostRaw[] }>(ctx, '/api/v1/hosts?count=1000'),
+    ddGet<{ total_active?: number; total_up?: number }>(ctx, '/api/v1/hosts/totals'),
+    ddGet<ApmServicesResponse>(ctx, '/api/v2/apm/services?filter[env]=*'),
+    ddGet<{ dashboards?: unknown[] }>(ctx, '/api/v1/dashboard'),
+    ddGet<{ data?: unknown[] }>(ctx, '/api/v1/slo?limit=1000'),
+    ddGet<unknown[]>(ctx, '/api/v1/integration/aws'),
+    ddGet<unknown[]>(ctx, '/api/v1/integration/gcp'),
+    ddGet<unknown[]>(ctx, '/api/v1/integration/azure'),
   ])
 
   // Se nem os monitores nem os hosts vierem, provavelmente é auth/site.
@@ -62,26 +81,27 @@ export async function GET() {
     )
   }
 
-  const monitors = Array.isArray(monitorsR.json) ? monitorsR.json : []
+  const monitors = (Array.isArray(monitorsR.json) ? monitorsR.json : []) as DatadogMonitor[]
   const hosts = hostsR.json?.host_list || []
-  const hostNames = hosts.map(h => h.host_name || h.name).filter(Boolean)
+  const hostNames = hosts.map(h => h.host_name || h.name).filter(Boolean) as string[]
   const totals = totalsR.json || {}
   const apmServices = (() => {
     const data = apmR.json?.data
-    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean)
+    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean) as string[]
     if (data?.attributes?.services) return data.attributes.services
-    return []
+    return [] as string[]
   })()
   const servicesCount = new Set(apmServices).size
   const dashboards = dashR.json?.dashboards || []
   const slos = sloR.json?.data || []
 
   // Helpers de tags
-  const hostTags = (h) => Object.values(h.tags_by_source || {}).flat()
-  const hasTagKey = (tags, key) => (tags || []).some(t => t.startsWith(key + ':'))
+  const hostTags = (h: HostRaw): string[] => Object.values(h.tags_by_source || {}).flat()
+  const hasTagKey = (tags: string[], key: string): boolean => (tags || []).some(t => t.startsWith(key + ':'))
 
-  const dims = []
-  const add = (key, label, measured, score, detail) => dims.push({ key, label, measured, score: measured ? clamp(score) : null, detail })
+  const dims: DimensionEntry[] = []
+  const add = (key: string, label: string, measured: boolean, score: number, detail: string): number =>
+    dims.push({ key, label, measured, score: measured ? clamp(score) : null, detail })
 
   // Coletas adicionais (logs, SLO history, eventos) para evoluir os N/D.
   const toMs = Date.now(), fromMs = toMs - 24 * 3600 * 1000
@@ -133,7 +153,7 @@ export async function GET() {
   // dava nota máxima tanto para 6 serviços quanto para 6 de 309).
   if (apmR.ok) {
     const apmSet = new Set(apmServices)
-    const svcFromHosts = new Set()
+    const svcFromHosts = new Set<string>()
     for (const h of hosts) for (const t of hostTags(h)) if (t.startsWith('service:')) svcFromHosts.add(t.slice('service:'.length))
     const universe = new Set([...apmSet, ...svcFromHosts])
     const apmScore = universe.size ? pct(apmSet.size, universe.size) : (apmSet.size > 0 ? 100 : 0)
@@ -157,7 +177,7 @@ export async function GET() {
   // criador, o que inflava o KPI). Vale @notificação no aviso ou tag team/owner.
   if (monitorsR.ok && monitors.length) {
     const NOTIFY_RE = /@[\w.-]+/ // @slack-…, @pagerduty-…, @team-…, @user@dominio
-    const routed = monitors.filter(m => NOTIFY_RE.test(String(m.message || '')) || (m.tags || []).some(t => t.startsWith('team:') || t.startsWith('owner:'))).length
+    const routed = monitors.filter(m => NOTIFY_RE.test(String(m.message || '')) || ((m.tags as string[]) || []).some(t => t.startsWith('team:') || t.startsWith('owner:'))).length
     add('monitorsOwner', 'Monitores roteados (dono/notificação)', true, pct(routed, monitors.length), `${routed} de ${monitors.length} monitores roteiam para um dono (@notificação no aviso ou tag team/owner). creator não conta — o que importa é o alerta chegar a quem age.`)
   } else add('monitorsOwner', 'Monitores roteados (dono/notificação)', false, 0, 'Sem dados de monitores.')
 
@@ -186,7 +206,7 @@ export async function GET() {
   // 40 para sempre. Agora ≥1 provedor integrado já é maduro (base 80), +10 por
   // provedor adicional; nº de contas entra no detalhe como sinal de completude.
   {
-    const acct = (r) => r.ok && Array.isArray(r.json) ? r.json.length : 0
+    const acct = (r: { ok: boolean; json?: unknown[] }): number => r.ok && Array.isArray(r.json) ? r.json.length : 0
     const providers = [{ name: 'AWS', n: acct(awsR) }, { name: 'GCP', n: acct(gcpR) }, { name: 'Azure', n: acct(azureR) }]
     const integrated = providers.filter(p => p.n > 0)
     const cloudScore = integrated.length === 0 ? 0 : Math.min(100, 80 + (integrated.length - 1) * 10)
@@ -218,7 +238,7 @@ export async function GET() {
 
   // 14. Error Budget respeitado — via SLO history
   if (budget.measured) {
-    add('errorBudget', 'Error Budget respeitado', true, budget.pct, budget.detail)
+    add('errorBudget', 'Error Budget respeitado', true, budget.pct ?? 0, budget.detail ?? '')
   } else {
     add('errorBudget', 'Error Budget respeitado', false, 0, budget.detail || 'Requer histórico de SLO.')
   }
@@ -230,7 +250,7 @@ export async function GET() {
   // Doc: https://docs.datadoghq.com/account_management/billing/usage_metrics/
   const daySec = 24 * 3600
   const dTo = Math.floor(toMs / 1000), dFrom = dTo - daySec
-  const active = async (q) => { const r = await queryMetric(ctx, q, dFrom, dTo); return r.ok && r.points.some(p => p > 0) }
+  const active = async (q: string): Promise<boolean> => { const r = await queryMetric(ctx, q, dFrom, dTo); return r.ok && !!r.points?.some(p => p > 0) }
   const [rumOn, synthOn, profOn, dbmOn] = await Promise.all([
     active('sum:datadog.estimated_usage.rum.sessions{*}.as_count()'),
     active('sum:datadog.estimated_usage.synthetics.api_test_runs{*}.as_count()'),
@@ -282,23 +302,23 @@ export async function GET() {
   const pillars = PILLARS.map(p => {
     const members = p.dims.map(k => dimByKey[k]).filter(Boolean)
     const mm = members.filter(m => m.measured)
-    const pScore = mm.length ? clamp(mm.reduce((a, m) => a + m.score, 0) / mm.length) : null
+    const pScore = mm.length ? clamp(mm.reduce((a, m) => a + (m.score ?? 0), 0) / mm.length) : null
     return { key: p.key, label: p.label, score: pScore, measured: mm.length > 0, maduro: p.maduro, imaturo: p.imaturo, dimensions: members }
   })
 
   // Score geral (círculo) = média dos pilares medidos.
   const measuredPillars = pillars.filter(p => p.measured)
-  const score = measuredPillars.length ? clamp(measuredPillars.reduce((a, p) => a + p.score, 0) / measuredPillars.length) : 0
+  const score = measuredPillars.length ? clamp(measuredPillars.reduce((a, p) => a + (p.score ?? 0), 0) / measuredPillars.length) : 0
 
   // Nível 1-5 por faixa de 20 pontos, mas TRAVADO PELO ELO MAIS FRACO: um pilar
   // forte não pode mascarar um crítico. O nível não passa de (nível do pior
   // pilar + 1), então enquanto houver pilar muito atrás o ambiente não "sobe".
   // Mesma filosofia do refino do AuditMonitors (média não infla o resultado).
-  const bandLevel = (v) => Math.max(1, Math.min(5, Math.floor(v / 20) + 1))
-  const LEVEL_LABELS = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
+  const bandLevel = (v: number): number => Math.max(1, Math.min(5, Math.floor(v / 20) + 1))
+  const LEVEL_LABELS: Record<number, string> = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
   const levelFromScore = bandLevel(score)
-  const weakest = measuredPillars.length ? measuredPillars.reduce((a, p) => p.score < a.score ? p : a, measuredPillars[0]) : null
-  const levelCap = weakest ? bandLevel(weakest.score) + 1 : 5
+  const weakest = measuredPillars.length ? measuredPillars.reduce((a, p) => (p.score ?? 0) < (a.score ?? 0) ? p : a, measuredPillars[0]) : null
+  const levelCap = weakest ? bandLevel(weakest.score ?? 0) + 1 : 5
   const level = measuredPillars.length ? Math.min(levelFromScore, levelCap) : 1
   // Se o teto do elo mais fraco rebaixou o nível, informa qual pilar segurou.
   const levelNote = weakest && level < levelFromScore

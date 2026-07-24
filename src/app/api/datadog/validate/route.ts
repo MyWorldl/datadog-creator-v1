@@ -1,4 +1,4 @@
-// src/app/api/datadog/validate/route.js
+// src/app/api/datadog/validate/route.ts
 //
 // Sonda de autenticação: confere se a API key + Application key da sessão são
 // válidas para o site configurado.
@@ -8,12 +8,13 @@
 // 401 normalmente = API key inválida/expirada/de outro site.
 // 403 normalmente = Application key sem permissão/escopo.
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, type DdResult } from '@/lib/datadog-server'
 import { datadogKeysSchema, firstIssueMessage } from '@/lib/schemas'
 
-function friendlyReason(r, site) {
+function friendlyReason(r: DdResult, site: string): string {
   if (!r.status) return 'Falha de rede: ' + (r.error || 'desconhecida')
   if (r.status === 401) {
     return `API key inválida para o site ${site} (401). Verifique se a chave é deste site e não foi revogada, ou se você não trocou API Key e Application Key de lugar.`
@@ -27,7 +28,7 @@ function friendlyReason(r, site) {
   return `Datadog respondeu ${r.status}.`
 }
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const user = await getServerUser()
   if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -60,7 +61,7 @@ export async function GET() {
 
 // POST — valida chaves ainda não salvas (usado no formulário "Adicionar org",
 // antes de gravar a conexão no Supabase). Não persiste nada.
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })

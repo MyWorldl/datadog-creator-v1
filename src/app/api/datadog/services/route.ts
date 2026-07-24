@@ -1,4 +1,4 @@
-// src/app/api/datadog/services/route.js
+// src/app/api/datadog/services/route.ts
 //
 // Descobre os serviços APM do ambiente do usuário.
 // Doc: GET /api/v2/apm/services?filter[env]=*  (escopo apm_read)
@@ -6,12 +6,17 @@
 //
 // As chaves vêm dos cookies httpOnly da sessão — nunca do browser.
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 import { envQuerySchema, firstIssueMessage } from '@/lib/schemas'
 
-export async function GET(request) {
+interface ApmServicesResponse {
+  data?: { id?: string; attributes?: { services?: string[] } }[] | { attributes?: { services?: string[] } }
+}
+
+export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })
@@ -33,7 +38,7 @@ export async function GET(request) {
   const env = parsedEnv.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const r = await ddGet(ctx, `/api/v2/apm/services?filter[env]=${encodeURIComponent(env)}`)
+  const r = await ddGet<ApmServicesResponse>(ctx, `/api/v2/apm/services?filter[env]=${encodeURIComponent(env)}`)
 
   if (!r.ok) {
     // Falha de rede (sem status HTTP do Datadog)
@@ -56,13 +61,13 @@ export async function GET(request) {
 
   // A resposta traz data.attributes.services (lista de nomes).
   // Fazemos parsing defensivo para tolerar variações de formato.
-  let services = []
+  let services: string[] = []
   const data = r.json?.data
   if (Array.isArray(data)) {
     services = data
       .map(d => d?.attributes?.services || d?.id)
       .flat()
-      .filter(Boolean)
+      .filter(Boolean) as string[]
   } else if (data?.attributes?.services) {
     services = data.attributes.services
   }

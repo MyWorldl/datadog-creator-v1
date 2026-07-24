@@ -1,4 +1,4 @@
-// src/app/api/datadog/namespaces/route.js
+// src/app/api/datadog/namespaces/route.ts
 //
 // Descobre os valores de kube_namespace COM TRÁFEGO APM, via Metrics Query
 // API: agrupa métricas de trace por kube_namespace e enumera os valores
@@ -23,12 +23,13 @@
 //
 // As chaves vêm dos cookies httpOnly da sessão — nunca do browser.
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, metricTagValues, isSafeDqlToken } from '@/lib/datadog-server'
 import { NAMESPACE_PROBE_OPERATIONS } from '@/lib/discovery'
 
-export async function GET(request) {
+export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) {
     return Response.json({ error: 'Não autenticado.' }, { status: 401 })

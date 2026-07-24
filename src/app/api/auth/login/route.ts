@@ -1,4 +1,4 @@
-// src/app/api/auth/login/route.js
+// src/app/api/auth/login/route.ts
 //
 // Login via Supabase Auth. Fica num Route Handler (em vez de chamar
 // signInWithPassword direto do browser) para preservar o rate-limit por IP
@@ -20,10 +20,11 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { NextRequest } from 'next/server'
 import { getClientIp, checkLoginRateLimit, recordFailedLogin, resetLoginAttempts } from '@/lib/rate-limit'
 import { logError } from '@/lib/logger'
 
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<Response> {
   const ip = getClientIp(request)
   const rl = await checkLoginRateLimit(ip)
   if (!rl.allowed) {

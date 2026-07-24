@@ -154,7 +154,7 @@ export function pickPrimaryOperation(ops: string[]): string {
 // operação primária). A tag kube_namespace não é propagada com a mesma
 // cobertura que service nas métricas de trace (confirmado em smoke-test:
 // filtrar direto por kube_namespace:<ns> perdia a maioria das operations) —
-// por isso namespace-operations/route.js primeiro descobre os SERVIÇOS do
+// por isso namespace-operations/route.ts primeiro descobre os SERVIÇOS do
 // namespace usando essas sondas, depois busca operations por serviço.
 export const NAMESPACE_PROBE_OPERATIONS = [
   'http.request', 'servlet.request', 'grpc.server', 'rack.request',

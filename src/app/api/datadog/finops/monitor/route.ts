@@ -1,4 +1,4 @@
-// src/app/api/datadog/finops/monitor/route.js
+// src/app/api/datadog/finops/monitor/route.ts
 //
 // Cria um monitor de ANOMALY DETECTION sobre uma métrica de licenciamento
 // (datadog.estimated_usage.*), com direction='both' para alarmar tanto
@@ -9,6 +9,7 @@
 //  - o trigger_window (options.threshold_windows) DEVE casar com o
 //    alert_window da query.  https://docs.datadoghq.com/monitors/types/anomaly/
 
+import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddPost, isSafeDqlToken } from '@/lib/datadog-server'
@@ -17,7 +18,7 @@ const ALGORITHMS = ['basic', 'agile', 'robust']
 const SEASONS = ['hourly', 'daily', 'weekly']
 const WINDOWS = ['last_5m', 'last_15m', 'last_30m', 'last_1h', 'last_4h']
 
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
   if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
@@ -62,12 +63,12 @@ export async function POST(request) {
   }
 
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const r = await ddPost(ctx, '/api/v1/monitor', payload)
+  const r = await ddPost<{ id?: unknown; errors?: string[] }>(ctx, '/api/v1/monitor', payload)
   if (!r.ok) {
     if (!r.status) {
       return Response.json({ error: 'Falha de rede: ' + r.error, query }, { status: 502 })
     }
     return Response.json({ error: r.json?.errors?.join('; ') || `Falha ao criar monitor (${r.status}).`, query }, { status: 502 })
   }
-  return Response.json({ ok: true, id: r.json.id, name: payload.name, query, url: `https://app.${site}/monitors/${r.json.id}` })
+  return Response.json({ ok: true, id: r.json?.id, name: payload.name, query, url: `https://app.${site}/monitors/${r.json?.id}` })
 }

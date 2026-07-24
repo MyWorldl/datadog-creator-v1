@@ -1,4 +1,4 @@
-// src/app/api/datadog/audit-monitors/route.js
+// src/app/api/datadog/audit-monitors/route.ts
 //
 // AuditMonitors: analisa o ambiente (hosts + serviços APM + monitores) e
 // devolve a cobertura de monitoramento por métrica-chave, além de uma sugestão
@@ -10,13 +10,23 @@ import { ctxFrom, ddGet, listMonitors, listHosts } from '@/lib/datadog-server'
 import {
   analyzeCoverage, coverageScoreWeighted, buildSuggestedInfra, buildSuggestedApm,
   analyzeHostCoverage, analyzeServiceCoverage, INFRA_CATALOG, APM_CATALOG,
+  type DatadogMonitor,
 } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 
+interface ApmServicesResponse {
+  data?: { id?: string; attributes?: { services?: string[] } }[] | { attributes?: { services?: string[] } }
+}
+
+interface HostRaw {
+  host_name?: string
+  name?: string
+}
+
 const CACHE_TTL_MS = 60 * 1000
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   const user = await getServerUser()
   if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
@@ -33,20 +43,20 @@ export async function GET() {
   const [monitorsR, hostsR, apmR] = await Promise.all([
     listMonitors(ctx),
     listHosts(ctx),
-    ddGet(ctx, '/api/v2/apm/services?filter[env]=*'),
+    ddGet<ApmServicesResponse>(ctx, '/api/v2/apm/services?filter[env]=*'),
   ])
 
   if (!monitorsR.ok) {
     return Response.json({ error: `Falha ao listar monitores (${monitorsR.status || monitorsR.error}).` }, { status: monitorsR.status === 403 ? 403 : 502 })
   }
 
-  const monitors = Array.isArray(monitorsR.json) ? monitorsR.json : []
-  const hosts = (hostsR.ok ? hostsR.json : []).map(h => h.host_name || h.name).filter(Boolean)
+  const monitors = (Array.isArray(monitorsR.json) ? monitorsR.json : []) as DatadogMonitor[]
+  const hosts = ((hostsR.ok ? hostsR.json : []) as HostRaw[]).map(h => h.host_name || h.name).filter(Boolean) as string[]
   const apmServices = (() => {
     const data = apmR.json?.data
-    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean)
+    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean) as string[]
     if (data?.attributes?.services) return data.attributes.services
-    return []
+    return [] as string[]
   })()
   const services = [...new Set(apmServices)].sort()
   const serviceCount = services.length
