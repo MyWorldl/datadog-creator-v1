@@ -11,6 +11,7 @@
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, listHosts } from '@/lib/datadog-server'
+import { hostFilterSchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function GET(request) {
   const user = await getServerUser()
@@ -27,7 +28,11 @@ export async function GET(request) {
   }
 
   const { searchParams } = new URL(request.url)
-  const filter = (searchParams.get('filter') || '').trim()
+  const parsedFilter = hostFilterSchema.safeParse(searchParams.get('filter') || '')
+  if (!parsedFilter.success) {
+    return Response.json({ error: firstIssueMessage(parsedFilter.error) }, { status: 400 })
+  }
+  const filter = parsedFilter.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
   const r = await listHosts(ctx, filter)

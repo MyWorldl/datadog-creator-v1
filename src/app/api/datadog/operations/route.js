@@ -12,6 +12,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, traceOperations } from '@/lib/datadog-server'
 import { pickPrimaryOperation } from '@/lib/discovery'
+import { parseDqlTokenList } from '@/lib/schemas'
 
 async function operationsForService(ctx, service) {
   const r = await traceOperations(ctx, `service:${service}`)
@@ -32,12 +33,11 @@ export async function GET(request) {
   const ctx = ctxFrom({ apiKey, appKey, site })
 
   const { searchParams } = new URL(request.url)
-  const services = (searchParams.get('services') || '')
-    .split(',').map(s => s.trim()).filter(Boolean)
-
-  if (services.length === 0) {
-    return Response.json({ error: 'Informe ao menos um serviço.' }, { status: 400 })
+  const parsed = parseDqlTokenList(searchParams.get('services'), 'serviço')
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.issues[0].message }, { status: 400 })
   }
+  const services = parsed.data
 
   const results = {}
   for (const svc of services) {

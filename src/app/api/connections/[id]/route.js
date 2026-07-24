@@ -5,6 +5,7 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { activateConnection, deleteConnection } from '@/lib/connections'
+import { connectionIdSchema, firstIssueMessage } from '@/lib/schemas'
 
 export async function PATCH(request, { params }) {
   const user = await getServerUser()
@@ -13,8 +14,12 @@ export async function PATCH(request, { params }) {
   }
 
   const { id } = await params
+  const parsedId = connectionIdSchema.safeParse(id)
+  if (!parsedId.success) {
+    return Response.json({ error: firstIssueMessage(parsedId.error) }, { status: 400 })
+  }
   try {
-    await activateConnection(user.id, id)
+    await activateConnection(user.id, parsedId.data)
     return Response.json({ ok: true })
   } catch (e) {
     // "Conexão não encontrada." é uma mensagem segura e específica lançada
@@ -35,8 +40,12 @@ export async function DELETE(request, { params }) {
   }
 
   const { id } = await params
+  const parsedId = connectionIdSchema.safeParse(id)
+  if (!parsedId.success) {
+    return Response.json({ error: firstIssueMessage(parsedId.error) }, { status: 400 })
+  }
   try {
-    await deleteConnection(user.id, id)
+    await deleteConnection(user.id, parsedId.data)
     return Response.json({ ok: true })
   } catch (e) {
     console.error('[connections] falha ao remover:', e)
