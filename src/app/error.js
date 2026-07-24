@@ -13,11 +13,15 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { logError } from '@/lib/logger'
 
 export default function Error({ error, reset }) {
   useEffect(() => {
     logError('app/error-boundary', error, { digest: error?.digest })
+    // Sem NEXT_PUBLIC_SENTRY_DSN, Sentry.init() nunca rodou — captureException
+    // não lança nesse caso, só não envia nada (SDK já trata isso sozinho).
+    Sentry.captureException(error)
   }, [error])
 
   return (

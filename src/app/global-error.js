@@ -10,11 +10,13 @@
 'use client'
 
 import { useEffect } from 'react'
+import * as Sentry from '@sentry/nextjs'
 import { logError } from '@/lib/logger'
 
 export default function GlobalError({ error, reset }) {
   useEffect(() => {
     logError('app/global-error-boundary', error, { digest: error?.digest })
+    Sentry.captureException(error)
   }, [error])
 
   return (
