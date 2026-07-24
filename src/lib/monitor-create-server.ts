@@ -1,4 +1,4 @@
-// src/lib/monitor-create-server.js
+// src/lib/monitor-create-server.ts
 //
 // Criação idempotente de um plano de monitores (Infra ou APM) — extraído de
 // infra-monitors/route.js pra ser reaproveitado também por apm-monitors/route.js.
@@ -12,37 +12,58 @@
 // ser reportado como falha definitiva.
 
 import { ddPost, listMonitors } from './datadog-server.ts'
+import type { DatadogCtx } from './datadog-server.ts'
+import type { Plan } from './schemas.ts'
 
 const MONITORSCREATOR_TAG = 'created_by:monitorscreator'
 
-function sleep(ms) { return new Promise(res => setTimeout(res, ms)) }
+function sleep(ms: number): Promise<void> { return new Promise(res => setTimeout(res, ms)) }
 
-async function createWithRetry(ctx, payload, maxAttempts = 3) {
+async function createWithRetry(ctx: DatadogCtx, payload: unknown, maxAttempts = 3) {
   let lastErr
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const r = await ddPost(ctx, '/api/v1/monitor', payload)
+    const r = await ddPost<{ id?: unknown; errors?: string[] }>(ctx, '/api/v1/monitor', payload)
     if (r.ok) return r
     lastErr = r
     if (r.status !== 429) return r // só retenta rate limit
     await sleep(500 * attempt) // backoff: 500ms, 1000ms, 1500ms
   }
-  return lastErr
+  return lastErr!
 }
 
-export async function createPlanIdempotent(ctx, plan) {
+export interface PlanResultItem {
+  kind: unknown
+  service: unknown
+  operation: unknown
+  ok: boolean
+  skipped?: boolean
+  name?: string
+  id?: unknown
+  error?: unknown
+  query?: unknown
+}
+
+export interface CreatePlanResult {
+  created: number
+  skipped: number
+  total: number
+  results: PlanResultItem[]
+}
+
+export async function createPlanIdempotent(ctx: DatadogCtx, plan: Plan): Promise<CreatePlanResult> {
   // Idempotência: nomes de monitores já existentes criados pelo app. Falha na
   // listagem não bloqueia a criação — só desativa a checagem (melhor criar
   // com risco de duplicar do que travar o usuário).
   const existingR = await listMonitors(ctx)
   const existingNames = new Set(
     existingR.ok
-      ? existingR.json
+      ? (existingR.json as { tags?: string[]; name?: string }[])
           .filter(m => Array.isArray(m.tags) && m.tags.includes(MONITORSCREATOR_TAG))
           .map(m => m.name)
       : []
   )
 
-  const results = []
+  const results: PlanResultItem[] = []
   for (const item of plan) {
     if (existingNames.has(item.payload.name)) {
       results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, skipped: true, name: item.payload.name })
@@ -53,7 +74,7 @@ export async function createPlanIdempotent(ctx, plan) {
       const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
       results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: false, error: errMsg, query: item.query })
     } else {
-      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, id: r.json.id, name: item.payload.name })
+      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, id: r.json?.id, name: item.payload.name })
     }
   }
 

@@ -12,7 +12,7 @@
 // Mantido de propósito com a MESMA assinatura de antes ({ apiKey, appKey, site })
 // para não exigir mudanças nas ~10 rotas que já consomem isso.
 
-import { getServerUser } from './supabase-server.js'
+import { getServerUser } from './supabase-server.ts'
 import { getActiveConnectionKeys } from './connections'
 import { logError } from './logger.ts'
 import { VALID_SITES } from './datadog-sites.ts'

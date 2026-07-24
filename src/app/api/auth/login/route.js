@@ -5,7 +5,7 @@
 // que já existia no next-auth (src/lib/rate-limit.ts) — se o login fosse
 // feito só no client, essa checagem ficaria de fora do caminho.
 //
-// Roda no servidor: usa o client de src/lib/supabase-server.js, que já seta
+// Roda no servidor: usa o client de src/lib/supabase-server.ts, que já seta
 // os cookies de sessão na resposta via @supabase/ssr.
 //
 // ⚠️ LIMITE DESSA PROTEÇÃO: NEXT_PUBLIC_SUPABASE_URL/ANON_KEY são públicas

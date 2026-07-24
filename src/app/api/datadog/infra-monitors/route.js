@@ -7,7 +7,7 @@
 //  - { plan: [...] } — plano já expandido, usado pelo AuditMonitors
 //    (buildSuggestedInfra em lib/audit.js já devolve o plan pronto).
 // Idempotência + retry em 429: ver createPlanIdempotent em
-// lib/monitor-create-server.js (compartilhado com apm-monitors/route.js).
+// lib/monitor-create-server.ts (compartilhado com apm-monitors/route.js).
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'

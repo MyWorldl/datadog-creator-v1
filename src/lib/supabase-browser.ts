@@ -1,7 +1,7 @@
-// src/lib/supabase-browser.js
+// src/lib/supabase-browser.ts
 //
 // Client Supabase pro browser (client components). Usa a chave `anon`
-// (client-safe, diferente da service_role usada em supabase-admin.js) —
+// (client-safe, diferente da service_role usada em supabase-admin.ts) —
 // gerencia a sessão via cookies legíveis por JS, para SupabaseAuthContext.js
 // e a rota de login conseguirem se manter sincronizados.
 
@@ -9,9 +9,9 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 
-let cached = null
+let cached: ReturnType<typeof createBrowserClient> | null = null
 
-export function supabaseBrowser() {
+export function supabaseBrowser(): ReturnType<typeof createBrowserClient> {
   if (cached) return cached
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''

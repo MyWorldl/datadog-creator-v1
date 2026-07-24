@@ -1,4 +1,4 @@
-// src/lib/score-history.js
+// src/lib/score-history.ts
 //
 // Guarda a série histórica de um score (ScopeMaturity, cobertura do
 // AuditMonitors) para desenhar o sparkline e calcular o delta ("▲ N desde a
@@ -17,20 +17,25 @@
 
 import { kvEnabled, kvGet, kvSetEx } from './kv-store.ts'
 
+export interface ScorePoint {
+  t: number
+  score: number
+}
+
 const CAP = 30                     // mantém os últimos 30 pontos (≈ 30 dias)
 const TTL_SEC = 120 * 24 * 3600    // expira em 120 dias sem atualização
-const mem = new Map()              // fallback em memória: key -> [{t, score}]
-const keyOf = (scope, id) => `ddc:hist:${scope}:${id}`
+const mem = new Map<string, ScorePoint[]>()  // fallback em memória: key -> [{t, score}]
+const keyOf = (scope: string, id: string): string => `ddc:hist:${scope}:${id}`
 
-function dayStart(t) { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); return d.getTime() }
+function dayStart(t: number): number { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); return d.getTime() }
 
-async function readRaw(key) {
+async function readRaw(key: string): Promise<ScorePoint[]> {
   if (kvEnabled()) {
-    try { const raw = await kvGet(key); return raw ? JSON.parse(raw) : [] } catch { /* cai p/ memória */ }
+    try { const raw = await kvGet(key); return raw ? JSON.parse(String(raw)) : [] } catch { /* cai p/ memória */ }
   }
   return mem.get(key) || []
 }
-async function writeRaw(key, hist) {
+async function writeRaw(key: string, hist: ScorePoint[]): Promise<void> {
   if (kvEnabled()) {
     try { await kvSetEx(key, JSON.stringify(hist), TTL_SEC); return } catch { /* cai p/ memória */ }
   }
@@ -38,7 +43,7 @@ async function writeRaw(key, hist) {
 }
 
 // Registra um novo ponto (substitui o do mesmo dia). Retorna a série resultante.
-export async function recordScore(scope, id, score) {
+export async function recordScore(scope: string, id: string, score: number): Promise<ScorePoint[]> {
   if (typeof score !== 'number' || Number.isNaN(score)) return await readRaw(keyOf(scope, id))
   const key = keyOf(scope, id)
   const now = Date.now()
@@ -51,10 +56,10 @@ export async function recordScore(scope, id, score) {
   return hist
 }
 
-export async function getHistory(scope, id) { return readRaw(keyOf(scope, id)) }
+export async function getHistory(scope: string, id: string): Promise<ScorePoint[]> { return readRaw(keyOf(scope, id)) }
 
 // Delta entre os dois últimos pontos (null se não houver base de comparação).
-export function computeDelta(hist) {
+export function computeDelta(hist: ScorePoint[]): number | null {
   if (!Array.isArray(hist) || hist.length < 2) return null
   return hist[hist.length - 1].score - hist[hist.length - 2].score
 }

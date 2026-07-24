@@ -1,7 +1,7 @@
-// src/lib/supabase-server.js
+// src/lib/supabase-server.ts
 //
 // Client Supabase pro servidor (Route Handlers / Server Components), usando
-// a chave `anon` + cookies() do App Router — diferente de supabase-admin.js
+// a chave `anon` + cookies() do App Router — diferente de supabase-admin.ts
 // (service_role, sem cookies, só para CRUD administrativo de conexões).
 //
 // getServerUser() substitui o antigo auth() do next-auth: usa getUser()
@@ -15,7 +15,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { logError } from './logger.ts'
 
-async function buildClient() {
+async function buildClient(): Promise<ReturnType<typeof createServerClient>> {
   const cookieStore = await cookies()
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -44,11 +44,17 @@ async function buildClient() {
   })
 }
 
-export async function supabaseServer() {
+export async function supabaseServer(): Promise<ReturnType<typeof createServerClient>> {
   return buildClient()
 }
 
-export async function getServerUser() {
+export interface ServerUser {
+  id: string
+  email: string | undefined
+  name: string
+}
+
+export async function getServerUser(): Promise<ServerUser | null> {
   try {
     const supabase = await buildClient()
     const { data: { user }, error } = await supabase.auth.getUser()

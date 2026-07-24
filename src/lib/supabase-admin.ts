@@ -1,4 +1,4 @@
-// src/lib/supabase-admin.js
+// src/lib/supabase-admin.ts
 //
 // Cliente Supabase (server-only) usado para persistir as conexões Datadog
 // (múltiplas orgs) por usuário. Usa a Service Role Key — por isso NUNCA pode
@@ -14,9 +14,16 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-let cached = null
+// Sem um tipo `Database` gerado (ver scripts/supabase-schema.sql — não há
+// geração automática de tipos configurada), o generic explícito <any> evita
+// que TS resolva o schema das tabelas como `never` (ReturnType<typeof
+// createClient> sem argumento explícito não aplica o default `Database = any`
+// do generic — só uma instanciação explícita faz isso).
+type SupabaseAdminClient = ReturnType<typeof createClient<any>>
 
-export function supabaseAdmin() {
+let cached: SupabaseAdminClient | null = null
+
+export function supabaseAdmin(): SupabaseAdminClient {
   if (cached) return cached
 
   const url = process.env.SUPABASE_URL || ''

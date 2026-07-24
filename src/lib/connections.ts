@@ -5,7 +5,7 @@
 // As chaves (API Key / App Key) ficam cifradas em repouso (lib/crypto-keys).
 //
 // Modelo: cada usuário (user.id, UUID do Supabase Auth — ver
-// lib/supabase-server.js) pode ter N conexões. Exatamente UMA fica marcada
+// lib/supabase-server.ts) pode ter N conexões. Exatamente UMA fica marcada
 // como `is_active` por vez — é essa que as rotas /api/datadog/* usam (via
 // readSessionKeys, em session-keys.ts).
 //

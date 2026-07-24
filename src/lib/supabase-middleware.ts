@@ -1,8 +1,8 @@
-// src/lib/supabase-middleware.js
+// src/lib/supabase-middleware.ts
 //
 // Client Supabase específico do proxy.js (Edge Runtime, NextRequest/
 // NextResponse — não a API cookies() do next/headers usada em
-// supabase-server.js). Único job: refrescar o cookie de sessão a cada
+// supabase-server.ts). Único job: refrescar o cookie de sessão a cada
 // request. Não bloqueia nada (mesmo modelo de segurança de hoje — ver
 // comentário em proxy.js sobre a CVE-2025-29927).
 //
@@ -12,9 +12,14 @@
 // persiste nessa integração.
 
 import { createServerClient } from '@supabase/ssr'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
-export function updateSupabaseSession(request) {
+export interface SupabaseSessionResult {
+  supabase: ReturnType<typeof createServerClient> | null
+  response: NextResponse
+}
+
+export function updateSupabaseSession(request: NextRequest): SupabaseSessionResult {
   let response = NextResponse.next({ request })
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''

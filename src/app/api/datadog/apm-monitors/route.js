@@ -8,7 +8,7 @@
 // idempotência — é a "Etapa 5", nunca roda 2x pro mesmo plano): a criação
 // pelo AuditMonitors PRECISA ser idempotente, porque reauditar depois de
 // criar parcialmente não pode duplicar. Por isso espelha infra-monitors/
-// route.js via createPlanIdempotent (lib/monitor-create-server.js) em vez de
+// route.js via createPlanIdempotent (lib/monitor-create-server.ts) em vez de
 // reaproveitar service-monitors/route.js.
 
 import { getServerUser } from '@/lib/supabase-server'
