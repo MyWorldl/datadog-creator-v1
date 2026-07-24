@@ -5,7 +5,7 @@ import {
   datadogKeysSchema, createConnectionSchema, firstIssueMessage,
   hostFilterSchema, envQuerySchema, monthQuerySchema, connectionIdSchema,
   parseDqlTokenList, planSchema, discoveryBodySchema,
-} from '../src/lib/schemas.js'
+} from '../src/lib/schemas.ts'
 
 test('datadogKeysSchema: aceita chaves e site válidos', () => {
   const r = datadogKeysSchema.safeParse({ apiKey: '1234567890', appKey: '1234567890', site: 'datadoghq.com' })

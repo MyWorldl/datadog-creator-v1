@@ -1,9 +1,9 @@
-// src/lib/session-keys.js
+// src/lib/session-keys.ts
 //
 // Fonte única das credenciais do Datadog usadas pelas rotas /api/datadog/*.
 //
 // Desde a v1.17.0, as credenciais NÃO ficam mais em cookie: cada usuário pode
-// ter várias conexões (orgs) salvas no Supabase (ver lib/connections.js),
+// ter várias conexões (orgs) salvas no Supabase (ver lib/connections.ts),
 // cifradas em repouso (lib/crypto-keys.ts). Esta função sempre lê a conexão
 // marcada como ATIVA do usuário logado — trocar de org é só marcar outra
 // conexão como ativa (POST /api/connections/:id/activate), sem precisar
@@ -14,15 +14,21 @@
 
 import { getServerUser } from './supabase-server.js'
 import { getActiveConnectionKeys } from './connections'
-import { logError } from './logger.js'
-import { VALID_SITES } from './datadog-sites.js'
+import { logError } from './logger.ts'
+import { VALID_SITES } from './datadog-sites.ts'
 
 // Reexportado pra não quebrar quem já importava VALID_SITES daqui — a
-// definição em si vive em datadog-sites.js (ver comentário lá: precisa
-// ficar isolada de next/headers pra ser importável em teste/schemas.js).
+// definição em si vive em datadog-sites.ts (ver comentário lá: precisa
+// ficar isolada de next/headers pra ser importável em teste/schemas.ts).
 export { VALID_SITES }
 
-export async function readSessionKeys() {
+export interface SessionKeys {
+  apiKey: string
+  appKey: string
+  site: string
+}
+
+export async function readSessionKeys(): Promise<SessionKeys> {
   const user = await getServerUser()
   if (!user?.id) return { apiKey: '', appKey: '', site: '' }
 

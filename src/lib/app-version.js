@@ -122,7 +122,7 @@ export const VERSION_HISTORY = [
     notes: [
       'CONNECTIONS_ENCRYPTION_KEY virou CONNECTIONS_ENCRYPTION_KEYS (mapa versão->chave) + CONNECTIONS_ENCRYPTION_KEY_VERSION — rotacionar a chave não invalida mais os dados já salvos, cada linha de datadog_connections guarda em qual versão foi cifrada (key_version).',
       'Novo scripts/reencrypt-connections.mjs migra linhas de versões antigas para a versão atual quando quiser aposentar de vez uma chave (suporta --dry-run).',
-      'Documentado explicitamente (route-cache.js) que o cache de rotas do Datadog não é rate-limit/proteção contra abuso — só reduz chamadas repetidas. Decisão consciente de não adicionar limite real por usuário nas rotas /api/datadog/*/api/connections/* por ora.',
+      'Documentado explicitamente (route-cache.ts) que o cache de rotas do Datadog não é rate-limit/proteção contra abuso — só reduz chamadas repetidas. Decisão consciente de não adicionar limite real por usuário nas rotas /api/datadog/*/api/connections/* por ora.',
     ],
   },
   {
@@ -239,7 +239,7 @@ export const VERSION_HISTORY = [
       'Cada usuário pode salvar quantas orgs quiser (nome, site, API/App Key) e alternar entre elas com um clique ("Usar esta org"), sem digitar as chaves de novo.',
       'Novo card "Conexões Datadog" (Configurações e Step 1 do wizard) substitui o antigo card de sessão única; removido o botão "Desconectar" — agora a ação equivalente é remover a org da lista, não desconectar a sessão inteira.',
       'Novas rotas: GET/POST /api/connections e PATCH/DELETE /api/connections/:id. A rota /api/datadog/validate ganhou um POST para testar chaves antes de salvar.',
-      'lib/session-keys.js mantém a mesma assinatura (readSessionKeys → {apiKey, appKey, site}) para não exigir mudanças nas rotas /api/datadog/* já existentes — por baixo, agora resolve a org ATIVA do usuário logado.',
+      'lib/session-keys.ts mantém a mesma assinatura (readSessionKeys → {apiKey, appKey, site}) para não exigir mudanças nas rotas /api/datadog/* já existentes — por baixo, agora resolve a org ATIVA do usuário logado.',
     ],
   },
   {

@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { checkApiRateLimit } from '../src/lib/rate-limit.js'
+import { checkApiRateLimit } from '../src/lib/rate-limit.ts'
 
 test('checkApiRateLimit: permite até o limite e bloqueia a partir da próxima', async () => {
   const id = `test-${Math.random()}`

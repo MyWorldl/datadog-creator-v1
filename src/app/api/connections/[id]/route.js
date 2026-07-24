@@ -23,7 +23,7 @@ export async function PATCH(request, { params }) {
     return Response.json({ ok: true })
   } catch (e) {
     // "Conexão não encontrada." é uma mensagem segura e específica lançada
-    // de propósito (lib/connections.js) — as demais (prefixo "Falha ao")
+    // de propósito (lib/connections.ts) — as demais (prefixo "Falha ao")
     // embutem o erro cru do driver Postgres/Supabase, não repassar ao cliente.
     if (e.message === 'Conexão não encontrada.') {
       return Response.json({ error: e.message }, { status: 404 })

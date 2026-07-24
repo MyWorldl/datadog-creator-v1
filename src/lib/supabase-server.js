@@ -13,7 +13,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { logError } from './logger.js'
+import { logError } from './logger.ts'
 
 async function buildClient() {
   const cookieStore = await cookies()
