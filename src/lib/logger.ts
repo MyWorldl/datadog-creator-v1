@@ -1,4 +1,4 @@
-// src/lib/logger.js
+// src/lib/logger.ts
 //
 // Logging estruturado mínimo — sem dependência nova (nada de pino/winston).
 // Escreve uma linha JSON por evento em vez de string solta: a maioria das
@@ -9,14 +9,27 @@
 // Convenção de scope: mesma tag "[modulo]" que várias partes do código já
 // usavam solta em console.error — só formaliza o formato, não muda onde loga.
 
-function serializeError(error) {
-  if (error instanceof Error) return { message: error.message, stack: error.stack }
-  if (typeof error === 'string') return { message: error }
-  return { message: String(error?.message ?? error ?? 'erro desconhecido') }
+type LogLevel = 'error' | 'warn'
+type LogExtra = Record<string, unknown> | undefined
+
+interface LogEntry {
+  level: LogLevel
+  scope: string
+  at: string
+  message: string
+  stack?: string
+  [key: string]: unknown
 }
 
-function emit(level, scope, error, extra) {
-  const entry = {
+function serializeError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) return { message: error.message, stack: error.stack }
+  if (typeof error === 'string') return { message: error }
+  const maybeMessage = (error as { message?: unknown } | null | undefined)?.message
+  return { message: String(maybeMessage ?? error ?? 'erro desconhecido') }
+}
+
+function emit(level: LogLevel, scope: string, error: unknown, extra: LogExtra): void {
+  const entry: LogEntry = {
     level,
     scope,
     at: new Date().toISOString(),
@@ -28,5 +41,5 @@ function emit(level, scope, error, extra) {
   else console.warn(line)
 }
 
-export function logError(scope, error, extra) { emit('error', scope, error, extra) }
-export function logWarn(scope, error, extra) { emit('warn', scope, error, extra) }
+export function logError(scope: string, error: unknown, extra?: LogExtra): void { emit('error', scope, error, extra) }
+export function logWarn(scope: string, error: unknown, extra?: LogExtra): void { emit('warn', scope, error, extra) }

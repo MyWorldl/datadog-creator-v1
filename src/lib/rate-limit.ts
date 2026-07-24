@@ -1,4 +1,4 @@
-// src/lib/rate-limit.js
+// src/lib/rate-limit.ts
 //
 // Dois limitadores independentes, mesmo backend (kv-store/Upstash com
 // fallback em memória), semânticas diferentes:
@@ -28,7 +28,19 @@
 //   getClientIp (sync) · checkLoginRateLimit / recordFailedLogin / resetLoginAttempts (async)
 //   checkApiRateLimit (async)
 
-import { kvEnabled, kvIncr, kvExpire, kvPttl, kvSetEx, kvDel } from './kv-store.js'
+import { kvEnabled, kvIncr, kvExpire, kvPttl, kvSetEx, kvDel } from './kv-store.ts'
+
+export interface RateLimitResult {
+  allowed: boolean
+  retryAfterSeconds?: number
+}
+
+// Só os headers que getClientIp de fato lê — evita depender do tipo Request
+// completo do DOM/undici (proxy.js passa um NextRequest, mas isso funciona
+// igual pra qualquer objeto com esse shape mínimo).
+interface RequestLike {
+  headers?: { get(name: string): string | null }
+}
 
 const WINDOW_MS = 15 * 60 * 1000    // janela de contagem de falhas
 const MAX_ATTEMPTS = 5              // falhas permitidas na janela
@@ -36,12 +48,18 @@ const LOCKOUT_MS = 15 * 60 * 1000   // bloqueio após estourar o limite
 
 const WINDOW_S = Math.floor(WINDOW_MS / 1000)
 const LOCKOUT_S = Math.floor(LOCKOUT_MS / 1000)
-const countKey = (ip) => `ddc:rl:count:${ip}`
-const lockKey = (ip) => `ddc:rl:lock:${ip}`
+const countKey = (ip: string) => `ddc:rl:count:${ip}`
+const lockKey = (ip: string) => `ddc:rl:lock:${ip}`
+
+interface LoginAttempt {
+  count: number
+  firstAttemptAt: number
+  lockedUntil: number | null
+}
 
 // ── fallback em memória ──
-const attempts = new Map() // ip -> { count, firstAttemptAt, lockedUntil }
-function cleanup(now) {
+const attempts = new Map<string, LoginAttempt>()
+function cleanup(now: number): void {
   for (const [key, entry] of attempts) {
     const lockExpired = !entry.lockedUntil || entry.lockedUntil < now
     const windowExpired = now - entry.firstAttemptAt > WINDOW_MS
@@ -50,7 +68,7 @@ function cleanup(now) {
 }
 
 // x-forwarded-for pode vir "ip-cliente, proxy1, proxy2" — o 1º é o cliente.
-export function getClientIp(request) {
+export function getClientIp(request: RequestLike): string {
   const headers = request?.headers
   if (!headers?.get) return 'unknown'
   const fwd = headers.get('x-forwarded-for') || ''
@@ -61,7 +79,7 @@ export function getClientIp(request) {
 }
 
 // Pode tentar logar agora? -> { allowed, retryAfterSeconds? }
-export async function checkLoginRateLimit(key) {
+export async function checkLoginRateLimit(key: string): Promise<RateLimitResult> {
   if (kvEnabled()) {
     try {
       const ttlMs = await kvPttl(lockKey(key)) // -2 sem chave, -1 sem expiração, >0 ms restantes
@@ -85,12 +103,12 @@ export async function checkLoginRateLimit(key) {
 }
 
 // Registra uma falha; ao estourar MAX_ATTEMPTS na janela, aplica o lockout.
-export async function recordFailedLogin(key) {
+export async function recordFailedLogin(key: string): Promise<void> {
   if (kvEnabled()) {
     try {
       const count = await kvIncr(countKey(key))
       if (count === 1) await kvExpire(countKey(key), WINDOW_S)
-      if (count >= MAX_ATTEMPTS) await kvSetEx(lockKey(key), '1', LOCKOUT_S)
+      if (typeof count === 'number' && count >= MAX_ATTEMPTS) await kvSetEx(lockKey(key), '1', LOCKOUT_S)
       return
     } catch {
       // cai para memória
@@ -107,7 +125,7 @@ export async function recordFailedLogin(key) {
 }
 
 // Limpa o histórico ao logar com sucesso.
-export async function resetLoginAttempts(key) {
+export async function resetLoginAttempts(key: string): Promise<void> {
   if (kvEnabled()) {
     try { await kvDel(countKey(key)); await kvDel(lockKey(key)); return }
     catch { /* cai para memória */ }
@@ -121,11 +139,16 @@ export async function resetLoginAttempts(key) {
 // bem menor que o que uma sessão comprometida conseguiria martelar sem limite.
 const API_WINDOW_S = 60
 const API_MAX_REQUESTS = 30
-const apiKeyOf = (id) => `ddc:arl:${id}`
+const apiKeyOf = (id: string) => `ddc:arl:${id}`
+
+interface ApiWindow {
+  count: number
+  windowStart: number
+}
 
 // ── fallback em memória (mesmo padrão de `attempts` acima, chave própria) ──
-const apiWindows = new Map() // id -> { count, windowStart }
-function apiCleanup(now) {
+const apiWindows = new Map<string, ApiWindow>()
+function apiCleanup(now: number): void {
   for (const [key, entry] of apiWindows) {
     if (now - entry.windowStart > API_WINDOW_S * 1000) apiWindows.delete(key)
   }
@@ -135,13 +158,13 @@ function apiCleanup(now) {
 // `id` é o identificador do limitador: "u:<userId>" quando autenticado,
 // "ip:<ip>" como fallback pra requisições sem sessão (que as rotas ainda vão
 // rejeitar com 401, mas não custa limitar antes de chegar lá).
-export async function checkApiRateLimit(id) {
+export async function checkApiRateLimit(id: string): Promise<RateLimitResult> {
   if (kvEnabled()) {
     try {
       const key = apiKeyOf(id)
       const count = await kvIncr(key)
       if (count === 1) await kvExpire(key, API_WINDOW_S)
-      if (count > API_MAX_REQUESTS) {
+      if (typeof count === 'number' && count > API_MAX_REQUESTS) {
         const ttlMs = await kvPttl(key)
         return { allowed: false, retryAfterSeconds: typeof ttlMs === 'number' && ttlMs > 0 ? Math.ceil(ttlMs / 1000) : API_WINDOW_S }
       }

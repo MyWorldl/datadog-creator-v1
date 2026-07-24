@@ -12,7 +12,7 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   // Auth NÃO vive mais aqui — quem cuida do login é o Supabase Auth (useSession).
   // Este context guarda preferências de UI + as conexões Datadog (múltiplas
-  // orgs, guardadas no Supabase — ver lib/connections.js) do usuário.
+  // orgs, guardadas no Supabase — ver lib/connections.ts) do usuário.
   const [theme, setTheme] = useState('system');
   const [datadogSite, setDatadogSite] = useState('datadoghq.com');
 

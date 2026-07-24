@@ -2,7 +2,7 @@
 //
 // Login via Supabase Auth. Fica num Route Handler (em vez de chamar
 // signInWithPassword direto do browser) para preservar o rate-limit por IP
-// que já existia no next-auth (src/lib/rate-limit.js) — se o login fosse
+// que já existia no next-auth (src/lib/rate-limit.ts) — se o login fosse
 // feito só no client, essa checagem ficaria de fora do caminho.
 //
 // Roda no servidor: usa o client de src/lib/supabase-server.js, que já seta

@@ -15,7 +15,7 @@
 // Nota: a gravação é read-modify-write (lê, anexa, grava). Para um uso interno
 // e de baixa frequência (as rotas têm cache), a chance de corrida é desprezível.
 
-import { kvEnabled, kvGet, kvSetEx } from './kv-store.js'
+import { kvEnabled, kvGet, kvSetEx } from './kv-store.ts'
 
 const CAP = 30                     // mantém os últimos 30 pontos (≈ 30 dias)
 const TTL_SEC = 120 * 24 * 3600    // expira em 120 dias sem atualização

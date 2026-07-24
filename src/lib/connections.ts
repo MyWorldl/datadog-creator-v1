@@ -1,4 +1,4 @@
-// src/lib/connections.js
+// src/lib/connections.ts
 //
 // CRUD das conexões Datadog (múltiplas orgs por usuário), guardadas no
 // Supabase (tabela `datadog_connections` — ver scripts/supabase-schema.sql).
@@ -7,7 +7,7 @@
 // Modelo: cada usuário (user.id, UUID do Supabase Auth — ver
 // lib/supabase-server.js) pode ter N conexões. Exatamente UMA fica marcada
 // como `is_active` por vez — é essa que as rotas /api/datadog/* usam (via
-// readSessionKeys, em session-keys.js).
+// readSessionKeys, em session-keys.ts).
 //
 // user_id é uuid com FK pra auth.users(id) ON DELETE CASCADE (ver
 // scripts/supabase-schema.sql) — remover o usuário no Supabase Auth já
@@ -18,10 +18,27 @@
 
 import { supabaseAdmin } from './supabase-admin'
 import { encryptSecret, decryptSecret } from './crypto-keys'
+import type { DatadogSite } from './datadog-sites.ts'
 
 const TABLE = 'datadog_connections'
 
-function toPublic(row) {
+export interface PublicConnection {
+  id: string
+  name: string
+  site: string
+  isActive: boolean
+  createdAt: string
+}
+
+interface ConnectionRow {
+  id: string
+  name: string
+  site: string
+  is_active: boolean
+  created_at: string
+}
+
+function toPublic(row: ConnectionRow): PublicConnection {
   return {
     id: row.id,
     name: row.name,
@@ -32,7 +49,7 @@ function toPublic(row) {
 }
 
 // Lista as conexões do usuário (sem expor as chaves cifradas nem decifradas).
-export async function listConnections(userId) {
+export async function listConnections(userId: string): Promise<PublicConnection[]> {
   const sb = supabaseAdmin()
   const { data, error } = await sb
     .from(TABLE)
@@ -44,8 +61,15 @@ export async function listConnections(userId) {
   return (data || []).map(toPublic)
 }
 
+export interface CreateConnectionInput {
+  name?: string
+  apiKey: string
+  appKey: string
+  site: DatadogSite | string
+}
+
 // Cria uma nova conexão. Se for a primeira do usuário, já nasce ativa.
-export async function createConnection(userId, { name, apiKey, appKey, site }) {
+export async function createConnection(userId: string, { name, apiKey, appKey, site }: CreateConnectionInput): Promise<PublicConnection> {
   const sb = supabaseAdmin()
 
   const { count, error: countErr } = await sb
@@ -82,7 +106,7 @@ export async function createConnection(userId, { name, apiKey, appKey, site }) {
 }
 
 // Marca uma conexão como ativa (e desmarca as demais do mesmo usuário).
-export async function activateConnection(userId, id) {
+export async function activateConnection(userId: string, id: string): Promise<true> {
   const sb = supabaseAdmin()
 
   // Confirma que a conexão pertence ao usuário antes de mexer em qualquer coisa.
@@ -112,7 +136,7 @@ export async function activateConnection(userId, id) {
 }
 
 // Remove uma conexão. Se era a ativa, promove a mais antiga restante (se houver).
-export async function deleteConnection(userId, id) {
+export async function deleteConnection(userId: string, id: string): Promise<true> {
   const sb = supabaseAdmin()
 
   const { data: target, error: findErr } = await sb
@@ -143,9 +167,17 @@ export async function deleteConnection(userId, id) {
   return true
 }
 
+export interface ActiveConnectionKeys {
+  id: string
+  name: string
+  site: string
+  apiKey: string
+  appKey: string
+}
+
 // Busca as credenciais (decifradas) da conexão ATIVA do usuário.
 // Retorna null se o usuário não tiver nenhuma conexão configurada.
-export async function getActiveConnectionKeys(userId) {
+export async function getActiveConnectionKeys(userId: string): Promise<ActiveConnectionKeys | null> {
   const sb = supabaseAdmin()
   const { data, error } = await sb
     .from(TABLE)

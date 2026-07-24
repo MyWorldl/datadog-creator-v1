@@ -1,4 +1,4 @@
-// src/lib/schemas.js
+// src/lib/schemas.ts
 //
 // Schemas de validação de input (zod) pras rotas de API — substituem
 // checagem manual (String(x||'').trim(), x.length < 10, etc.) por um
@@ -7,7 +7,7 @@
 // checagem manual por ora — migração incremental, não um rewrite de uma vez.
 
 import { z } from 'zod'
-import { VALID_SITES } from './datadog-sites.js'
+import { VALID_SITES } from './datadog-sites.ts'
 import { isSafeDqlToken } from './datadog-server.js'
 
 // Mesmo limiar (10 chars) que a checagem manual já usava — não é validação
@@ -19,15 +19,17 @@ export const datadogKeysSchema = z.object({
   appKey: z.string().trim().min(10, 'Application Key parece inválida.'),
   site: z.enum(VALID_SITES, { message: 'Site do Datadog inválido.' }),
 })
+export type DatadogKeys = z.infer<typeof datadogKeysSchema>
 
 // connections/route.js aceita tudo do schema acima + um nome opcional.
 export const createConnectionSchema = datadogKeysSchema.extend({
   name: z.string().trim().optional().default(''),
 })
+export type CreateConnectionInput = z.infer<typeof createConnectionSchema>
 
 // Extrai a primeira mensagem de erro do schema (formato já pensado pra virar
 // direto o campo `error` das respostas JSON das rotas).
-export function firstIssueMessage(zodError) {
+export function firstIssueMessage(zodError: z.ZodError | { issues?: { message?: string }[] }): string {
   return zodError.issues?.[0]?.message || 'Dados inválidos.'
 }
 
@@ -37,14 +39,20 @@ export function firstIssueMessage(zodError) {
 // reimplementar a allowlist em cada schema. Reforço de contrato/robustez
 // contra query malformada, não fronteira de segurança entre tenants (ver
 // comentário em datadog-server.js).
-const dqlToken = (label) => z.string().trim().refine(isSafeDqlToken, {
+const dqlToken = (label: string) => z.string().trim().refine(isSafeDqlToken, {
   message: `${label} inválido (use apenas letras, dígitos, ponto, underscore, hífen ou barra).`,
 })
+
+export interface DqlTokenListResult {
+  success: boolean
+  data?: string[]
+  error?: { issues: { message: string }[] }
+}
 
 // "a,b,c" -> ['a','b','c'], cada item validado como token DQL seguro.
 // Usada por operations (services) — namespace-operations já valida isso
 // inline (branch security-hardening), não duplicado aqui.
-export function parseDqlTokenList(raw, label) {
+export function parseDqlTokenList(raw: string | null | undefined, label: string): DqlTokenListResult {
   const items = String(raw || '').split(',').map(s => s.trim()).filter(Boolean)
   if (items.length === 0) return { success: false, error: { issues: [{ message: `Informe ao menos um ${label}.` }] } }
   for (const item of items) {
@@ -88,6 +96,7 @@ export const planItemSchema = z.object({
 }).passthrough()
 
 export const planSchema = z.array(planItemSchema).min(1, 'Plano vazio — nada a criar.')
+export type Plan = z.infer<typeof planSchema>
 
 // Formato "discovery bruto" (infra-monitors com {infra:...}, service-monitors
 // com {discovery:...} ou body direto): validação leve — só garante o formato
@@ -106,3 +115,4 @@ export const discoveryBodySchema = z.object({
   notifyNoData: z.boolean().optional(),
   renotifyInterval: z.number().optional(),
 }).passthrough()
+export type DiscoveryBody = z.infer<typeof discoveryBodySchema>

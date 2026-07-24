@@ -29,7 +29,7 @@
 //
 // Formato do valor cifrado (tudo em 1 string base64): iv(12) + tag(16) + ciphertext.
 // A versão da chave NÃO fica dentro desse payload — fica em `key_version`,
-// coluna separada (ver src/lib/connections.js).
+// coluna separada (ver src/lib/connections.ts).
 //
 // Primeiro arquivo migrado pra TypeScript (achado da auditoria: código de
 // criptografia/dinheiro é onde um erro de contrato entre tipos dói mais).
@@ -84,7 +84,7 @@ function loadCurrentVersion(): number {
 }
 
 // Busca a chave de uma versão específica. Erro nunca vaza a chave em si, só
-// números de versão — propaga até src/lib/session-keys.js, que já isola
+// números de versão — propaga até src/lib/session-keys.ts, que já isola
 // isso por usuário (não derruba a aplicação inteira).
 function keyForVersion(keys: Map<number, Buffer>, version: number): Buffer {
   const key = keys.get(version)
