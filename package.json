@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "test": "node --test",
     "check:version": "node scripts/check-version-sync.mjs",
     "bump:version": "node scripts/bump-version.mjs",
@@ -29,19 +30,22 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/node": "^22.20.1",
+    "@types/react": "19.2.17",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "husky": "^9.1.7",
     "lint-staged": "^17.2.0",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "sharp": "^0.35.3",
     "postcss": "^8.5.22"
   },
   "lint-staged": {
-    "*.{js,jsx}": "eslint --fix"
+    "*.{js,jsx,ts,tsx}": "eslint --fix"
   },
   "type": "module"
 }

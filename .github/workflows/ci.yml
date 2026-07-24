@@ -41,6 +41,12 @@ jobs:
       - name: ESLint
         run: npm run lint
 
+      # Migração incremental pra TypeScript (começou por crypto-keys.ts e
+      # finops-pricing.ts) — allowJs+checkJs:false no tsconfig.json faz o
+      # resto do projeto (ainda em .js) não ser type-checado, só os .ts novos.
+      - name: Type-check (tsc)
+        run: npm run typecheck
+
       - name: Testes (node --test)
         run: npm test
 

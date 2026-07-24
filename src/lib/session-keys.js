@@ -4,7 +4,7 @@
 //
 // Desde a v1.17.0, as credenciais NÃO ficam mais em cookie: cada usuário pode
 // ter várias conexões (orgs) salvas no Supabase (ver lib/connections.js),
-// cifradas em repouso (lib/crypto-keys.js). Esta função sempre lê a conexão
+// cifradas em repouso (lib/crypto-keys.ts). Esta função sempre lê a conexão
 // marcada como ATIVA do usuário logado — trocar de org é só marcar outra
 // conexão como ativa (POST /api/connections/:id/activate), sem precisar
 // digitar as chaves de novo.

@@ -1,4 +1,4 @@
-// src/lib/finops-pricing.js
+// src/lib/finops-pricing.ts
 //
 // Catálogo de produtos Datadog para o FinOps Insights.
 //
@@ -11,9 +11,9 @@
 //     .as_count()). Fonte: https://docs.datadoghq.com/account_management/billing/usage_metrics/
 //
 // AGREGAÇÃO POR PRODUTO (espelha como o Datadog fatura — Cost Details):
-//   'max' → pico do mês (high-water mark): hosts de infra/APM, DBM, profiler…
-//   'avg' → média do mês: custom metrics, fargate…
-//   'sum' → soma do mês (com .as_count()): logs (bytes/eventos), RUM, synthetics…
+//   'peak' → pico do mês (high-water mark): hosts de infra/APM, DBM, profiler…
+//   'avg'  → média do mês: custom metrics, containers…
+//   'sum'  → soma do mês (com .as_count()): logs (bytes/eventos), RUM, synthetics…
 //
 // price = preço de LISTA (anual) por unidade — ver pricing/list. Preço real
 // contratado difere (committed use/descontos); por isso é editável na UI.
@@ -27,8 +27,26 @@
 // para volumes muito grandes, o custo real tende a ficar ABAIXO do estimado
 // aqui (achado da auditoria — documentado, não corrigido, pois os blocos de
 // desconto não são públicos/fixos o bastante pra codificar com confiança).
+//
+// Segundo arquivo migrado pra TypeScript (achado da auditoria: código que
+// calcula custo é onde um erro de contrato entre tipos dói mais).
 
-export const PRODUCTS = [
+export type EstAgg = 'sum' | 'peak' | 'avg'
+
+export interface Product {
+  key: string
+  label: string
+  unit: string
+  price: number
+  per: number
+  bytes: boolean
+  fields: string[]
+  estMetric: string | null
+  estAgg: EstAgg | null
+  estCount: boolean
+}
+
+export const PRODUCTS: Product[] = [
   { key: 'infra',        label: 'Infrastructure Pro',      unit: 'hosts (p99)',   price: 15,   per: 1,    bytes: false, fields: ['infra_host_top99p_sum'], estMetric: 'datadog.estimated_usage.hosts', estAgg: 'peak', estCount: false },
   { key: 'apm',          label: 'APM',                     unit: 'hosts (p99)',   price: 31,   per: 1,    bytes: false, fields: ['apm_host_top99p_sum'], estMetric: 'datadog.estimated_usage.apm_hosts', estAgg: 'peak', estCount: false },
   { key: 'containers',   label: 'Container Monitoring',    unit: 'containers',    price: 1,    per: 1,    bytes: false, fields: ['container_hwm_sum', 'container_avg_sum'], estMetric: 'datadog.estimated_usage.containers', estAgg: 'avg', estCount: false },
@@ -57,17 +75,17 @@ export const PRODUCTS = [
 
 // Métricas de uso estimado (para o alarme de anomalia) — só as que existem.
 // https://docs.datadoghq.com/account_management/billing/usage_metrics/
-export const EST_METRICS = PRODUCTS
-  .filter(p => p.estMetric)
+export const EST_METRICS: { metric: string; label: string }[] = PRODUCTS
+  .filter((p): p is Product & { estMetric: string } => p.estMetric != null)
   .map(p => ({ metric: p.estMetric, label: p.label }))
 
-export function computeCost(value, price, per = 1, bytes = false) {
+export function computeCost(value: number | null | undefined, price: number, per = 1, bytes = false): number | null {
   if (value == null || Number.isNaN(value)) return null
   const base = bytes ? value / 1e9 : value
   return (base / per) * price
 }
 
-export const fmtMoney = (n) => n == null ? '—'
+export const fmtMoney = (n: number | null | undefined): string => n == null ? '—'
   : n.toLocaleString('pt-BR', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-export const fmtNum = (n) => n == null ? '—'
+export const fmtNum = (n: number | null | undefined): string => n == null ? '—'
   : n.toLocaleString('pt-BR', { maximumFractionDigits: 2 })

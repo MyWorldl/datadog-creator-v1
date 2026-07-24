@@ -4,10 +4,10 @@
 -- Cria a tabela que guarda as conexões Datadog (múltiplas orgs) por usuário.
 --
 -- As colunas api_key_enc / app_key_enc guardam as chaves JÁ CIFRADAS pelo
--- servidor (AES-256-GCM, ver src/lib/crypto-keys.js) — nunca texto plano.
+-- servidor (AES-256-GCM, ver src/lib/crypto-keys.ts) — nunca texto plano.
 -- key_version identifica QUAL versão de CONNECTIONS_ENCRYPTION_KEYS cifrou
 -- aquela linha — permite rotacionar a chave sem invalidar dados antigos de
--- uma vez só (ver comentário de rotação em src/lib/crypto-keys.js e o script
+-- uma vez só (ver comentário de rotação em src/lib/crypto-keys.ts e o script
 -- scripts/reencrypt-connections.mjs, usado quando quiser migrar linhas
 -- antigas pra versão atual e aposentar de vez uma chave velha).
 --

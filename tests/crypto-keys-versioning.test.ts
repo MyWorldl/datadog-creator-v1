@@ -11,7 +11,7 @@ import crypto from 'node:crypto'
 process.env.CONNECTIONS_ENCRYPTION_KEYS = JSON.stringify({ 1: crypto.randomBytes(32).toString('hex') })
 process.env.CONNECTIONS_ENCRYPTION_KEY_VERSION = '1'
 
-const { encryptSecret, decryptSecret } = await import('../src/lib/crypto-keys.js')
+const { encryptSecret, decryptSecret } = await import('../src/lib/crypto-keys.ts')
 
 test('decryptSecret: versão de chave inexistente lança erro claro', () => {
   const enc = encryptSecret('segredo-qualquer')

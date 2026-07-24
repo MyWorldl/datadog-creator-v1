@@ -1,7 +1,7 @@
 // tests/finops-pricing.test.js — node --test, sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeCost, PRODUCTS, EST_METRICS } from '../src/lib/finops-pricing.js'
+import { computeCost, PRODUCTS, EST_METRICS } from '../src/lib/finops-pricing.ts'
 
 test('computeCost: por unidade (host)', () => {
   assert.equal(computeCost(100, 15, 1, false), 1500) // 100 hosts × $15
@@ -36,6 +36,7 @@ test('apmIndexed: diferente de logsIndexed, tem estMetric (não sofre do "gap si
   const apmIndexed = PRODUCTS.find(p => p.key === 'apmIndexed')
   const logsIndexed = PRODUCTS.find(p => p.key === 'logsIndexed')
   assert.ok(apmIndexed, 'produto apmIndexed deveria existir no catálogo')
+  assert.ok(logsIndexed, 'produto logsIndexed deveria existir no catálogo')
   assert.equal(apmIndexed.estMetric, 'datadog.estimated_usage.apm.indexed_spans')
   assert.equal(apmIndexed.estAgg, 'sum')
   assert.equal(logsIndexed.estMetric, null, 'logsIndexed continua sem métrica estimada — limitação real da Datadog, não regressão')
@@ -48,7 +49,7 @@ test('catálogo tem produtos e cada um traz preço e base; métrica de uso é op
     assert.ok(typeof p.per === 'number' && p.per > 0, `${p.key} sem base 'per'`)
     if (p.estMetric != null) {
       assert.ok(p.estMetric.startsWith('datadog.estimated_usage.'), `${p.key} métrica inválida`)
-      assert.ok(['sum', 'peak', 'avg'].includes(p.estAgg), `${p.key} sem agregação válida`)
+      assert.ok(p.estAgg != null && ['sum', 'peak', 'avg'].includes(p.estAgg), `${p.key} sem agregação válida`)
     }
   }
   // EST_METRICS lista só os produtos que têm métrica estimada.
