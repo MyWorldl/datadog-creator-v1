@@ -68,6 +68,9 @@ const s: Record<string, CSSProperties> = {
 const statStyle = (c?: string): CSSProperties => ({ fontSize: 20, fontWeight: 800, color: c || 'var(--text-primary)' })
 const covStyle = (band: PercentBand): CSSProperties => ({ border: `1px solid ${bandColor(band)}`, background: bandBg(band), borderRadius: 10, padding: '12px 14px' })
 const covStatusStyle = (band: PercentBand): CSSProperties => ({ fontSize: 15, fontWeight: 800, color: bandColor(band) })
+// Selo de "recurso em desenvolvimento" — mesmo padrão visual usado no modo
+// outlier do MonitorsCreator (DiscoveryConfigureInfra.tsx).
+const previewBadgeStyle: CSSProperties = { fontSize: 9.5, fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 8 }
 
 interface SuggestionCardProps {
   title: string
@@ -163,7 +166,7 @@ function CoverageTable<T extends { gapCount: number; metrics: Record<string, boo
 }
 
 export default function AuditMonitorsPage() {
-  const { keysConfigured, datadogSite } = useApp()
+  const { keysConfigured, datadogSite, features } = useApp()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<AuditData | null>(null)
@@ -201,6 +204,10 @@ export default function AuditMonitorsPage() {
 
   const infra = data?.coverage?.filter(c => c.group === 'Infra') || []
   const apm = data?.coverage?.filter(c => c.group === 'APM') || []
+  // K8s/DBM: cobertura binária de ambiente (sem lista de nós/bancos
+  // descoberta pelo app) — o servidor só manda esses itens quando a flag
+  // k8sDbmCoverage está ligada; sem ela, envItems vem vazio naturalmente.
+  const envItems = data?.coverage?.filter(c => c.group === 'K8s' || c.group === 'DBM') || []
 
   return (
     <div>
@@ -326,6 +333,34 @@ export default function AuditMonitorsPage() {
                   rowLabel="Serviço"
                   footnote="Heurística por escopo da query: monitor com {*} cobre todos os serviços; monitor com service:<nome> cobre aquele serviço. Monitor de NAMESPACE (kube_namespace:<ns>) não é reconhecido aqui mesmo cobrindo o serviço na prática — limitação conhecida, evita custo de mapear serviço→namespace."
                 />
+              )}
+
+              {envItems.length > 0 && (
+                <>
+                  <p style={s.groupTitle}>
+                    Kubernetes &amp; Database Monitoring ({envItems.filter(c => c.covered).length}/{envItems.length})
+                    {features.k8sDbmCoverage && <span style={previewBadgeStyle}>Preview</span>}
+                  </p>
+                  <div style={s.grid}>
+                    {envItems.map(c => {
+                      const band: PercentBand = c.covered ? 'green' : 'red'
+                      return (
+                        <div key={c.key} style={covStyle(band)}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                            <span style={s.covName}>{c.label}</span>
+                            <span style={covStatusStyle(band)}>{c.covered ? '✓' : '✗'}</span>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{c.monitorCount} monitor(es) detectado(s) no ambiente.</div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+                    Cobertura no nível do ambiente (não por nó/banco — o app não descobre uma lista de nós ou
+                    instâncias de banco como faz com hosts/serviços): considera coberto se existir pelo menos 1
+                    monitor com a métrica-chave, em qualquer escopo.
+                  </p>
+                </>
               )}
             </>
           )}

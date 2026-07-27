@@ -2,7 +2,7 @@
 //
 // AuditMonitors: analisa o ambiente e identifica quais MÉTRICAS-CHAVE já têm
 // monitor e quais estão SEM cobertura, cruzando um catálogo de métricas
-// (Infra + APM) com as queries dos monitores existentes.
+// (Infra + APM + K8s/DBM, atrás de flag) com as queries dos monitores existentes.
 //
 // Detecção "por nome de métrica na query" (conforme combinado): um item do
 // catálogo é considerado COBERTO se o nome da sua métrica aparece na query de
@@ -13,15 +13,35 @@
 //    https://docs.datadoghq.com/integrations/system/
 //  - APM: trace.<span>.hits, trace.<span>.errors e trace.<span>/.duration.
 //    https://docs.datadoghq.com/tracing/metrics/metrics_namespace/
+//  - K8s: kube-state-metrics/kubelet (kubernetes_state.*/kubernetes.*) — doc:
+//    https://docs.datadoghq.com/containers/kubernetes/data_collected/
+//  - DBM: NÃO são métricas do produto Database Monitoring em si (esse não
+//    expõe métrica clássica alertável — a doc de setup não documenta nenhuma;
+//    confirmado ao consultar docs.datadoghq.com/database_monitoring/setup_postgres/).
+//    São as métricas das integrações PADRÃO de Postgres/MySQL (conexões,
+//    replicação, deadlocks/slow queries) — o proxy alertável mais próximo de
+//    "banco de dados saudável" disponível como monitor clássico. Docs:
+//    https://docs.datadoghq.com/integrations/postgres/ e
+//    https://docs.datadoghq.com/integrations/mysql/
+//
+// K8s e DBM ficam atrás da feature flag k8sDbmCoverage (lib/feature-flags.ts):
+// diferente de Infra/APM, não há uma lista de "nós"/"bancos" descoberta pelo
+// app (como hosts/serviços) pra fazer cobertura POR ENTIDADE — a cobertura
+// aqui é binária, no nível do ambiente (existe ≥1 monitor com essa métrica?),
+// por isso essas duas entram em coverageScoreWeighted como 0/100, não como
+// % de entidades, e a UI (ferramentas/audit/page.tsx) mostra cards simples
+// de ✓/✗ em vez da tabela por host/serviço.
 
 import { initialInfraDiscovery, planInfraPreview, type InfraPlanItem } from './infra.ts'
 import { buildMonitorPayload, DEFAULT_OPERATION, ALERT_BY_KEY, DEFAULT_GROUP_BY, type PlanItem } from './discovery.ts'
 
 const any = (q: string, ...subs: string[]): boolean => subs.some(s => q.includes(s))
 
+export type AuditGroup = 'Infra' | 'APM' | 'K8s' | 'DBM'
+
 export interface AuditCatalogItem {
   key: string
-  group: 'Infra' | 'APM'
+  group: AuditGroup
   label: string
   infraKind?: string | null
   apm?: string | null
@@ -54,6 +74,16 @@ export const AUDIT_CATALOG: AuditCatalogItem[] = [
   { key: 'apmLatency', group: 'APM', label: 'Latência (APM)', apm: 'latency', detect: q => q.includes('trace.') && (/p\d\d:trace\./.test(q) || q.includes('.duration') || (q.includes('avg:trace.') && !q.includes('.hits') && !q.includes('.errors'))) },
   { key: 'apmErrors', group: 'APM', label: 'Erros (APM)', apm: 'errorRate', detect: q => q.includes('trace.') && q.includes('.errors') },
   { key: 'apmHits', group: 'APM', label: 'Throughput (APM)', apm: 'highVolume', detect: q => q.includes('trace.') && q.includes('.hits') },
+  // ── Kubernetes (kube-state-metrics/kubelet) — atrás da flag k8sDbmCoverage ──
+  { key: 'k8sPodRestarts', group: 'K8s', label: 'Restart de Pods', detect: q => any(q, 'kubernetes_state.container.restarts', 'kubernetes.containers.restarts') },
+  { key: 'k8sNodeReady', group: 'K8s', label: 'Node Ready (condição)', detect: q => any(q, 'kubernetes_state.node.by_condition', 'kubernetes_state.node.status') },
+  { key: 'k8sPodScheduling', group: 'K8s', label: 'Pods pendentes/sem agendamento', detect: q => any(q, 'kubernetes_state.pod.status_phase', 'kubernetes_state.pod.unschedulable') },
+  // ── Database Monitoring (integrações padrão Postgres/MySQL — ver nota no
+  // topo do arquivo sobre por que não são métricas do produto DBM em si) ──
+  // atrás da flag k8sDbmCoverage.
+  { key: 'dbConnections', group: 'DBM', label: 'Conexões / pool', detect: q => any(q, 'postgresql.percent_usage_connections', 'mysql.performance.threads_connected', 'mysql.net.max_connections_available') },
+  { key: 'dbReplication', group: 'DBM', label: 'Replicação (lag)', detect: q => any(q, 'postgresql.replication_delay', 'mysql.replication.seconds_behind_master', 'mysql.replication.seconds_behind_source') },
+  { key: 'dbQueryHealth', group: 'DBM', label: 'Deadlocks / slow queries', detect: q => any(q, 'postgresql.deadlocks', 'mysql.performance.slow_queries', 'mysql.innodb.deadlocks') },
 ]
 
 export interface DatadogMonitor {
@@ -63,7 +93,7 @@ export interface DatadogMonitor {
 
 export interface CoverageItem {
   key: string
-  group: 'Infra' | 'APM'
+  group: AuditGroup
   label: string
   covered: boolean
   monitorCount: number
@@ -99,7 +129,12 @@ export function coverageScore(coverage: CoverageItem[]): number {
 // Média SIMPLES por métrica (não ponderada por nº de entidades): cada uma das
 // N métricas do catálogo pesa igual, batendo com a leitura dos cards. Métricas
 // sem entidades (percent null — ex.: nenhum host) ficam de fora da média.
-export function coverageScoreWeighted(hostCoverage: HostCoverageRow[], serviceCoverage: ServiceCoverageRow[]): number {
+// envCoverage (K8s/DBM) é opcional e só deve ser passado quando a flag
+// k8sDbmCoverage estiver ligada (ver audit-monitors/route.ts) — sem lista de
+// nós/bancos descoberta pelo app, não há "% de entidades" pra esses grupos,
+// então cada item entra como binário (covered ? 100 : 0), igual ao score
+// legado (coverageScore) fazia pra tudo antes desse refino.
+export function coverageScoreWeighted(hostCoverage: HostCoverageRow[], serviceCoverage: ServiceCoverageRow[], envCoverage?: CoverageItem[]): number {
   const percents: number[] = []
   for (const c of INFRA_CATALOG) {
     const { percent } = coveragePercent(hostCoverage, c.key)
@@ -109,6 +144,7 @@ export function coverageScoreWeighted(hostCoverage: HostCoverageRow[], serviceCo
     const { percent } = coveragePercent(serviceCoverage, c.key)
     if (percent != null) percents.push(percent)
   }
+  for (const c of (envCoverage || [])) percents.push(c.covered ? 100 : 0)
   if (!percents.length) return 0
   return Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
 }
@@ -122,6 +158,10 @@ export function coverageScoreWeighted(hostCoverage: HostCoverageRow[], serviceCo
 // falsa cobertura — é conservador (pode marcar lacuna a mais, nunca a menos).
 export const INFRA_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'Infra')
 export const APM_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'APM')
+// K8s/DBM: cobertura binária de ambiente (ver comentário em coverageScoreWeighted),
+// não por host/serviço — por isso não têm um analyzeXCoverage próprio.
+export const K8S_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'K8s')
+export const DBM_CATALOG = AUDIT_CATALOG.filter(c => c.group === 'DBM')
 
 export interface HostCoverageRow {
   host: string
