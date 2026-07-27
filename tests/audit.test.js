@@ -2,9 +2,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  analyzeCoverage, coverageScore, buildSuggestedInfra, buildSuggestedApm,
+  analyzeCoverage, coverageScore, coverageScoreWeighted, buildSuggestedInfra, buildSuggestedApm,
   analyzeHostCoverage, analyzeServiceCoverage, coveragePercent, percentBand,
-  AUDIT_CATALOG,
+  AUDIT_CATALOG, K8S_CATALOG, DBM_CATALOG,
 } from '../src/lib/audit.ts'
 
 const monitorsSample = [
@@ -170,4 +170,64 @@ test('buildSuggestedApm: 2 serviços com gaps diferentes geram a contagem certa 
   assert.equal(sug.serviceCount, 2)
   assert.equal(sug.monitorCount, sug.plan.length)
   assert.match(sug.operationNote, /http\.request/)
+})
+
+// ── K8s / DBM (atrás da feature flag k8sDbmCoverage) ──
+// Cobertura binária de ambiente (sem lista de nós/bancos descoberta pelo
+// app, diferente de host/serviço) — ver comentário em lib/audit.ts.
+
+test('catálogo: K8S_CATALOG e DBM_CATALOG existem e têm os grupos certos', () => {
+  assert.ok(K8S_CATALOG.length >= 3)
+  assert.ok(K8S_CATALOG.every(c => c.group === 'K8s'))
+  assert.ok(DBM_CATALOG.length >= 3)
+  assert.ok(DBM_CATALOG.every(c => c.group === 'DBM'))
+})
+
+test('analyzeCoverage: detecta métricas de Kubernetes (kube-state-metrics) pelo nome na query', () => {
+  const monitors = [
+    { query: 'sum(last_5m):sum:kubernetes_state.container.restarts{*} by {pod_name} > 5' },
+    { query: 'avg(last_5m):kubernetes_state.node.by_condition{condition:ready,status:false} >= 1' },
+  ]
+  const cov = analyzeCoverage(monitors)
+  const byKey = Object.fromEntries(cov.map(c => [c.key, c]))
+  assert.equal(byKey.k8sPodRestarts.covered, true)
+  assert.equal(byKey.k8sNodeReady.covered, true)
+  assert.equal(byKey.k8sPodScheduling.covered, false, 'nenhum monitor de exemplo cobre status_phase/unschedulable')
+})
+
+test('analyzeCoverage: detecta métricas de Database Monitoring (integrações Postgres/MySQL) pelo nome na query', () => {
+  const monitors = [
+    { query: 'avg(last_5m):avg:postgresql.percent_usage_connections{*} > 0.9' },
+    { query: 'avg(last_5m):avg:mysql.replication.seconds_behind_master{*} > 30' },
+  ]
+  const cov = analyzeCoverage(monitors)
+  const byKey = Object.fromEntries(cov.map(c => [c.key, c]))
+  assert.equal(byKey.dbConnections.covered, true)
+  assert.equal(byKey.dbReplication.covered, true)
+  assert.equal(byKey.dbQueryHealth.covered, false, 'nenhum monitor de exemplo cobre deadlocks/slow queries')
+})
+
+test('coverageScoreWeighted: sem envCoverage (flag desligada), comportamento idêntico a antes (regressão)', () => {
+  const hostCoverage = analyzeHostCoverage(monitorsSample, ['web'])
+  const serviceCoverage = analyzeServiceCoverage(monitorsSample, ['web'])
+  const withoutEnv = coverageScoreWeighted(hostCoverage, serviceCoverage)
+  const withUndefinedEnv = coverageScoreWeighted(hostCoverage, serviceCoverage, undefined)
+  assert.equal(withoutEnv, withUndefinedEnv)
+})
+
+test('coverageScoreWeighted: com envCoverage (flag ligada), K8s/DBM entram como binário 0/100 na média', () => {
+  const hostCoverage = analyzeHostCoverage(monitorsSample, ['web'])
+  const serviceCoverage = analyzeServiceCoverage(monitorsSample, ['web'])
+  const baseline = coverageScoreWeighted(hostCoverage, serviceCoverage)
+
+  // Todos K8s/DBM cobertos (covered:true) deveria só poder AUMENTAR ou manter
+  // a média (adiciona só 100s à lista de percentuais).
+  const allCovered = [...K8S_CATALOG, ...DBM_CATALOG].map(c => ({ key: c.key, group: c.group, label: c.label, covered: true, monitorCount: 1, infraKind: null, apm: null }))
+  const withAllCovered = coverageScoreWeighted(hostCoverage, serviceCoverage, allCovered)
+  assert.ok(withAllCovered >= baseline)
+
+  // Todos descobertos (covered:false) só deveria poder DIMINUIR ou manter.
+  const noneCovered = allCovered.map(c => ({ ...c, covered: false, monitorCount: 0 }))
+  const withNoneCovered = coverageScoreWeighted(hostCoverage, serviceCoverage, noneCovered)
+  assert.ok(withNoneCovered <= baseline)
 })

@@ -14,6 +14,7 @@ import {
 } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 interface ApmServicesResponse {
   data?: { id?: string; attributes?: { services?: string[] } }[] | { attributes?: { services?: string[] } }
@@ -61,12 +62,20 @@ export async function GET(): Promise<Response> {
   const services = [...new Set(apmServices)].sort()
   const serviceCount = services.length
 
-  const coverage = analyzeCoverage(monitors)
+  // K8s/DBM (lib/audit.ts: K8S_CATALOG/DBM_CATALOG) ficam atrás da flag
+  // k8sDbmCoverage — com ela desligada, filtramos esses itens fora de
+  // `coverage` pra não mudar score/gapCount de quem não tem a flag ligada
+  // (mesmo comportamento de sempre, byte a byte).
+  const k8sDbmOn = isFeatureEnabled('k8sDbmCoverage')
+  const coverage = analyzeCoverage(monitors).filter(c => k8sDbmOn || (c.group !== 'K8s' && c.group !== 'DBM'))
+  const envCoverage = coverage.filter(c => c.group === 'K8s' || c.group === 'DBM')
   const hostCoverage = analyzeHostCoverage(monitors, hosts)
   const serviceCoverage = analyzeServiceCoverage(monitors, services)
   // Score REAL = média dos % efetivos por métrica (mesma fonte dos cards),
-  // em vez do binário "existe ≥1 monitor = 100%".
-  const score = coverageScoreWeighted(hostCoverage, serviceCoverage)
+  // em vez do binário "existe ≥1 monitor = 100%". K8s/DBM entram como
+  // binário (0/100) já que não têm lista de entidades — só quando a flag
+  // está ligada (envCoverage vem vazio senão, resultado idêntico a antes).
+  const score = coverageScoreWeighted(hostCoverage, serviceCoverage, envCoverage)
   const suggestedInfra = buildSuggestedInfra(hostCoverage)
   const suggestedApm = buildSuggestedApm(serviceCoverage)
 
