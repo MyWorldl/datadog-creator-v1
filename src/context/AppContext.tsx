@@ -7,6 +7,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useSession } from '@/context/SupabaseAuthContext';
 import type { PublicConnection } from '@/lib/connections';
+import { FEATURE_FLAG_KEYS, type FeatureFlagState } from '@/lib/feature-flags';
+
+const ALL_FEATURES_OFF: FeatureFlagState = Object.fromEntries(
+  FEATURE_FLAG_KEYS.map(flag => [flag, false])
+) as FeatureFlagState;
 
 export type Theme = 'system' | 'light' | 'dark';
 
@@ -30,6 +35,7 @@ export interface AppContextValue {
   addConnection: (input: AddConnectionInput) => Promise<PublicConnection | undefined>
   removeConnection: (id: string) => Promise<void>
   setKeysConfigured: () => void
+  features: FeatureFlagState
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -45,6 +51,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // As chaves em si NUNCA chegam ao browser — só id/nome/site/isActive.
   const [connections, setConnections] = useState<PublicConnection[]>([]);
   const [keysLoading, setKeysLoading] = useState(true);
+
+  // Feature flags (ver lib/feature-flags.ts) — fail-closed: começa tudo
+  // desligado até a resposta de /api/feature-flags chegar (ou pra sempre,
+  // se a chamada falhar), nunca "tudo ligado" por padrão.
+  const [features, setFeatures] = useState<FeatureFlagState>(ALL_FEATURES_OFF);
 
   const activeConnection = connections.find(c => c.isActive) || null;
   const keysConfigured = !!activeConnection;
@@ -91,16 +102,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Quando o login acontece (sessão vira "authenticated"), busca as conexões.
+  // Busca o estado das feature flags no servidor (fail-closed: qualquer
+  // falha mantém tudo desligado, nunca libera por engano).
+  const refreshFeatures = useCallback(async () => {
+    try {
+      const r = await fetch('/api/feature-flags');
+      if (!r.ok) { setFeatures(ALL_FEATURES_OFF); return; }
+      const data = await r.json();
+      setFeatures({ ...ALL_FEATURES_OFF, ...data.flags });
+    } catch {
+      setFeatures(ALL_FEATURES_OFF);
+    }
+  }, []);
+
+  // Quando o login acontece (sessão vira "authenticated"), busca as conexões
+  // e as feature flags.
   const { status } = useSession();
   useEffect(() => {
     if (status === 'authenticated') {
       refreshConnections();
+      refreshFeatures();
     } else if (status === 'unauthenticated') {
       setConnections([]);
       setKeysLoading(false);
+      setFeatures(ALL_FEATURES_OFF);
     }
-  }, [status, refreshConnections]);
+  }, [status, refreshConnections, refreshFeatures]);
 
   // Troca a org ativa (marca outra conexão salva como ativa).
   const activateConnection = useCallback(async (id: string) => {
@@ -146,6 +173,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       connections, activeConnection,
       refreshConnections, activateConnection, addConnection, removeConnection,
       setKeysConfigured: clearLocalKeysState, // compat: só reseta estado local
+      features,
     }}>
       {children}
     </AppContext.Provider>
