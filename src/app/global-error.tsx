@@ -1,7 +1,7 @@
-// src/app/global-error.js
+// src/app/global-error.tsx
 //
 // Error Boundary de ÚLTIMA instância: só dispara se o erro acontecer no
-// PRÓPRIO root layout (src/app/layout.js) ou nos Providers — error.js não
+// PRÓPRIO root layout (src/app/layout.tsx) ou nos Providers — error.tsx não
 // cobre esse caso, pois ele vive DENTRO do layout. Por isso este arquivo
 // precisa renderizar <html>/<body> do zero (substitui o layout inteiro
 // quando ativo) e usa cores fixas em vez de var(--...): não há garantia de
@@ -13,7 +13,12 @@ import { useEffect } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { logError } from '@/lib/logger'
 
-export default function GlobalError({ error, reset }) {
+interface GlobalErrorProps {
+  error: Error & { digest?: string }
+  reset: () => void
+}
+
+export default function GlobalError({ error, reset }: GlobalErrorProps) {
   useEffect(() => {
     logError('app/global-error-boundary', error, { digest: error?.digest })
     Sentry.captureException(error)

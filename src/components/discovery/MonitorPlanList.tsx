@@ -1,14 +1,16 @@
-// src/components/discovery/MonitorPlanList.jsx
+// src/components/discovery/MonitorPlanList.tsx
 //
 // Lista de itens de um plano de monitores (nome + query + mensagem),
-// extraída de DiscoveryReview.jsx pra ser reaproveitada também no preview de
+// extraída de DiscoveryReview.tsx pra ser reaproveitada também no preview de
 // "criar os que faltam" do AuditMonitors. Cada item só precisa de
 // {name, query, kind} + message OU payload.message (planPreview()/
 // planInfraPreview() sempre setam os dois; os planos montados diretamente em
 // lib/audit.ts — buildSuggestedApm — só setam payload.message).
 'use client'
 
-const s = {
+import type { CSSProperties } from 'react'
+
+const s: Record<string, CSSProperties> = {
   item: { border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--bg-surface-2)' },
   name: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px' },
   qLabel: { fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px' },
@@ -16,7 +18,19 @@ const s = {
   msg: { fontSize: 11.5, color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', margin: 0 },
 }
 
-export default function MonitorPlanList({ plan, maxHeight = 420 }) {
+export interface MonitorPlanListItem {
+  name: string
+  query: string
+  message?: string
+  payload?: { message?: string }
+}
+
+interface MonitorPlanListProps {
+  plan: MonitorPlanListItem[]
+  maxHeight?: number
+}
+
+export default function MonitorPlanList({ plan, maxHeight = 420 }: MonitorPlanListProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight, overflowY: 'auto' }}>
       {plan.map((m, i) => (

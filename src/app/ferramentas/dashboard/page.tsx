@@ -1,16 +1,24 @@
-// src/app/ferramentas/dashboard/page.js
+// src/app/ferramentas/dashboard/page.tsx
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties, type ComponentType } from 'react'
 import { useSession } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
-import { coveragePercent } from '@/lib/audit'
+import { coveragePercent, type HostCoverageRow, type ServiceCoverageRow } from '@/lib/audit'
 import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/components/Icons'
+
+interface ToolItem {
+  href: string
+  Icon: ComponentType<{ size?: number }>
+  title: string
+  desc: string
+  cta: string
+}
 
 // Grade de ferramentas da Home — Observabilidade e Financeiro. "Sistema"
 // (Configurações/Sobre) fica só na sidebar, não repete aqui.
-const sections = [
+const sections: { title: string; items: ToolItem[] }[] = [
   {
     title: 'Observabilidade',
     items: [
@@ -27,19 +35,24 @@ const sections = [
   },
 ]
 
-const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
+const scoreColor = (v: number | null | undefined): string => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 
 // Rótulo curto de cada pilar do ScopeMaturity para as mini-barras do card.
-const PILLAR_SHORT = { cobertura: 'Cob', qualidade: 'Qual', observabilidade: 'Obs', processos: 'Proc', governanca: 'Gov' }
+const PILLAR_SHORT: Record<string, string> = { cobertura: 'Cob', qualidade: 'Qual', observabilidade: 'Obs', processos: 'Proc', governanca: 'Gov' }
+
+interface MetricRef {
+  key: string
+  label: string
+}
 
 // Média das % de cobertura (host/serviço) de um grupo de métricas — mesma
 // fonte dos cards do AuditMonitors, para o split Infra/APM do card-herói.
-function avgGroupPct(rows, metrics) {
-  const vals = (metrics || []).map(m => coveragePercent(rows || [], m.key).percent).filter(v => v != null)
+function avgGroupPct(rows: (HostCoverageRow | ServiceCoverageRow)[], metrics: MetricRef[]): number | null {
+  const vals = (metrics || []).map(m => coveragePercent(rows || [], m.key).percent).filter((v): v is number => v != null)
   return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
 }
 
-function Ring({ value, size = 66, stroke = 8 }) {
+function Ring({ value, size = 66, stroke = 8 }: { value: number | null; size?: number; stroke?: number }) {
   const r = (size / 2) - stroke, circ = 2 * Math.PI * r, dash = ((value ?? 0) / 100) * circ
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
@@ -49,7 +62,7 @@ function Ring({ value, size = 66, stroke = 8 }) {
   )
 }
 
-const s = {
+const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   metricStrip: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 },
@@ -59,11 +72,8 @@ const s = {
   band: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14, marginBottom: 22 },
   hero: { display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', textDecoration: 'none' },
   heroTop: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14 },
-  ringWrap: (size) => ({ position: 'relative', width: size, height: size, flexShrink: 0 }),
-  ringNum: (c, size) => ({ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size >= 80 ? 24 : 20, fontWeight: 800, color: c }),
   heroLabel: { fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   heroMeta: { fontSize: 12.5, color: 'var(--text-secondary)', margin: '3px 0 0', lineHeight: 1.5 },
-  chip: (c, bg) => ({ display: 'inline-block', marginTop: 7, fontSize: 11, fontWeight: 600, color: c, background: bg, padding: '2px 9px', borderRadius: 999 }),
   heroLink: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 'auto', paddingTop: 4 },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
@@ -73,11 +83,41 @@ const s = {
   cDesc: { fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, flex: 1 },
   cCta: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 2 },
   panel: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
-  splitTile: (bg) => ({ flex: 1, background: bg, borderRadius: 8, padding: '8px 10px' }),
+}
+
+const ringWrapStyle = (size: number): CSSProperties => ({ position: 'relative', width: size, height: size, flexShrink: 0 })
+const ringNumStyle = (c: string, size: number): CSSProperties => ({ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size >= 80 ? 24 : 20, fontWeight: 800, color: c })
+const chipStyle = (c: string, bg: string): CSSProperties => ({ display: 'inline-block', marginTop: 7, fontSize: 11, fontWeight: 600, color: c, background: bg, padding: '2px 9px', borderRadius: 999 })
+const splitTileStyle = (bg: string): CSSProperties => ({ flex: 1, background: bg, borderRadius: 8, padding: '8px 10px' })
+
+interface PillarSummary {
+  key: string
+  label: string
+  score: number | null
+  measured: boolean
+}
+
+interface ScopeMaturitySummary {
+  score: number | null
+  level: number
+  levelLabel: string
+  pillars: PillarSummary[]
+}
+
+interface AuditMonitorsSummary {
+  score: number
+  gapCount: number
+  hostCoverage: HostCoverageRow[]
+  serviceCoverage: ServiceCoverageRow[]
+  infraMetrics: MetricRef[]
+  apmMetrics: MetricRef[]
+  suggestedInfra?: { monitorCount: number }
+  suggestedApm?: { monitorCount: number }
+  environment: { hostCount: number; serviceCount: number; monitorCount: number }
 }
 
 // Mini-barras dos 5 pilares do ScopeMaturity (proporcional + cor por status).
-function PillarBars({ pillars }) {
+function PillarBars({ pillars }: { pillars: PillarSummary[] }) {
   return (
     <div style={{ display: 'flex', gap: 6 }}>
       {pillars.map(p => {
@@ -85,7 +125,7 @@ function PillarBars({ pillars }) {
         return (
           <div key={p.key} style={{ flex: 1, minWidth: 0 }}>
             <div style={{ height: 5, borderRadius: 999, background: 'var(--border)', overflow: 'hidden' }}>
-              <div style={{ width: `${p.measured ? Math.max(0, Math.min(100, p.score)) : 0}%`, height: '100%', background: c, borderRadius: 999 }} />
+              <div style={{ width: `${p.measured && p.score != null ? Math.max(0, Math.min(100, p.score)) : 0}%`, height: '100%', background: c, borderRadius: 999 }} />
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {PILLAR_SHORT[p.key] || p.label}
@@ -104,8 +144,8 @@ export default function DashboardPage() {
   // Título: nome da ORG ativa (conexão em uso). Sem org conectada, saúda o usuário.
   const heading = activeConnection?.name || `Olá, ${name}`
 
-  const [sm, setSm] = useState(null)
-  const [ma, setMa] = useState(null)
+  const [sm, setSm] = useState<ScopeMaturitySummary | null>(null)
+  const [ma, setMa] = useState<AuditMonitorsSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -132,7 +172,7 @@ export default function DashboardPage() {
   // Derivados dos cards-herói (sem chamadas novas — só reusa o que já veio).
   const pillars = Array.isArray(sm?.pillars) ? sm.pillars : []
   const measuredPillars = pillars.filter(p => p.measured)
-  const weakest = measuredPillars.length ? measuredPillars.reduce((a, p) => p.score < a.score ? p : a, measuredPillars[0]) : null
+  const weakest = measuredPillars.length ? measuredPillars.reduce((a, p) => (p.score ?? 0) < (a.score ?? 0) ? p : a, measuredPillars[0]) : null
   const infraPct = ma ? avgGroupPct(ma.hostCoverage, ma.infraMetrics) : null
   const apmPct = ma ? avgGroupPct(ma.serviceCoverage, ma.apmMetrics) : null
   const suggested = ma ? (ma.suggestedInfra?.monitorCount || 0) + (ma.suggestedApm?.monitorCount || 0) : 0
@@ -156,15 +196,15 @@ export default function DashboardPage() {
             {/* ScopeMaturity */}
             <Link href="/ferramentas/analise" style={s.hero}>
               <div style={s.heroTop}>
-                <div style={s.ringWrap(66)}>
+                <div style={ringWrapStyle(66)}>
                   <Ring value={sm?.score ?? null} />
-                  <span style={s.ringNum(scoreColor(sm?.score ?? null), 66)}>{loading && !sm ? '…' : (sm?.score ?? '—')}</span>
+                  <span style={ringNumStyle(scoreColor(sm?.score ?? null), 66)}>{loading && !sm ? '…' : (sm?.score ?? '—')}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={s.heroLabel}>ScopeMaturity</p>
                   <p style={s.heroMeta}>{sm ? `Nível ${sm.level} · ${sm.levelLabel}` : 'Governança e cobertura do ambiente'}</p>
                   {weakest && (
-                    <span style={s.chip(scoreColor(weakest.score), weakest.score <= 40 ? 'var(--danger-bg)' : 'var(--warning-bg)')}>
+                    <span style={chipStyle(scoreColor(weakest.score), (weakest.score ?? 0) <= 40 ? 'var(--danger-bg)' : 'var(--warning-bg)')}>
                       Elo fraco: {weakest.label} {weakest.score}
                     </span>
                   )}
@@ -177,23 +217,23 @@ export default function DashboardPage() {
             {/* AuditMonitors */}
             <Link href="/ferramentas/audit" style={s.hero}>
               <div style={s.heroTop}>
-                <div style={s.ringWrap(66)}>
+                <div style={ringWrapStyle(66)}>
                   <Ring value={ma?.score ?? null} />
-                  <span style={s.ringNum(scoreColor(ma?.score ?? null), 66)}>{loading && !ma ? '…' : (ma?.score ?? '—')}</span>
+                  <span style={ringNumStyle(scoreColor(ma?.score ?? null), 66)}>{loading && !ma ? '…' : (ma?.score ?? '—')}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={s.heroLabel}>AuditMonitors</p>
                   <p style={s.heroMeta}>{ma ? `${ma.score}% de cobertura · ${ma.gapCount} lacuna(s)` : 'Cobertura de monitoramento (Infra + APM)'}</p>
-                  {suggested > 0 && <span style={s.chip('var(--accent)', 'var(--accent-light)')}>{suggested} monitores sugeridos</span>}
+                  {suggested > 0 && <span style={chipStyle('var(--accent)', 'var(--accent-light)')}>{suggested} monitores sugeridos</span>}
                 </div>
               </div>
               {ma && (infraPct != null || apmPct != null) && (
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={s.splitTile(infraPct != null && infraPct >= 75 ? 'var(--success-bg)' : infraPct != null && infraPct > 40 ? 'var(--warning-bg)' : 'var(--danger-bg)')}>
+                  <div style={splitTileStyle(infraPct != null && infraPct >= 75 ? 'var(--success-bg)' : infraPct != null && infraPct > 40 ? 'var(--warning-bg)' : 'var(--danger-bg)')}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: scoreColor(infraPct) }}>{infraPct != null ? `${infraPct}%` : '—'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Infra</div>
                   </div>
-                  <div style={s.splitTile(apmPct != null && apmPct >= 75 ? 'var(--success-bg)' : apmPct != null && apmPct > 40 ? 'var(--warning-bg)' : 'var(--danger-bg)')}>
+                  <div style={splitTileStyle(apmPct != null && apmPct >= 75 ? 'var(--success-bg)' : apmPct != null && apmPct > 40 ? 'var(--warning-bg)' : 'var(--danger-bg)')}>
                     <div style={{ fontSize: 15, fontWeight: 800, color: scoreColor(apmPct) }}>{apmPct != null ? `${apmPct}%` : '—'}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>APM</div>
                   </div>

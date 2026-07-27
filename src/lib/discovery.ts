@@ -176,10 +176,13 @@ export interface AlertConfig {
 }
 
 export interface SelectedMeta {
-  opsCount?: number
+  opsCount?: number | null
   operations?: string[]
   chosen?: string[]
   operation?: string
+  // Não usado por planPreview — guardado aqui pela UI (DiscoveryConfigure)
+  // pra mostrar o erro de "identificar operações" por entidade selecionada.
+  error?: string | null
 }
 
 export interface DiscoveryState {

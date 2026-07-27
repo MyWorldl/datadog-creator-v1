@@ -1,17 +1,24 @@
-// src/app/sistema/sobre/page.js
+// src/app/sistema/sobre/page.tsx
 'use client'
 
+import type { CSSProperties, ComponentType } from 'react'
 import { APP_VERSION, COMMIT_SHA, VERSION_HISTORY } from '@/lib/app-version'
 import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/components/Icons'
 
-const FEATURES = [
+interface Feature {
+  Icon: ComponentType<{ size?: number }>
+  name: string
+  desc: string
+}
+
+const FEATURES: Feature[] = [
   { Icon: IconMonitorsCreator, name: 'MonitorsCreator', desc: 'Descobre serviços e cria monitores de anomaly detection com parâmetros por tipo de alerta.' },
   { Icon: IconAnalytics, name: 'AuditMonitors', desc: 'Audita a cobertura de monitoramento (Infra + APM) e sugere os monitores que faltam.' },
   { Icon: IconScope, name: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente, de tags a error budget de SLO.' },
   { Icon: IconFinops, name: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme de anomalia de consumo e custo estimado.' },
 ]
 
-const s = {
+const s: Record<string, CSSProperties> = {
   h1: { fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
   hero: { background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)', borderRadius: 14, padding: '1.5rem 1.5rem', color: '#fff', marginBottom: 18, boxShadow: 'var(--card-shadow)' },

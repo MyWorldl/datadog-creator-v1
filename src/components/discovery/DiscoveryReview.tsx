@@ -1,11 +1,13 @@
-// src/components/discovery/DiscoveryReview.jsx
+// src/components/discovery/DiscoveryReview.tsx
 'use client'
 
+import type { CSSProperties } from 'react'
 import { planPreview } from '@/lib/discovery'
 import { planInfraPreview } from '@/lib/infra'
 import MonitorPlanList from './MonitorPlanList'
+import type { DiscoveryStepProps } from './types'
 
-const s = {
+const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
   summary: { fontSize: 13, color: 'var(--text-secondary)' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
@@ -13,14 +15,16 @@ const s = {
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
 }
 
-export default function DiscoveryReview({ config, onNext, onBack }) {
+type DiscoveryReviewProps = Omit<DiscoveryStepProps, 'setConfig'>
+
+export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryReviewProps) {
   const isInfra = config.resourceType === 'infra'
   const d = isInfra ? config.infra : config.discovery
-  const plan = isInfra ? planInfraPreview(d) : planPreview(d)
+  const plan = isInfra ? planInfraPreview(config.infra) : planPreview(config.discovery)
   const entities = isInfra
-    ? Object.values(d.selected).filter(Boolean).length
-    : Object.keys(d.selected).length
-  const entityLabel = isInfra ? 'host(s)' : (d.scopeType === 'namespace' ? 'namespace(s)' : 'serviço(s)')
+    ? Object.values(config.infra.selected).filter(Boolean).length
+    : Object.keys(config.discovery.selected).length
+  const entityLabel = isInfra ? 'host(s)' : (config.discovery.scopeType === 'namespace' ? 'namespace(s)' : 'serviço(s)')
 
   return (
     <div style={s.card}>

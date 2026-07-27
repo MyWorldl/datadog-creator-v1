@@ -1,4 +1,4 @@
-// src/components/Providers.js
+// src/components/Providers.tsx
 'use client'
 
 // Junta os contexts que precisam rodar no client:
@@ -8,10 +8,11 @@
 // O layout (server component) não pode usar esses providers direto, então
 // concentramos tudo aqui.
 
+import type { ReactNode } from 'react'
 import { SupabaseAuthProvider } from '@/context/SupabaseAuthContext'
 import { AppProvider } from '@/context/AppContext'
 
-export default function Providers({ children }) {
+export default function Providers({ children }: { children: ReactNode }) {
   return (
     <SupabaseAuthProvider>
       <AppProvider>{children}</AppProvider>

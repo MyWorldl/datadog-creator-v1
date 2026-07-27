@@ -1,9 +1,9 @@
-// src/context/SupabaseAuthContext.js
+// src/context/SupabaseAuthContext.tsx
 //
 // Substitui o SessionProvider/useSession do next-auth/react. Expõe a MESMA
 // forma que os componentes já consumiam ({ data: session, status }, com
-// session.user = {id, name, email}) para minimizar o diff em AppShell.js,
-// AppContext.js, Sidebar.jsx e ferramentas/dashboard/page.js — só a linha de
+// session.user = {id, name, email}) para minimizar o diff em AppShell.tsx,
+// AppContext.tsx, Sidebar.tsx e ferramentas/dashboard/page.tsx — só a linha de
 // import muda nesses arquivos.
 //
 // `refresh()` existe porque o login acontece num Route Handler (servidor),
@@ -22,13 +22,31 @@
 
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react'
+import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { logError } from '@/lib/logger'
 
-const Ctx = createContext({ data: null, status: 'loading', refresh: async () => {} })
+export interface SessionUser {
+  id: string
+  email: string | undefined
+  name: string
+}
 
-function toSessionShape(user) {
+export type SessionStatus = 'loading' | 'authenticated' | 'unauthenticated'
+
+export interface SessionState {
+  data: { user: SessionUser } | null
+  status: SessionStatus
+}
+
+interface SessionContextValue extends SessionState {
+  refresh: () => Promise<void>
+}
+
+const Ctx = createContext<SessionContextValue>({ data: null, status: 'loading', refresh: async () => {} })
+
+function toSessionShape(user: User | null | undefined): SessionState {
   if (!user) return { data: null, status: 'unauthenticated' }
   return {
     data: { user: { id: user.id, email: user.email, name: user.user_metadata?.name || user.email } },
@@ -40,7 +58,7 @@ function toSessionShape(user) {
 // convite/recovery gerado pela Admin API) — ver aviso acima. Retorna true se
 // achou e tentou aplicar um hash desse tipo (chamador não precisa mais
 // checar getUser() antes, onAuthStateChange já vai disparar).
-async function consumeAuthHashIfPresent() {
+async function consumeAuthHashIfPresent(): Promise<boolean> {
   if (typeof window === 'undefined' || !window.location.hash) return false
   const params = new URLSearchParams(window.location.hash.slice(1))
   const accessToken = params.get('access_token')
@@ -59,8 +77,8 @@ async function consumeAuthHashIfPresent() {
   return true
 }
 
-export function SupabaseAuthProvider({ children }) {
-  const [state, setState] = useState({ data: null, status: 'loading' })
+export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<SessionState>({ data: null, status: 'loading' })
 
   const refresh = useCallback(async () => {
     try {
@@ -74,7 +92,7 @@ export function SupabaseAuthProvider({ children }) {
   useEffect(() => {
     consumeAuthHashIfPresent().then(() => refresh())
 
-    const { data: sub } = supabaseBrowser().auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabaseBrowser().auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       setState(toSessionShape(session?.user ?? null))
     })
     return () => sub.subscription.unsubscribe()
@@ -83,11 +101,11 @@ export function SupabaseAuthProvider({ children }) {
   return <Ctx.Provider value={{ ...state, refresh }}>{children}</Ctx.Provider>
 }
 
-export function useSession() {
+export function useSession(): SessionContextValue {
   return useContext(Ctx)
 }
 
-export async function signOut({ callbackUrl = '/' } = {}) {
+export async function signOut({ callbackUrl = '/' }: { callbackUrl?: string } = {}): Promise<void> {
   await supabaseBrowser().auth.signOut()
   window.location.href = callbackUrl
 }

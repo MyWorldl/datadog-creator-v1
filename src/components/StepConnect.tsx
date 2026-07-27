@@ -1,4 +1,4 @@
-// src/components/StepConnect.jsx
+// src/components/StepConnect.tsx
 // Step 1 — Conectar ao Datadog (múltiplas orgs, guardadas no Supabase).
 //
 // As chaves NÃO ficam no estado do wizard. Cada usuário conecta quantas orgs
@@ -7,10 +7,11 @@
 
 'use client'
 
+import type { CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import ConnectKeysCard from '@/components/ConnectKeysCard'
 
-const s = {
+const s: Record<string, CSSProperties> = {
   wrap: { display: 'flex', flexDirection: 'column', gap: 16 },
   actions: { display: 'flex', justifyContent: 'flex-end', paddingTop: 4 },
   btnPrimary: {
@@ -26,7 +27,7 @@ const s = {
   note: { fontSize: 12, color: 'var(--text-muted)', margin: 0 },
 }
 
-export default function StepConnect({ onNext }) {
+export default function StepConnect({ onNext }: { onNext: () => void }) {
   const { keysConfigured } = useApp()
 
   return (

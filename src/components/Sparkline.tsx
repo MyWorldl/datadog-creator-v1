@@ -1,4 +1,4 @@
-// src/components/Sparkline.jsx
+// src/components/Sparkline.tsx
 //
 // Mini gráfico de linha (sparkline) para mostrar a TENDÊNCIA de um score ao
 // longo do tempo, com um chip de delta ("▲ N" / "▼ N") comparando com a
@@ -9,7 +9,15 @@
 
 import { useId } from 'react'
 
-export default function Sparkline({ values = [], delta = null, width = 132, height = 34, color = 'var(--accent)' }) {
+interface SparklineProps {
+  values?: number[]
+  delta?: number | null
+  width?: number
+  height?: number
+  color?: string
+}
+
+export default function Sparkline({ values = [], delta = null, width = 132, height = 34, color = 'var(--accent)' }: SparklineProps) {
   const rawId = useId()
   const nums = (values || []).filter(v => typeof v === 'number' && !Number.isNaN(v))
   if (nums.length < 2) {

@@ -274,8 +274,20 @@ export interface InfraCheckConfig {
 
 export type InfraConfig = InfraMetricConfig | InfraCheckConfig
 
+// Shape de cada item de InfraDiscoveryState.hosts: vem direto da resposta de
+// GET /api/datadog/hosts (ver src/app/api/datadog/hosts/route.ts) — não é
+// só o nome, a UI (DiscoveryConfigureInfra) também usa `up` pra exibir o tag
+// de status "up"/"down" na lista de hosts descobertos.
+export interface DiscoveredHost {
+  name: string
+  up: boolean
+  muted?: boolean
+  lastReportedAt?: number | null
+  tags?: string[]
+}
+
 export interface InfraDiscoveryState {
-  hosts: string[]
+  hosts: DiscoveredHost[]
   selected: Record<string, boolean>
   metrics: Record<string, InfraConfig>
   groupBy: string[]

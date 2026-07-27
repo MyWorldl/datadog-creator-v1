@@ -1,16 +1,15 @@
-// src/app/ferramentas/finops/page.js
+// src/app/ferramentas/finops/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { EST_METRICS, computeCost, fmtMoney, fmtNum } from '@/lib/finops-pricing'
 
-const s = {
+const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
   card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   tabs: { display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
-  tab: (on) => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' }),
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
@@ -28,24 +27,66 @@ const s = {
   okBox: { fontSize: 12.5, color: 'var(--success)', background: '#e6f4ef', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12, lineHeight: 1.5 },
 }
 
+const tabStyle = (on: boolean): CSSProperties => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' })
+
 const PRICING_URL = 'https://www.datadoghq.com/pricing/list/'
+
+type Tab = 'consumo' | 'alarme' | 'custo'
+
+interface UsageProduct {
+  key: string
+  label: string
+  unit: string
+  price: number
+  per: number
+  bytes: boolean
+  value: number
+}
+
+interface UsageDiagnostic {
+  key: string
+  metric: string | null
+  agg: string | null
+  query: string | null
+  points: number
+  value: number | null
+  status: string
+}
+
+interface UsageData {
+  month: string
+  startDate: string | null
+  source: string
+  warning: string | null
+  products: UsageProduct[]
+  missing: string[]
+  diagnostics: UsageDiagnostic[] | null
+}
+
+interface AlarmResult {
+  ok: boolean
+  id: unknown
+  name: string
+  query: string
+  url: string
+}
 
 export default function FinOpsPage() {
   const { keysConfigured, datadogSite } = useApp()
-  const [tab, setTab] = useState('consumo')
+  const [tab, setTab] = useState<Tab>('consumo')
 
   // Consumo / Custo compartilham os dados carregados
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [data, setData] = useState(null)
-  const [prices, setPrices] = useState({}) // key -> override de preço
+  const [data, setData] = useState<UsageData | null>(null)
+  const [prices, setPrices] = useState<Record<string, number>>({}) // key -> override de preço
 
   // Alarme
   const [metric, setMetric] = useState(EST_METRICS[0]?.metric || '')
   const [dev, setDev] = useState(3)
   const [win, setWin] = useState('last_4h')
   const [creating, setCreating] = useState(false)
-  const [alarmMsg, setAlarmMsg] = useState(null)
+  const [alarmMsg, setAlarmMsg] = useState<AlarmResult | null>(null)
   const [alarmErr, setAlarmErr] = useState('')
 
   async function loadUsage() {
@@ -55,10 +96,10 @@ export default function FinOpsPage() {
       const json = await r.json()
       if (!r.ok) { setError(json.error || 'Falha ao carregar consumo.'); return }
       setData(json)
-      const seed = {}
+      const seed: Record<string, number> = {}
       for (const p of json.products) seed[p.key] = p.price
       setPrices(seed)
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 
@@ -72,7 +113,7 @@ export default function FinOpsPage() {
       const json = await r.json()
       if (!r.ok) { setAlarmErr(json.error || 'Falha ao criar o monitor.'); return }
       setAlarmMsg(json)
-    } catch (e) { setAlarmErr('Falha de rede: ' + e.message) }
+    } catch (e) { setAlarmErr('Falha de rede: ' + (e as Error).message) }
     finally { setCreating(false) }
   }
 
@@ -113,9 +154,9 @@ export default function FinOpsPage() {
       <p style={s.sub}>Consumo e custo do ambiente · coleta no servidor via {datadogSite}.</p>
 
       <div style={s.tabs}>
-        <button style={s.tab(tab === 'consumo')} onClick={() => setTab('consumo')}>Consumo</button>
-        <button style={s.tab(tab === 'alarme')} onClick={() => setTab('alarme')}>Alerta de consumo</button>
-        <button style={s.tab(tab === 'custo')} onClick={() => setTab('custo')}>Custo estimado</button>
+        <button style={tabStyle(tab === 'consumo')} onClick={() => setTab('consumo')}>Consumo</button>
+        <button style={tabStyle(tab === 'alarme')} onClick={() => setTab('alarme')}>Alerta de consumo</button>
+        <button style={tabStyle(tab === 'custo')} onClick={() => setTab('custo')}>Custo estimado</button>
       </div>
 
       {/* ── CONSUMO ── */}
@@ -216,7 +257,7 @@ export default function FinOpsPage() {
             </div>
             <div>
               <label style={s.label}>Desvios (bounds)</label>
-              <input type="number" min="1" max="10" style={s.select} value={dev} onChange={e => setDev(e.target.value)} />
+              <input type="number" min="1" max="10" style={s.select} value={dev} onChange={e => setDev(Number(e.target.value))} />
             </div>
             <div>
               <label style={s.label}>Alert window</label>
@@ -236,7 +277,7 @@ export default function FinOpsPage() {
           {alarmErr && <div style={s.err}>{alarmErr}</div>}
           {alarmMsg && (
             <div style={s.okBox}>
-              Monitor criado: <strong>{alarmMsg.name}</strong> (id {alarmMsg.id}).<br />
+              Monitor criado: <strong>{alarmMsg.name}</strong> (id {String(alarmMsg.id)}).<br />
               <span style={{ fontFamily: 'var(--font-geist-mono), monospace', fontSize: 11 }}>{alarmMsg.query}</span>
             </div>
           )}

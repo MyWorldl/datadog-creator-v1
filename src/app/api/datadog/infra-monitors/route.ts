@@ -2,7 +2,7 @@
 //
 // Cria os monitores de INFRAESTRUTURA (CPU/Memória/Disco por host)
 // planejados no fluxo de descoberta. Aceita dois formatos de body:
-//  - { infra: <objeto de discovery> } — usado pelo wizard (DiscoveryCreate.jsx),
+//  - { infra: <objeto de discovery> } — usado pelo wizard (DiscoveryCreate.tsx),
 //    roda planInfraPreview() aqui dentro.
 //  - { plan: [...] } — plano já expandido, usado pelo AuditMonitors
 //    (buildSuggestedInfra em lib/audit.ts já devolve o plan pronto).

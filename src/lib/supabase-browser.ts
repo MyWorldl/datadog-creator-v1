@@ -2,7 +2,7 @@
 //
 // Client Supabase pro browser (client components). Usa a chave `anon`
 // (client-safe, diferente da service_role usada em supabase-admin.ts) —
-// gerencia a sessão via cookies legíveis por JS, para SupabaseAuthContext.js
+// gerencia a sessão via cookies legíveis por JS, para SupabaseAuthContext.tsx
 // e a rota de login conseguirem se manter sincronizados.
 
 'use client'

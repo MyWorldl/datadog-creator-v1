@@ -18,7 +18,7 @@
 // (freeflow-sorocabana-* só apareciam ao incluir sondas não-http). Consultamos
 // as operações de ENTRADA mais comuns numa única query (métricas separadas por
 // vírgula = 1 request), o que recuperou todos os 18 namespaces reais. Mesmo
-// assim o client (DiscoveryConfigure.jsx) mantém entrada manual como
+// assim o client (DiscoveryConfigure.tsx) mantém entrada manual como
 // complemento, pra cobrir qualquer operação de entrada exótica fora da lista.
 //
 // As chaves vêm dos cookies httpOnly da sessão — nunca do browser.

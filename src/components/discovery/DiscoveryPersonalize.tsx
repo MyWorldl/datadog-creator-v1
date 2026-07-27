@@ -1,19 +1,19 @@
-// src/components/discovery/DiscoveryPersonalize.jsx
+// src/components/discovery/DiscoveryPersonalize.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY } from '@/lib/discovery'
 import { INFRA_TYPES, INFRA_BY_KEY } from '@/lib/infra'
+import type { DiscoveryStepProps } from './types'
 
 const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_namespace', 'http.status_code']
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
-const s = {
+const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 18 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  chip: (on) => ({ fontSize: 12, padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface-2)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 600 : 400 }),
   tag: { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '4px 10px', borderRadius: 999, background: 'var(--accent-light)', color: 'var(--accent)', border: '1px solid var(--accent)' },
   tagX: { cursor: 'pointer', fontWeight: 700, border: 'none', background: 'none', color: 'var(--accent)', fontSize: 13, lineHeight: 1 },
   textarea: { width: '100%', fontSize: 12.5, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', minHeight: 72, lineHeight: 1.5, fontFamily: 'inherit', resize: 'vertical' },
@@ -26,22 +26,45 @@ const s = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
-export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }) {
+const chipStyle = (on: boolean): CSSProperties => ({ fontSize: 12, padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface-2)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 600 : 400 })
+
+// discovery.ts (DiscoveryState) e infra.ts (InfraDiscoveryState) divergem em
+// alerts/metrics e scopeType, mas compartilham o resto do shape usado aqui
+// (groupBy/tags/messages/namePrefix/notifyTarget/notifyNoData/renotifyInterval)
+// — este componente alterna entre os dois via isInfra, então tipamos só os
+// campos comuns e acessamos os divergentes com cast pontual.
+interface PersonalizeCommon {
+  namePrefix: string
+  tags?: string[]
+  notifyTarget?: string
+  notifyNoData?: boolean
+  renotifyInterval?: number
+  groupBy: string[]
+  messages: Record<string, string>
+  scopeType?: 'service' | 'namespace'
+}
+
+interface EnabledKeyConfig {
+  enabled: boolean
+  priority?: number | null
+}
+
+export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const isInfra = config.resourceType === 'infra'
   const stateKey = isInfra ? 'infra' : 'discovery'
-  const d = config[stateKey]
-  const setDisc = (patch) => setConfig(c => ({ ...c, [stateKey]: { ...c[stateKey], ...patch } }))
+  const d = (isInfra ? config.infra : config.discovery) as unknown as PersonalizeCommon
+  const setDisc = (patch: Partial<PersonalizeCommon>) => setConfig(c => ({ ...c, [stateKey]: { ...(c as unknown as Record<string, object>)[stateKey], ...patch } } as typeof c))
   const [tagInput, setTagInput] = useState('')
 
   const TYPES = isInfra ? INFRA_TYPES : ALERT_TYPES
   const BY_KEY = isInfra ? INFRA_BY_KEY : ALERT_BY_KEY
   const groupByOptions = isInfra ? COMMON_INFRA_GROUP_BY : COMMON_GROUP_BY
-  const enabledKeySet = isInfra ? d.metrics : d.alerts
+  const enabledKeySet = (isInfra ? config.infra.metrics : config.discovery.alerts) as unknown as Record<string, EnabledKeyConfig>
   const enabled = TYPES.filter(t => enabledKeySet[t.key]?.enabled)
   const entityLabel = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'namespace' : 'serviço')
   const entityTag = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'kube_namespace' : 'service')
 
-  function toggleGroup(tag) {
+  function toggleGroup(tag: string) {
     const has = d.groupBy.includes(tag)
     setDisc({ groupBy: has ? d.groupBy.filter(t => t !== tag) : [...d.groupBy, tag] })
   }
@@ -52,12 +75,19 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
     setDisc({ tags: [...(d.tags || []), v] })
     setTagInput('')
   }
-  function removeTag(t) { setDisc({ tags: (d.tags || []).filter(x => x !== t) }) }
-  function setMessage(key, value) { setDisc({ messages: { ...d.messages, [key]: value } }) }
-  function resetMessage(key) { setDisc({ messages: { ...d.messages, [key]: BY_KEY[key].message } }) }
-  function setPriority(key, value) {
+  function removeTag(t: string) { setDisc({ tags: (d.tags || []).filter(x => x !== t) }) }
+  function setMessage(key: string, value: string) { setDisc({ messages: { ...d.messages, [key]: value } }) }
+  function resetMessage(key: string) { setDisc({ messages: { ...d.messages, [key]: BY_KEY[key].message } }) }
+  function setPriority(key: string, value: string) {
     const field = isInfra ? 'metrics' : 'alerts'
-    setDisc({ [field]: { ...d[field], [key]: { ...d[field][key], priority: value ? Number(value) : null } } })
+    const current = enabledKeySet
+    setConfig(c => ({
+      ...c,
+      [stateKey]: {
+        ...(c as unknown as Record<string, Record<string, unknown>>)[stateKey],
+        [field]: { ...current, [key]: { ...current[key], priority: value ? Number(value) : null } },
+      },
+    } as typeof c))
   }
 
   return (
@@ -86,7 +116,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
         </div>
         {(d.tags || []).length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-            {d.tags.map(t => (
+            {(d.tags || []).map(t => (
               <span key={t} style={s.tag}>{t}<button style={s.tagX} onClick={() => removeTag(t)}>×</button></span>
             ))}
           </div>
@@ -141,7 +171,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
         <label style={s.label}>Group By (dimensões do monitor)</label>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[...new Set([...groupByOptions, ...d.groupBy])].map(tag => (
-            <button key={tag} style={s.chip(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
+            <button key={tag} style={chipStyle(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
           ))}
         </div>
         <p style={s.hint}>

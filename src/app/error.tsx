@@ -1,4 +1,4 @@
-// src/app/error.js
+// src/app/error.tsx
 //
 // Error Boundary do App Router: captura qualquer erro não tratado dentro de
 // uma página/rota (renderização de componente, não erro de API — aquilo já
@@ -16,7 +16,12 @@ import { useEffect } from 'react'
 import * as Sentry from '@sentry/nextjs'
 import { logError } from '@/lib/logger'
 
-export default function Error({ error, reset }) {
+interface ErrorPageProps {
+  error: Error & { digest?: string }
+  reset: () => void
+}
+
+export default function Error({ error, reset }: ErrorPageProps) {
   useEffect(() => {
     logError('app/error-boundary', error, { digest: error?.digest })
     // Sem NEXT_PUBLIC_SENTRY_DSN, Sentry.init() nunca rodou — captureException

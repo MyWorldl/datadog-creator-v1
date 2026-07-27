@@ -1,4 +1,4 @@
-// src/components/CollapsibleCard.jsx
+// src/components/CollapsibleCard.tsx
 //
 // Card colapsável/expansível reutilizável (React + Tailwind) — visual "Modelo E":
 // acento em GRADIENTE sutil da cor de status + ÍCONE de status + número grande.
@@ -17,20 +17,22 @@
 
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
+
+export type CardStatus = 'good' | 'warn' | 'bad' | 'nd'
 
 // status -> cor do texto/ícone + tint (fundo do gradiente e do quadrado do ícone)
-const STATUS = {
+const STATUS: Record<CardStatus, { color: string; tint: string | null }> = {
   good: { color: 'var(--success)', tint: 'var(--success-bg)' },
   warn: { color: 'var(--warning)', tint: 'var(--warning-bg)' },
   bad: { color: 'var(--danger)', tint: 'var(--danger-bg)' },
   nd: { color: 'var(--text-muted)', tint: null },
 }
 
-function StatusIcon({ status }) {
+function StatusIcon({ status }: { status: CardStatus }) {
   const p = {
     width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
-    strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true',
+    strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': 'true' as const,
   }
   if (status === 'good') return <svg {...p}><path d="M20 6 9 17l-5-5" /></svg>
   if (status === 'warn') return <svg {...p}><path d="M12 3 21 19H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
@@ -38,9 +40,18 @@ function StatusIcon({ status }) {
   return <svg {...p}><path d="M5 12h14" /></svg>
 }
 
-const STATUS_LABEL = { good: 'saudável', warn: 'atenção', bad: 'crítico', nd: 'não avaliado' }
+const STATUS_LABEL: Record<CardStatus, string> = { good: 'saudável', warn: 'atenção', bad: 'crítico', nd: 'não avaliado' }
 
-export default function CollapsibleCard({ title, score, status = 'nd', icon = null, defaultOpen = false, children }) {
+interface CollapsibleCardProps {
+  title: string
+  score: number | string | null | undefined
+  status?: CardStatus
+  icon?: ReactNode
+  defaultOpen?: boolean
+  children?: ReactNode
+}
+
+export default function CollapsibleCard({ title, score, status = 'nd', icon = null, defaultOpen = false, children }: CollapsibleCardProps) {
   const [open, setOpen] = useState(defaultOpen)
   const bodyId = useId()
   const st = STATUS[status] || STATUS.nd

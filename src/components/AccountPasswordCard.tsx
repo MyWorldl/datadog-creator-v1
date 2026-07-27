@@ -1,4 +1,4 @@
-// src/components/AccountPasswordCard.js
+// src/components/AccountPasswordCard.tsx
 'use client'
 
 // Define/troca a senha da conta. Necessário depois de aceitar um convite
@@ -6,10 +6,10 @@
 // sem isso, a pessoa nunca consegue logar de novo via e-mail/senha depois
 // que a sessão expirar). Também serve pra trocar senha a qualquer momento.
 
-import { useState } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
-const s = {
+const s: Record<string, CSSProperties> = {
   card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginTop: 12 },
   title: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' },
@@ -27,7 +27,7 @@ export default function AccountPasswordCard() {
   const [error, setError] = useState('')
   const [ok, setOk] = useState(false)
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError('')
     setOk(false)

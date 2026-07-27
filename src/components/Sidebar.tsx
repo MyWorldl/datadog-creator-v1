@@ -1,10 +1,10 @@
-// src/components/Sidebar.jsx
+// src/components/Sidebar.tsx
 'use client'
 /* eslint-disable react-hooks/set-state-in-effect --
    O efeito abaixo sincroniza a categoria aberta com a navegação (sistema
    externo ao componente), não é loop de render. */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ComponentType } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useSession, signOut } from '@/context/SupabaseAuthContext'
@@ -14,12 +14,25 @@ import {
   IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow,
 } from '@/components/Icons'
 
+interface NavItem {
+  href: string
+  label: string
+  Icon: ComponentType<{ size?: number }>
+}
+
+interface NavCategory {
+  key: string
+  label: string
+  Icon: ComponentType<{ size?: number }>
+  items: NavItem[]
+}
+
 // Categorias de navegação da sidebar. TODAS funcionam do mesmo jeito, mesmo
 // as que têm só 1 recurso (Home, Financeiro): passar o mouse abre um flyout
 // AO LADO, na mesma cor/tema da sidebar (não é um card branco flutuando
 // por cima da página, é uma extensão dela). Em telas touch (sem hover), o
 // clique no cabeçalho abre/fecha do mesmo jeito.
-const categories = [
+const categories: NavCategory[] = [
   {
     key: 'home',
     label: 'Home',
@@ -57,11 +70,11 @@ const categories = [
   },
 ]
 
-function isItemActive(pathname, href) {
+function isItemActive(pathname: string, href: string): boolean {
   return pathname === href || (href !== '/' && pathname.startsWith(href))
 }
 
-function rowStyle({ active, hovered }) {
+function rowStyle({ active, hovered }: { active: boolean; hovered: boolean }): CSSProperties {
   return {
     display: 'flex',
     alignItems: 'center',
@@ -84,11 +97,19 @@ function rowStyle({ active, hovered }) {
   }
 }
 
-function CategoryGroup({ category, pathname, openKey, setOpenKey, onNavigate }) {
+interface CategoryGroupProps {
+  category: NavCategory
+  pathname: string
+  openKey: string | null
+  setOpenKey: (updater: string | null | ((curr: string | null) => string | null)) => void
+  onNavigate?: () => void
+}
+
+function CategoryGroup({ category, pathname, openKey, setOpenKey, onNavigate }: CategoryGroupProps) {
   const { key, label, Icon, items } = category
   const isActive = items.some((it) => isItemActive(pathname, it.href))
   const isOpen = openKey === key
-  const closeTimer = useRef(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function openNow() {
     if (closeTimer.current) {
@@ -160,11 +181,17 @@ function CategoryGroup({ category, pathname, openKey, setOpenKey, onNavigate }) 
   )
 }
 
-export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
+interface SidebarProps {
+  isOpen?: boolean
+  onNavigate?: () => void
+  onClose?: () => void
+}
+
+export default function Sidebar({ isOpen = false, onNavigate, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const { setKeysConfigured } = useApp()
-  const [openKey, setOpenKey] = useState(null)
+  const [openKey, setOpenKey] = useState<string | null>(null)
 
   // Ao navegar pra dentro de uma categoria (ex.: link direto, favorito,
   // "voltar" do navegador), abre o flyout correspondente automaticamente,
@@ -177,7 +204,7 @@ export default function Sidebar({ isOpen = false, onNavigate, onClose }) {
   async function handleLogout() {
     // As orgs salvas ficam no Supabase (não numa sessão) — não há nada pra
     // limpar no servidor aqui. Só reseta o estado local da UI.
-    setKeysConfigured(false)
+    setKeysConfigured()
     signOut({ callbackUrl: '/' })
   }
 

@@ -4,21 +4,46 @@
    no mount (não existe no SSR) e (2) buscar as conexões Datadog do usuário
    ao logar. São sincronizações com sistemas externos, não loops de render. */
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useSession } from '@/context/SupabaseAuthContext';
+import type { PublicConnection } from '@/lib/connections';
 
-const AppContext = createContext(null);
+export type Theme = 'system' | 'light' | 'dark';
 
-export function AppProvider({ children }) {
+export interface AddConnectionInput {
+  name?: string
+  apiKey: string
+  appKey: string
+  site: string
+}
+
+export interface AppContextValue {
+  theme: Theme
+  setTheme: (t: Theme) => void
+  datadogSite: string
+  keysConfigured: boolean
+  keysLoading: boolean
+  connections: PublicConnection[]
+  activeConnection: PublicConnection | null
+  refreshConnections: () => Promise<void>
+  activateConnection: (id: string) => Promise<void>
+  addConnection: (input: AddConnectionInput) => Promise<PublicConnection | undefined>
+  removeConnection: (id: string) => Promise<void>
+  setKeysConfigured: () => void
+}
+
+const AppContext = createContext<AppContextValue | null>(null);
+
+export function AppProvider({ children }: { children: ReactNode }) {
   // Auth NÃO vive mais aqui — quem cuida do login é o Supabase Auth (useSession).
   // Este context guarda preferências de UI + as conexões Datadog (múltiplas
   // orgs, guardadas no Supabase — ver lib/connections.ts) do usuário.
-  const [theme, setTheme] = useState('system');
+  const [theme, setTheme] = useState<Theme>('system');
   const [datadogSite, setDatadogSite] = useState('datadoghq.com');
 
   // Lista de conexões (orgs) do usuário + qual está ativa no momento.
   // As chaves em si NUNCA chegam ao browser — só id/nome/site/isActive.
-  const [connections, setConnections] = useState([]);
+  const [connections, setConnections] = useState<PublicConnection[]>([]);
   const [keysLoading, setKeysLoading] = useState(true);
 
   const activeConnection = connections.find(c => c.isActive) || null;
@@ -26,7 +51,7 @@ export function AppProvider({ children }) {
 
   // Carrega preferências locais (tema NÃO é segredo => localStorage ok).
   useEffect(() => {
-    const savedTheme = localStorage.getItem('dd_theme') || 'system';
+    const savedTheme = (localStorage.getItem('dd_theme') as Theme) || 'system';
     setTheme(savedTheme);
   }, []);
 
@@ -55,7 +80,7 @@ export function AppProvider({ children }) {
       const r = await fetch('/api/connections');
       if (!r.ok) { setConnections([]); return; }
       const data = await r.json();
-      const list = Array.isArray(data.connections) ? data.connections : [];
+      const list: PublicConnection[] = Array.isArray(data.connections) ? data.connections : [];
       setConnections(list);
       const active = list.find(c => c.isActive);
       if (active?.site) setDatadogSite(active.site);
@@ -78,7 +103,7 @@ export function AppProvider({ children }) {
   }, [status, refreshConnections]);
 
   // Troca a org ativa (marca outra conexão salva como ativa).
-  const activateConnection = useCallback(async (id) => {
+  const activateConnection = useCallback(async (id: string) => {
     const r = await fetch(`/api/connections/${id}`, { method: 'PATCH' });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'Falha ao trocar de org.');
@@ -86,7 +111,7 @@ export function AppProvider({ children }) {
   }, [refreshConnections]);
 
   // Adiciona uma nova org (a rota já valida as chaves contra o Datadog).
-  const addConnection = useCallback(async ({ name, apiKey, appKey, site }) => {
+  const addConnection = useCallback(async ({ name, apiKey, appKey, site }: AddConnectionInput) => {
     const r = await fetch('/api/connections', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -99,7 +124,7 @@ export function AppProvider({ children }) {
   }, [refreshConnections]);
 
   // Remove uma org salva.
-  const removeConnection = useCallback(async (id) => {
+  const removeConnection = useCallback(async (id: string) => {
     const r = await fetch(`/api/connections/${id}`, { method: 'DELETE' });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || 'Falha ao remover a conexão.');
@@ -127,7 +152,7 @@ export function AppProvider({ children }) {
   );
 }
 
-export const useApp = () => {
+export const useApp = (): AppContextValue => {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used inside AppProvider');
   return ctx;

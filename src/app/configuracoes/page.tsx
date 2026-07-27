@@ -1,10 +1,11 @@
 'use client'
 
-import { useApp } from '@/context/AppContext';
+import type { CSSProperties } from 'react';
+import { useApp, type Theme } from '@/context/AppContext';
 import ConnectKeysCard from '@/components/ConnectKeysCard';
 import AccountPasswordCard from '@/components/AccountPasswordCard';
 
-const s = {
+const s: Record<string, CSSProperties> = {
   title:     { fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub:       { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   card:      { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', marginBottom: 12, boxShadow: 'var(--card-shadow)' },
@@ -23,11 +24,11 @@ export default function ConfiguracoesPage() {
       <div style={s.card}>
         <p style={s.cardTitle}>Tema</p>
         <div style={{ display: 'flex', gap: 10 }}>
-          {[
+          {([
             { value: 'light',  label: 'Light',   icon: '☀️' },
             { value: 'dark',   label: 'Dark',    icon: '🌙' },
             { value: 'system', label: 'Sistema', icon: '💻' },
-          ].map(opt => (
+          ] as { value: Theme; label: string; icon: string }[]).map(opt => (
             <button
               key={opt.value}
               onClick={() => setTheme(opt.value)}

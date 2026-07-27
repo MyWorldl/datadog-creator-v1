@@ -1,20 +1,44 @@
-// src/app/ferramentas/audit/page.js
+// src/app/ferramentas/audit/page.tsx
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
-import { coveragePercent, percentBand } from '@/lib/audit'
+import {
+  coveragePercent, percentBand, type PercentBand, type CoverageItem,
+  type HostCoverageRow, type ServiceCoverageRow, type SuggestedInfraResult, type SuggestedApmResult,
+} from '@/lib/audit'
+import type { CreatePlanResult } from '@/lib/monitor-create-server'
+
+interface MetricRef {
+  key: string
+  label: string
+}
+
+interface AuditData {
+  score: number
+  gapCount: number
+  environment: { hostCount: number; serviceCount: number; monitorCount: number }
+  coverage: CoverageItem[]
+  hostCoverage: HostCoverageRow[]
+  serviceCoverage: ServiceCoverageRow[]
+  infraMetrics: MetricRef[]
+  apmMetrics: MetricRef[]
+  suggestedInfra: SuggestedInfraResult
+  suggestedApm: SuggestedApmResult
+  history: number[]
+  delta: number | null
+}
 
 // Cores por faixa de % de cobertura por entidade (host/serviço) — faixas de
 // negócio calculadas em lib/audit.ts (percentBand); aqui só o mapeamento
 // pra CSS var. O anel (scoreColor) usa a MESMA escala dos cards.
-const bandColor = (band) => band === 'red' ? 'var(--danger)' : band === 'yellow' ? 'var(--warning)' : band === 'green' ? 'var(--success)' : 'var(--text-muted)'
-const scoreColor = (v) => bandColor(percentBand(v))
-const bandBg = (band) => band === 'red' ? 'var(--danger-bg)' : band === 'yellow' ? 'var(--warning-bg)' : band === 'green' ? 'var(--success-bg)' : 'var(--bg-surface-2)'
+const bandColor = (band: PercentBand): string => band === 'red' ? 'var(--danger)' : band === 'yellow' ? 'var(--warning)' : band === 'green' ? 'var(--success)' : 'var(--text-muted)'
+const scoreColor = (v: number | null | undefined): string => bandColor(percentBand(v ?? null))
+const bandBg = (band: PercentBand): string => band === 'red' ? 'var(--danger-bg)' : band === 'yellow' ? 'var(--warning-bg)' : band === 'green' ? 'var(--success-bg)' : 'var(--bg-surface-2)'
 
-function Ring({ value, size = 120, stroke = 10 }) {
+function Ring({ value, size = 120, stroke = 10 }: { value: number | null; size?: number; stroke?: number }) {
   const r = (size / 2) - stroke, circ = 2 * Math.PI * r, dash = ((value ?? 0) / 100) * circ
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
@@ -24,7 +48,7 @@ function Ring({ value, size = 120, stroke = 10 }) {
   )
 }
 
-const s = {
+const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
@@ -32,22 +56,36 @@ const s = {
   btn2: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   ok: { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  stat: (c) => ({ fontSize: 20, fontWeight: 800, color: c || 'var(--text-primary)' }),
   statLbl: { fontSize: 11, color: 'var(--text-muted)' },
   groupTitle: { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, margin: '18px 0 8px' },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: 10 },
-  cov: (band) => ({ border: `1px solid ${bandColor(band)}`, background: bandBg(band), borderRadius: 10, padding: '12px 14px' }),
   covName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
-  covStatus: (band) => ({ fontSize: 15, fontWeight: 800, color: bandColor(band) }),
   suggestCard: { background: 'var(--bg-base)', marginTop: 16, borderRadius: 12, border: '1px solid var(--border)', padding: '1.25rem' },
   suggestHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
   note: { fontSize: 11.5, color: 'var(--text-muted)', background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 10px', margin: '10px 0' },
 }
 
+const statStyle = (c?: string): CSSProperties => ({ fontSize: 20, fontWeight: 800, color: c || 'var(--text-primary)' })
+const covStyle = (band: PercentBand): CSSProperties => ({ border: `1px solid ${bandColor(band)}`, background: bandBg(band), borderRadius: 10, padding: '12px 14px' })
+const covStatusStyle = (band: PercentBand): CSSProperties => ({ fontSize: 15, fontWeight: 800, color: bandColor(band) })
+
+interface SuggestionCardProps {
+  title: string
+  sug: SuggestedInfraResult | SuggestedApmResult | undefined
+  entityLabel: string
+  endpoint: string
+  operationNote?: string
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onConfirm: (endpoint: string) => void
+  confirming: boolean
+}
+
 // Card de resumo + preview/confirmação pra uma leva de monitores sugeridos
 // (Infra ou APM). Mesmo componente serve pros dois grupos — só muda o texto,
 // o endpoint de criação e (pra APM) a nota de operation padrão.
-function SuggestionCard({ title, sug, entityLabel, endpoint, operationNote, open, onOpen, onClose, onConfirm, confirming }) {
+function SuggestionCard({ title, sug, entityLabel, endpoint, operationNote, open, onOpen, onClose, onConfirm, confirming }: SuggestionCardProps) {
   if (!sug || sug.monitorCount === 0) return null
   return (
     <div style={s.suggestCard}>
@@ -77,7 +115,16 @@ function SuggestionCard({ title, sug, entityLabel, endpoint, operationNote, open
   )
 }
 
-function CoverageTable({ title, rows, metrics, rowKey, rowLabel, footnote }) {
+interface CoverageTableProps<T extends { gapCount: number; metrics: Record<string, boolean> }> {
+  title: string
+  rows: T[]
+  metrics: MetricRef[]
+  rowKey: keyof T & string
+  rowLabel: string
+  footnote: string
+}
+
+function CoverageTable<T extends { gapCount: number; metrics: Record<string, boolean> }>({ title, rows, metrics, rowKey, rowLabel, footnote }: CoverageTableProps<T>) {
   const complete = rows.filter(r => r.gapCount === 0).length
   return (
     <details style={{ marginTop: 16 }}>
@@ -97,8 +144,8 @@ function CoverageTable({ title, rows, metrics, rowKey, rowLabel, footnote }) {
           </thead>
           <tbody>
             {rows.map(r => (
-              <tr key={r[rowKey]} style={{ borderTop: '1px solid var(--border)' }}>
-                <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono), monospace', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>{r[rowKey]}</td>
+              <tr key={String(r[rowKey])} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono), monospace', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>{String(r[rowKey])}</td>
                 {metrics.map(m => (
                   <td key={m.key} style={{ padding: '6px 8px', textAlign: 'center', color: r.metrics[m.key] ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
                     {r.metrics[m.key] ? '✓' : '✗'}
@@ -119,10 +166,10 @@ export default function AuditMonitorsPage() {
   const { keysConfigured, datadogSite } = useApp()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [data, setData] = useState(null)
-  const [previewKind, setPreviewKind] = useState(null) // null | 'infra' | 'apm'
+  const [data, setData] = useState<AuditData | null>(null)
+  const [previewKind, setPreviewKind] = useState<'infra' | 'apm' | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [createResult, setCreateResult] = useState(null)
+  const [createResult, setCreateResult] = useState<CreatePlanResult | null>(null)
 
   async function run() {
     setError(''); setLoading(true); setData(null); setCreateResult(null); setPreviewKind(null)
@@ -131,11 +178,11 @@ export default function AuditMonitorsPage() {
       const json = await r.json()
       if (!r.ok) { setError(json.error || 'Falha ao auditar.'); return }
       setData(json)
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 
-  async function confirmCreate(endpoint) {
+  async function confirmCreate(endpoint: string) {
     const sug = previewKind === 'infra' ? data?.suggestedInfra : data?.suggestedApm
     if (!sug?.plan?.length) return
     setConfirming(true); setCreateResult(null); setError('')
@@ -148,7 +195,7 @@ export default function AuditMonitorsPage() {
       if (!r.ok) { setError(json.error || 'Falha ao criar monitores.'); return }
       setCreateResult(json)
       await run() // recalcula a cobertura após criar
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setConfirming(false) }
   }
 
@@ -179,10 +226,10 @@ export default function AuditMonitorsPage() {
             <div style={{ flex: 1, minWidth: 220 }}>
               {data && (
                 <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 10 }}>
-                  <div><div style={s.stat()}>{data.environment.hostCount}</div><div style={s.statLbl}>hosts</div></div>
-                  <div><div style={s.stat()}>{data.environment.serviceCount}</div><div style={s.statLbl}>serviços APM</div></div>
-                  <div><div style={s.stat()}>{data.environment.monitorCount}</div><div style={s.statLbl}>monitores</div></div>
-                  <div><div style={s.stat(scoreColor(100 - (data.gapCount / (data.coverage.length || 1)) * 100))}>{data.gapCount}</div><div style={s.statLbl}>lacunas</div></div>
+                  <div><div style={statStyle()}>{data.environment.hostCount}</div><div style={s.statLbl}>hosts</div></div>
+                  <div><div style={statStyle()}>{data.environment.serviceCount}</div><div style={s.statLbl}>serviços APM</div></div>
+                  <div><div style={statStyle()}>{data.environment.monitorCount}</div><div style={s.statLbl}>monitores</div></div>
+                  <div><div style={statStyle(scoreColor(100 - (data.gapCount / (data.coverage.length || 1)) * 100))}>{data.gapCount}</div><div style={s.statLbl}>lacunas</div></div>
                 </div>
               )}
               {data && data.history && (
@@ -231,10 +278,10 @@ export default function AuditMonitorsPage() {
                   const pct = coveragePercent(data.hostCoverage, c.key)
                   const band = percentBand(pct.percent)
                   return (
-                    <div key={c.key} style={s.cov(band)}>
+                    <div key={c.key} style={covStyle(band)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                         <span style={s.covName}>{c.label}</span>
-                        <span style={s.covStatus(band)}>{pct.percent == null ? '—' : `${pct.percent}%`}</span>
+                        <span style={covStatusStyle(band)}>{pct.percent == null ? '—' : `${pct.percent}%`}</span>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{pct.coveredCount}/{pct.totalCount} hosts cobertos.</div>
                     </div>
@@ -259,10 +306,10 @@ export default function AuditMonitorsPage() {
                   const pct = coveragePercent(data.serviceCoverage, c.key)
                   const band = percentBand(pct.percent)
                   return (
-                    <div key={c.key} style={s.cov(band)}>
+                    <div key={c.key} style={covStyle(band)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                         <span style={s.covName}>{c.label}</span>
-                        <span style={s.covStatus(band)}>{pct.percent == null ? '—' : `${pct.percent}%`}</span>
+                        <span style={covStatusStyle(band)}>{pct.percent == null ? '—' : `${pct.percent}%`}</span>
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{pct.coveredCount}/{pct.totalCount} serviços cobertos.</div>
                     </div>

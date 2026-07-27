@@ -1,4 +1,4 @@
-// src/app/monitor/page.js
+// src/app/monitor/page.tsx
 // Página do MonitorsCreator — orquestra os 5 steps do wizard
 
 'use client'
@@ -9,6 +9,7 @@ import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
+import type { ResourceType, WizardConfig } from '@/components/discovery/types'
 
 // Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
 // primeiro, por isso fica com import estático — os demais só entram no bundle
@@ -27,7 +28,7 @@ const STEPS = ['Conectar', 'Configurar', 'Personalizar', 'Revisar', 'Criar']
 // ─────────────────────────────────────────────
 // Estado inicial de todas as configurações
 // ─────────────────────────────────────────────
-const INITIAL_CONFIG = {
+const INITIAL_CONFIG: WizardConfig = {
   // O wizard opera somente no modo de descoberta.
   mode: 'discovery',
   // 'services' (APM, por serviço/operação) ou 'infra' (por host: CPU/Memória/Disco).
@@ -38,7 +39,7 @@ const INITIAL_CONFIG = {
 
 export default function Home() {
   const [step, setStep]     = useState(0)
-  const [config, setConfig] = useState(INITIAL_CONFIG)
+  const [config, setConfig] = useState<WizardConfig>(INITIAL_CONFIG)
 
   function goNext() { setStep(s => Math.min(s + 1, STEPS.length - 1)) }
   function goBack() { setStep(s => Math.max(s - 1, 0)) }
@@ -81,20 +82,16 @@ export default function Home() {
 
         {/* Step ativo */}
         {step === 0 && (
-          <StepConnect
-            config={config}
-            setConfig={setConfig}
-            onNext={goNext}
-          />
+          <StepConnect onNext={goNext} />
         )}
 
         {step === 1 && (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-              {[
+              {([
                 { key: 'services', label: 'APM' },
                 { key: 'infra', label: 'Infraestrutura (Hosts)' },
-              ].map(opt => {
+              ] as { key: ResourceType; label: string }[]).map(opt => {
                 const on = config.resourceType === opt.key
                 return (
                   <button

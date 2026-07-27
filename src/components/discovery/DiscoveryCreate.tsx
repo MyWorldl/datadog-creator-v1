@@ -1,17 +1,21 @@
-// src/components/discovery/DiscoveryCreate.jsx
+// src/components/discovery/DiscoveryCreate.tsx
 'use client'
 
-import { useState } from 'react'
-import { planPreview } from '@/lib/discovery'
-import { planInfraPreview } from '@/lib/infra'
+import { useState, type CSSProperties } from 'react'
+import { planPreview, type PlanItem } from '@/lib/discovery'
+import { planInfraPreview, type InfraPlanItem } from '@/lib/infra'
+import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
+import type { DiscoveryStepProps } from './types'
+
+type PlanEntry = PlanItem | InfraPlanItem
 
 // Primeira linha da mensagem (o resto é o corpo longo — O que monitora/Causas/
 // Ação recomendada — que não cabe bem numa célula de planilha).
-function firstLine(message) {
+function firstLine(message: string): string {
   return (message || '').split('\n')[0].trim()
 }
 
-function priorityLabel(priority) {
+function priorityLabel(priority: number | null): string {
   return priority ? `P${priority}` : 'Sem prioridade'
 }
 
@@ -19,7 +23,7 @@ function priorityLabel(priority) {
 // e foram pulados, já que esses não têm id novo). plan[i] e results[i] estão
 // sempre alinhados 1:1: a rota processa o mesmo plano, na mesma ordem, que o
 // cliente já calculou aqui (mesma função pura, mesmo input).
-async function downloadResultsExcel(plan, resultsList) {
+async function downloadResultsExcel(plan: PlanEntry[], resultsList: PlanResultItem[]) {
   const rows = plan
     .map((p, i) => ({ p, r: resultsList[i] }))
     .filter(({ r }) => r?.ok && !r?.skipped)
@@ -58,7 +62,7 @@ async function downloadResultsExcel(plan, resultsList) {
   URL.revokeObjectURL(url)
 }
 
-const s = {
+const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
   summary: { fontSize: 13, color: 'var(--text-secondary)' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
@@ -70,15 +74,17 @@ const s = {
   btnExport: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer', alignSelf: 'flex-start' },
 }
 
-export default function DiscoveryCreate({ config, onBack }) {
+type DiscoveryCreateProps = Omit<DiscoveryStepProps, 'setConfig' | 'onNext'>
+
+export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps) {
   const isInfra = config.resourceType === 'infra'
   const d = isInfra ? config.infra : config.discovery
-  const plan = isInfra ? planInfraPreview(d) : planPreview(d)
+  const plan: PlanEntry[] = isInfra ? planInfraPreview(config.infra) : planPreview(config.discovery)
   const endpoint = isInfra ? '/api/datadog/infra-monitors' : '/api/datadog/service-monitors'
   const bodyKey = isInfra ? 'infra' : 'discovery'
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
-  const [results, setResults] = useState(null)
+  const [results, setResults] = useState<CreatePlanResult | null>(null)
   const [exporting, setExporting] = useState(false)
 
   async function create() {
@@ -92,14 +98,14 @@ export default function DiscoveryCreate({ config, onBack }) {
       const data = await r.json()
       if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
       setResults(data)
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setCreating(false) }
   }
 
   async function exportExcel() {
     setExporting(true)
     try {
-      await downloadResultsExcel(plan, results.results)
+      await downloadResultsExcel(plan, results!.results)
     } finally {
       setExporting(false)
     }
@@ -126,7 +132,7 @@ export default function DiscoveryCreate({ config, onBack }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
             {results.results.map((r, i) => (
               <div key={i} style={{ ...s.resItem, color: r.ok ? (r.skipped ? 'var(--text-muted)' : 'var(--success)') : 'var(--danger)', borderColor: r.ok ? (r.skipped ? 'var(--border)' : 'var(--success)') : 'var(--danger)' }}>
-                {r.ok ? (r.skipped ? '↷' : '✓') : '✗'} {r.service} · {r.operation} · {r.kind}
+                {r.ok ? (r.skipped ? '↷' : '✓') : '✗'} {String(r.service)} · {String(r.operation)} · {String(r.kind)}
                 {r.id ? ` · id ${r.id}` : ''}{r.skipped ? ' · já existia' : ''}{r.error ? ` · ${r.error}` : ''}
               </div>
             ))}

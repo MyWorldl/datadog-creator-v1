@@ -1,4 +1,4 @@
-// src/components/ConnectKeysCard.js
+// src/components/ConnectKeysCard.tsx
 'use client'
 
 // Card de "Conexões Datadog" — agora suporta VÁRIAS orgs por usuário.
@@ -6,8 +6,9 @@
 // marcar outra conexão salva como ativa, sem digitar as chaves de novo.
 // Usado no Dashboard, no wizard (Step 1) e em Configurações.
 
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
+import type { PublicConnection } from '@/lib/connections'
 
 const SITES = [
   { value: 'datadoghq.com',    label: 'datadoghq.com — US1 (padrão)' },
@@ -19,7 +20,7 @@ const SITES = [
   { value: 'ddog-gov.com',      label: 'ddog-gov.com — US1-FED' },
 ]
 
-const s = {
+const s: Record<string, CSSProperties> = {
   card:   { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   title:  { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub:    { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 14px' },
@@ -38,7 +39,14 @@ const s = {
   orgSite:{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, fontFamily: 'var(--font-geist-mono), monospace' },
 }
 
-function OrgRow({ conn, onActivate, onRemove, busy }) {
+interface OrgRowProps {
+  conn: PublicConnection
+  onActivate: (id: string) => void
+  onRemove: (id: string) => void
+  busy: boolean
+}
+
+function OrgRow({ conn, onActivate, onRemove, busy }: OrgRowProps) {
   const [confirming, setConfirming] = useState(false)
   return (
     <div style={s.row}>
@@ -67,6 +75,11 @@ function OrgRow({ conn, onActivate, onRemove, busy }) {
   )
 }
 
+interface TestResult {
+  ok: boolean
+  msg: string
+}
+
 export default function ConnectKeysCard() {
   const { connections, keysLoading, activateConnection, addConnection, removeConnection } = useApp()
 
@@ -78,9 +91,9 @@ export default function ConnectKeysCard() {
   const [show, setShow] = useState(false)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [busyId, setBusyId] = useState(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState(null) // {ok, msg}
+  const [testResult, setTestResult] = useState<TestResult | null>(null)
 
   async function testConnection() {
     setTesting(true); setTestResult(null)
@@ -94,7 +107,7 @@ export default function ConnectKeysCard() {
       if (data.valid) setTestResult({ ok: true, msg: `Conexão válida com ${data.site}.` })
       else setTestResult({ ok: false, msg: data.reason || data.error || 'Credenciais inválidas.' })
     } catch (e) {
-      setTestResult({ ok: false, msg: 'Falha de rede: ' + e.message })
+      setTestResult({ ok: false, msg: 'Falha de rede: ' + (e as Error).message })
     } finally {
       setTesting(false)
     }
@@ -111,23 +124,23 @@ export default function ConnectKeysCard() {
       setName(''); setApiKey(''); setAppKey(''); setTestResult(null)
       setShowForm(false)
     } catch (e) {
-      setError(e.message)
+      setError((e as Error).message)
     } finally {
       setSaving(false)
     }
   }
 
-  async function handleActivate(id) {
+  async function handleActivate(id: string) {
     setBusyId(id); setError('')
     try { await activateConnection(id) }
-    catch (e) { setError(e.message) }
+    catch (e) { setError((e as Error).message) }
     finally { setBusyId(null) }
   }
 
-  async function handleRemove(id) {
+  async function handleRemove(id: string) {
     setBusyId(id); setError('')
     try { await removeConnection(id) }
-    catch (e) { setError(e.message) }
+    catch (e) { setError((e as Error).message) }
     finally { setBusyId(null) }
   }
 

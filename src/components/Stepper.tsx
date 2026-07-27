@@ -1,9 +1,14 @@
-// src/components/Stepper.jsx
+// src/components/Stepper.tsx
 // Barra de progresso visual com os 5 steps do Wizard
 
 'use client'
 
-export default function Stepper({ steps, current }) {
+interface StepperProps {
+  steps: string[]
+  current: number
+}
+
+export default function Stepper({ steps, current }: StepperProps) {
   return (
     <nav
       aria-label="Progresso do wizard"

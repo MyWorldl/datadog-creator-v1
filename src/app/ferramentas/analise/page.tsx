@@ -1,11 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useApp } from '@/context/AppContext'
-import CollapsibleCard from '@/components/CollapsibleCard'
+import CollapsibleCard, { type CardStatus } from '@/components/CollapsibleCard'
 import Sparkline from '@/components/Sparkline'
 
-function ScoreRing({ value, color, size = 120, stroke = 10 }) {
+interface ScoreRingProps {
+  value: number
+  color: string
+  size?: number
+  stroke?: number
+}
+
+function ScoreRing({ value, color, size = 120, stroke = 10 }: ScoreRingProps) {
   const r = (size / 2) - stroke
   const circ = 2 * Math.PI * r
   const dash = (value / 100) * circ
@@ -18,11 +25,44 @@ function ScoreRing({ value, color, size = 120, stroke = 10 }) {
   )
 }
 
-const scoreColor = (v) => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
+interface DimensionView {
+  key: string
+  label: string
+  measured: boolean
+  score: number | null
+  detail: string
+}
+
+interface PillarView {
+  key: string
+  label: string
+  score: number | null
+  measured: boolean
+  maduro: string
+  imaturo: string
+  dimensions: DimensionView[]
+}
+
+interface ScopeMaturityData {
+  score: number
+  level: number
+  levelLabel: string
+  levelNote: string | null
+  pillars: PillarView[]
+  site: string
+  generatedAt: string
+  measuredCount: number
+  totalDimensions: number
+  dimensions: DimensionView[]
+  history: number[]
+  delta: number | null
+}
+
+const scoreColor = (v: number | null | undefined): string => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 // status da dimensão para o card (Modelo E): good | warn | bad | nd
-const smStatus = (dim) => !dim.measured ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
+const smStatus = (dim: { measured: boolean; score: number | null }): CardStatus => !dim.measured || dim.score == null ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
 // cor + tint por status, para o badge numérico do KPI
-const STATUS_TINT = {
+const STATUS_TINT: Record<CardStatus, { c: string; bg: string }> = {
   good: { c: 'var(--success)', bg: 'var(--success-bg)' },
   warn: { c: 'var(--warning)', bg: 'var(--warning-bg)' },
   bad: { c: 'var(--danger)', bg: 'var(--danger-bg)' },
@@ -31,8 +71,8 @@ const STATUS_TINT = {
 
 // Ícones temáticos por pilar (linha, estilo lucide — sinérgicos com o tema
 // escuro): cada pilar ganha um glyph de identidade em vez da forma de status.
-const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': 'true' }
-const PILLAR_ICON = {
+const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': 'true' as const }
+const PILLAR_ICON: Record<string, ReactNode> = {
   // Cobertura → camadas (infra/apps/cloud empilhadas)
   cobertura: <svg {...ICON_PROPS}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></svg>,
   // Qualidade dos Monitores → sino (alertas)
@@ -45,26 +85,21 @@ const PILLAR_ICON = {
   governanca: <svg {...ICON_PROPS}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z" /><path d="m9 12 2 2 4-4" /></svg>,
 }
 
-const s = {
+const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', alignItems: 'start', gap: 12, marginTop: 16 },
-  dim: { border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-surface)' },
-  dimHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  dimName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
-  dimVal: (c) => ({ fontSize: 14, fontWeight: 800, color: c }),
   dimDetail: { fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 },
-  na: { fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' },
 }
 
 export default function ScopeMaturityPage() {
   const { keysConfigured, datadogSite } = useApp()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [data, setData] = useState(null)
+  const [data, setData] = useState<ScopeMaturityData | null>(null)
 
   async function run() {
     setError(''); setLoading(true); setData(null)
@@ -73,7 +108,7 @@ export default function ScopeMaturityPage() {
       const json = await r.json()
       if (!r.ok) { setError(json.error || 'Falha ao calcular o score.'); return }
       setData(json)
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 

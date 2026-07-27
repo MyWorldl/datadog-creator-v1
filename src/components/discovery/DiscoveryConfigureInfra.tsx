@@ -1,12 +1,13 @@
-// src/components/discovery/DiscoveryConfigureInfra.jsx
+// src/components/discovery/DiscoveryConfigureInfra.tsx
 'use client'
 
-import { useState } from 'react'
-import { INFRA_TYPES } from '@/lib/infra'
+import { useState, type CSSProperties } from 'react'
+import { INFRA_TYPES, type InfraMetricConfig, type InfraCheckConfig } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
+import type { DiscoveryStepProps } from './types'
 
 // Sub-etapas internas de "Configurar" (infra) — mesmo padrão usado em
-// DiscoveryConfigure.jsx (fluxo de serviços/namespace), por consistência
+// DiscoveryConfigure.tsx (fluxo de serviços/namespace), por consistência
 // visual entre os dois fluxos: divide a tela em fases menores, cada uma com
 // validação própria, em vez de um card único com tudo empilhado.
 const SUB_STEPS = [
@@ -14,7 +15,9 @@ const SUB_STEPS = [
   { key: 'metrics', label: 'Métricas' },
 ]
 
-const s = {
+type SubStepState = 'done' | 'active' | 'pending'
+
+const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
@@ -26,39 +29,40 @@ const s = {
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
   // Sub-navegação (Hosts/Métricas)
   subNav: { display: 'flex', gap: 18, marginBottom: 2 },
-  subNavItem: (state) => ({
-    display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
-    fontWeight: state === 'active' ? 700 : 500,
-    color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
-  }),
-  subNavDot: (state) => ({
-    width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-    background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
-  }),
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
   hostList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
   hostRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 6, cursor: 'pointer' },
-  statusTag: (up) => ({ fontSize: 10, fontWeight: 700, color: up ? 'var(--success)' : 'var(--danger)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.03em' }),
-  acc: (on) => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 }),
   accHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' },
   pillRow: { display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 },
   pill: { fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontFamily: 'var(--font-geist-mono), monospace' },
-  chev: (open) => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' }),
   accBody: { padding: '4px 12px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
-export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onBack }) {
+const subNavItemStyle = (state: SubStepState): CSSProperties => ({
+  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
+  fontWeight: state === 'active' ? 700 : 500,
+  color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
+})
+const subNavDotStyle = (state: SubStepState): CSSProperties => ({
+  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+  background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
+})
+const statusTagStyle = (up: boolean): CSSProperties => ({ fontSize: 10, fontWeight: 700, color: up ? 'var(--success)' : 'var(--danger)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.03em' })
+const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
+const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
+
+export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const d = config.infra
-  const setInfra = (patch) => setConfig(c => ({ ...c, infra: { ...c.infra, ...patch } }))
+  const setInfra = (patch: Partial<typeof d>) => setConfig(c => ({ ...c, infra: { ...c.infra, ...patch } }))
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [hostSearch, setHostSearch] = useState('')
-  const [openMetric, setOpenMetric] = useState(INFRA_TYPES[0]?.key || null)
+  const [openMetric, setOpenMetric] = useState<string | null>(INFRA_TYPES[0]?.key || null)
   const [subStep, setSubStep] = useState(0)
 
   const selectedNames = Object.keys(d.selected).filter(h => d.selected[h])
@@ -79,11 +83,11 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
       if (!r.ok) { setError((data.error || 'Falha ao descobrir hosts.') + (data.hint ? ' ' + data.hint : '')); return }
       setInfra({ hosts: data.hosts || [] })
       if ((data.hosts || []).length === 0) setError('Nenhum host encontrado.')
-    } catch (e) { setError('Falha de rede: ' + e.message) }
+    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 
-  function toggleHost(name) {
+  function toggleHost(name: string) {
     const sel = { ...d.selected }
     if (sel[name]) delete sel[name]
     else sel[name] = true
@@ -100,14 +104,14 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
     setInfra({ selected: sel })
   }
 
-  function toggleMetric(key) {
+  function toggleMetric(key: string) {
     setInfra({ metrics: { ...d.metrics, [key]: { ...d.metrics[key], enabled: !d.metrics[key].enabled } } })
   }
-  function setMetricParam(key, field, value) {
+  function setMetricParam(key: string, field: string, value: unknown) {
     setInfra({ metrics: { ...d.metrics, [key]: { ...d.metrics[key], [field]: value } } })
   }
-  function setMetricThreshold(key, level, value) {
-    const cfg = d.metrics[key]
+  function setMetricThreshold(key: string, level: 'critical' | 'warning' | 'criticalRecovery' | 'warningRecovery', value: string) {
+    const cfg = d.metrics[key] as InfraMetricConfig
     // '' só acontece nos campos de recovery (opcionais, limpáveis) — vira
     // null (sem recovery threshold), não 0 (que seria um valor real).
     const parsed = value === '' ? null : Number(value)
@@ -115,8 +119,8 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   }
   // Contagens do monitor de service check (ex.: Agent Down) — nº de
   // reportes com aquele status dentro da janela `window` para disparar.
-  function setMetricCount(key, level, value) {
-    const cfg = d.metrics[key]
+  function setMetricCount(key: string, level: 'critical' | 'warning', value: string) {
+    const cfg = d.metrics[key] as InfraCheckConfig
     setInfra({ metrics: { ...d.metrics, [key]: { ...cfg, counts: { ...cfg.counts, [level]: Number(value) } } } })
   }
 
@@ -147,10 +151,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
     <div style={s.card}>
       <div style={s.subNav}>
         {SUB_STEPS.map((ss, i) => {
-          const state = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
+          const state: SubStepState = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
           return (
-            <span key={ss.key} style={s.subNavItem(state)}>
-              <span style={s.subNavDot(state)} />
+            <span key={ss.key} style={subNavItemStyle(state)}>
+              <span style={subNavDotStyle(state)} />
               {ss.label}
             </span>
           )
@@ -189,7 +193,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                     <label key={h.name} style={{ ...s.hostRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
                       <input type="checkbox" checked={on} onChange={() => toggleHost(h.name)} />
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{h.name}</span>
-                      <span style={s.statusTag(h.up)}>{h.up ? 'up' : 'down'}</span>
+                      <span style={statusTagStyle(h.up)}>{h.up ? 'up' : 'down'}</span>
                     </label>
                   )
                 })}
@@ -213,8 +217,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
               const open = openMetric === t.key
               const isCheck = t.kind === 'check'
               const isThreshold = !isCheck && cfg.mode === 'threshold'
+              const metricCfg = cfg as InfraMetricConfig
+              const checkCfg = cfg as InfraCheckConfig
               return (
-                <div key={t.key} style={s.acc(on)}>
+                <div key={t.key} style={accStyle(on)}>
                   <div style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleMetric(t.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{t.label}</span>
@@ -222,35 +228,35 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                       {isCheck ? (
                         <>
                           <span style={s.pill}>service check</span>
-                          <span style={s.pill}>{cfg.counts.critical}/{cfg.window} down</span>
+                          <span style={s.pill}>{checkCfg.counts.critical}/{checkCfg.window} down</span>
                         </>
                       ) : (
                         <>
-                          <span style={s.pill}>{cfg.mode}</span>
+                          <span style={s.pill}>{metricCfg.mode}</span>
                           {isThreshold
                             ? <>
-                                <span style={s.pill}>crit {cfg.thresholds.critical}{t.unit} / warn {cfg.thresholds.warning}{t.unit}</span>
-                                {Number.isFinite(cfg.thresholds.criticalRecovery) && <span style={s.pill}>recovery {cfg.thresholds.criticalRecovery}{t.unit}</span>}
+                                <span style={s.pill}>crit {metricCfg.thresholds.critical}{t.unit} / warn {metricCfg.thresholds.warning}{t.unit}</span>
+                                {Number.isFinite(metricCfg.thresholds.criticalRecovery) && <span style={s.pill}>recovery {metricCfg.thresholds.criticalRecovery}{t.unit}</span>}
                               </>
-                            : <span style={s.pill}>{cfg.deviations}σ · {cfg.algorithm}</span>}
+                            : <span style={s.pill}>{metricCfg.deviations}σ · {metricCfg.algorithm}</span>}
                         </>
                       )}
                     </div>
-                    <span style={s.chev(open)}>▶</span>
+                    <span style={chevStyle(open)}>▶</span>
                   </div>
                   {open && isCheck && (
                     <div style={s.accBody}>
                       <div>
                         <label style={s.miniLabel}>Janela (últimos N reportes)</label>
-                        <input style={s.select} type="number" min="1" max="20" value={cfg.window} disabled={!on} onChange={e => setMetricParam(t.key, 'window', Number(e.target.value))} />
+                        <input style={s.select} type="number" min="1" max="20" value={checkCfg.window} disabled={!on} onChange={e => setMetricParam(t.key, 'window', Number(e.target.value))} />
                       </div>
                       <div>
                         <label style={s.miniLabel}>Critical (nº &quot;down&quot;)</label>
-                        <input style={s.select} type="number" min="1" max="20" value={cfg.counts.critical} disabled={!on} onChange={e => setMetricCount(t.key, 'critical', e.target.value)} />
+                        <input style={s.select} type="number" min="1" max="20" value={checkCfg.counts.critical} disabled={!on} onChange={e => setMetricCount(t.key, 'critical', e.target.value)} />
                       </div>
                       <div>
                         <label style={s.miniLabel}>Warning (nº &quot;down&quot;)</label>
-                        <input style={s.select} type="number" min="0" max="20" value={cfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
+                        <input style={s.select} type="number" min="0" max="20" value={checkCfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
                       </div>
                     </div>
                   )}
@@ -258,7 +264,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                     <div style={s.accBody}>
                       <div>
                         <label style={s.miniLabel}>Modo</label>
-                        <select style={s.select} value={cfg.mode} disabled={!on} onChange={e => setMetricParam(t.key, 'mode', e.target.value)}>
+                        <select style={s.select} value={metricCfg.mode} disabled={!on} onChange={e => setMetricParam(t.key, 'mode', e.target.value)}>
                           <option value="threshold">threshold</option>
                           <option value="anomaly">anomaly</option>
                         </select>
@@ -268,44 +274,44 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                         <>
                           <div>
                             <label style={s.miniLabel}>Critical ({t.unit})</label>
-                            <input style={s.select} type="number" min="1" max="100" value={cfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
+                            <input style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
                           </div>
                           <div>
                             <label style={s.miniLabel}>Warning ({t.unit})</label>
-                            <input style={s.select} type="number" min="1" max="100" value={cfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
+                            <input style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
                           </div>
                           <div>
                             <label style={s.miniLabel}>Recovery critical ({t.unit}, opcional)</label>
-                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={cfg.thresholds.criticalRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'criticalRecovery', e.target.value)} />
+                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.criticalRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'criticalRecovery', e.target.value)} />
                           </div>
                           <div>
                             <label style={s.miniLabel}>Recovery warning ({t.unit}, opcional)</label>
-                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={cfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
+                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
                           </div>
                         </>
                       ) : (
                         <>
                           <div>
                             <label style={s.miniLabel}>Algoritmo</label>
-                            <select style={s.select} value={cfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
+                            <select style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
                               <option value="basic">basic</option><option value="agile">agile</option><option value="robust">robust</option>
                             </select>
                           </div>
                           <div>
                             <label style={s.miniLabel}>Sazonalidade</label>
-                            <select style={s.select} value={cfg.seasonality} disabled={!on || cfg.algorithm === 'basic'} onChange={e => setMetricParam(t.key, 'seasonality', e.target.value)}>
+                            <select style={s.select} value={metricCfg.seasonality} disabled={!on || metricCfg.algorithm === 'basic'} onChange={e => setMetricParam(t.key, 'seasonality', e.target.value)}>
                               <option value="hourly">hourly</option><option value="daily">daily</option><option value="weekly">weekly</option>
                             </select>
                           </div>
                           <div>
                             <label style={s.miniLabel}>Alert window</label>
-                            <select style={s.select} value={cfg.alertWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'alertWindow', e.target.value)}>
+                            <select style={s.select} value={metricCfg.alertWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'alertWindow', e.target.value)}>
                               {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           </div>
                           <div>
                             <label style={s.miniLabel}>Anomalies</label>
-                            <input style={s.select} type="number" min="1" max="10" value={cfg.deviations} disabled={!on} onChange={e => setMetricParam(t.key, 'deviations', Number(e.target.value))} />
+                            <input style={s.select} type="number" min="1" max="10" value={metricCfg.deviations} disabled={!on} onChange={e => setMetricParam(t.key, 'deviations', Number(e.target.value))} />
                           </div>
                         </>
                       )}
