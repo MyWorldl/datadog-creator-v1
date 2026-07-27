@@ -159,3 +159,78 @@ test('notifyTarget: vazio preserva @equipe-infra; definido substitui na mensagem
   assert.ok(!cpu.payload.message.includes('@equipe-infra'))
   assert.ok(hostUp.payload.message.includes('@pagerduty-infra-oncall'))
 })
+
+// ── Outlier Detection (atrás da feature flag outlierDetection) ──
+// Diferente de threshold/anomaly: outlier compara os hosts SELECIONADOS
+// entre si, então a query usa TODOS os hosts de uma vez (host[], não host
+// único) e o plano gera 1 monitor pro grupo, não 1 por host.
+
+test('outlier: query usa outliers(), by {host} e os hosts unidos por OR', () => {
+  const q = buildInfraQuery({ kind: 'cpu', host: ['web-1', 'web-2', 'web-3'], groupBy: ['host'], mode: 'outlier', thresholds: { critical: 90, warning: 80 }, algorithm: 'DBSCAN', tolerance: 3 })
+  assert.match(q, /^avg\(last_1h\):/)
+  assert.match(q, /outliers\(/)
+  assert.match(q, /host:web-1 OR host:web-2 OR host:web-3/)
+  assert.match(q, /by \{host\}/)
+  assert.match(q, /'DBSCAN'/)
+  assert.match(q, /, 3\)/)
+  assert.match(q, />= 1$/)
+})
+
+test('outlier: percentage só entra na query pros algoritmos MAD/scaledMAD', () => {
+  const dbscan = buildInfraQuery({ kind: 'cpu', host: ['a', 'b'], mode: 'outlier', thresholds: { critical: 90, warning: 80 }, algorithm: 'DBSCAN', tolerance: 1, percentage: 20 })
+  assert.doesNotMatch(dbscan, /, 20\)/, 'DBSCAN não usa percentage')
+
+  const mad = buildInfraQuery({ kind: 'cpu', host: ['a', 'b'], mode: 'outlier', thresholds: { critical: 90, warning: 80 }, algorithm: 'MAD', tolerance: 2, percentage: 20 })
+  assert.match(mad, /'MAD', 2, 20\)/)
+})
+
+test('outlier: rede (2 termos) recebe by {host} em CADA termo, igual threshold/anomaly', () => {
+  const q = buildInfraQuery({ kind: 'network', host: ['a', 'b'], mode: 'outlier', thresholds: { critical: 50, warning: 10 }, algorithm: 'DBSCAN', tolerance: 3 })
+  const matches = q.match(/by \{host,device\}/g) || []
+  assert.equal(matches.length, 2)
+})
+
+test('planInfraPreview: modo outlier gera 1 monitor por métrica pro GRUPO inteiro, não 1 por host', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'web-1': true, 'web-2': true, 'web-3': true } // 3 hosts
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.mode = 'outlier'
+  d.metrics.cpu.algorithm = 'DBSCAN'
+  d.metrics.cpu.tolerance = 3
+  const plan = planInfraPreview(d)
+
+  const cpuItems = plan.filter(m => m.kind === 'cpu')
+  assert.equal(cpuItems.length, 1, 'outlier deve gerar 1 monitor só, não 1 por host')
+  assert.equal(cpuItems[0].service, '3 host(s)')
+  assert.match(cpuItems[0].query, /host:web-1 OR host:web-2 OR host:web-3/)
+  assert.match(cpuItems[0].payload.name, /\(outlier\)/)
+  assert.deepEqual(cpuItems[0].payload.options.thresholds, { critical: 1.0 })
+  assert.ok(!('threshold_windows' in cpuItems[0].payload.options), 'outlier não usa threshold_windows (isso é de anomaly)')
+})
+
+test('planInfraPreview: outlier e threshold/anomaly convivem no mesmo plano sem se misturar', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'web-1': true, 'web-2': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.mode = 'outlier'
+  d.metrics.memory.enabled = true
+  d.metrics.memory.mode = 'threshold'
+  const plan = planInfraPreview(d)
+
+  assert.equal(plan.filter(m => m.kind === 'cpu').length, 1, 'cpu (outlier) = 1 item pro grupo')
+  assert.equal(plan.filter(m => m.kind === 'memory').length, 2, 'memory (threshold) = 1 item por host')
+})
+
+test('outlier: tags incluem host:<nome> de CADA host do grupo', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'web-1': true, 'web-2': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.mode = 'outlier'
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  assert.ok(cpu.payload.tags.includes('host:web-1'))
+  assert.ok(cpu.payload.tags.includes('host:web-2'))
+})

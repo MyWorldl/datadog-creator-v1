@@ -16,6 +16,7 @@ import { planInfraPreview, type InfraDiscoveryState } from '@/lib/infra'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
 import { planSchema, discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
@@ -42,7 +43,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     // discoveryBodySchema é uma validação leve e genérica (compartilhada com
     // service-monitors); o shape real de InfraDiscoveryState é responsabilidade
     // de planInfraPreview, que já tolera campos ausentes via default.
-    plan = planInfraPreview(parsed.data as unknown as Partial<InfraDiscoveryState>)
+    const infraInput = parsed.data as unknown as Partial<InfraDiscoveryState>
+
+    // Defesa em profundidade: a UI só mostra o modo 'outlier' atrás da
+    // feature flag (ver DiscoveryConfigureInfra.tsx), mas o mode vem do
+    // client — reforça aqui pra quem tentar montar o body à mão.
+    const hasOutlier = Object.values(infraInput.metrics || {}).some(m => (m as { mode?: string })?.mode === 'outlier')
+    if (hasOutlier && !isFeatureEnabled('outlierDetection')) {
+      return Response.json({ error: 'Outlier Detection ainda não está disponível.' }, { status: 403 })
+    }
+
+    plan = planInfraPreview(infraInput)
   }
   if (plan.length === 0) {
     return Response.json({ error: 'Nada a criar: selecione host(s) e métrica(s) de infra.' }, { status: 400 })

@@ -2,9 +2,12 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { INFRA_TYPES, type InfraMetricConfig, type InfraCheckConfig } from '@/lib/infra'
+import { INFRA_TYPES, type InfraMetricConfig, type InfraCheckConfig, type OutlierAlgorithm } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
+import { useApp } from '@/context/AppContext'
 import type { DiscoveryStepProps } from './types'
+
+const OUTLIER_ALGORITHMS: OutlierAlgorithm[] = ['DBSCAN', 'MAD', 'scaledDBSCAN', 'scaledMAD']
 
 // Sub-etapas internas de "Configurar" (infra) — mesmo padrão usado em
 // DiscoveryConfigure.tsx (fluxo de serviços/namespace), por consistência
@@ -56,6 +59,7 @@ const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--b
 const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
 
 export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
+  const { features } = useApp()
   const d = config.infra
   const setInfra = (patch: Partial<typeof d>) => setConfig(c => ({ ...c, infra: { ...c.infra, ...patch } }))
 
@@ -109,6 +113,18 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   }
   function setMetricParam(key: string, field: string, value: unknown) {
     setInfra({ metrics: { ...d.metrics, [key]: { ...d.metrics[key], [field]: value } } })
+  }
+  // Troca de modo (threshold/anomaly/outlier) — ao entrar em 'outlier' pela
+  // primeira vez, semeia algoritmo/tolerância padrão (senão os campos
+  // ficariam undefined até o usuário mexer neles).
+  function setMetricMode(key: string, mode: 'threshold' | 'anomaly' | 'outlier') {
+    const cfg = d.metrics[key] as InfraMetricConfig
+    const patch: Partial<InfraMetricConfig> = { mode }
+    if (mode === 'outlier' && cfg.tolerance == null) {
+      patch.algorithm = 'DBSCAN'
+      patch.tolerance = 3
+    }
+    setInfra({ metrics: { ...d.metrics, [key]: { ...cfg, ...patch } } })
   }
   function setMetricThreshold(key: string, level: 'critical' | 'warning' | 'criticalRecovery' | 'warningRecovery', value: string) {
     const cfg = d.metrics[key] as InfraMetricConfig
@@ -217,6 +233,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
               const open = openMetric === t.key
               const isCheck = t.kind === 'check'
               const isThreshold = !isCheck && cfg.mode === 'threshold'
+              const isOutlier = !isCheck && cfg.mode === 'outlier'
               const metricCfg = cfg as InfraMetricConfig
               const checkCfg = cfg as InfraCheckConfig
               return (
@@ -238,7 +255,9 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                                 <span style={s.pill}>crit {metricCfg.thresholds.critical}{t.unit} / warn {metricCfg.thresholds.warning}{t.unit}</span>
                                 {Number.isFinite(metricCfg.thresholds.criticalRecovery) && <span style={s.pill}>recovery {metricCfg.thresholds.criticalRecovery}{t.unit}</span>}
                               </>
-                            : <span style={s.pill}>{metricCfg.deviations}σ · {metricCfg.algorithm}</span>}
+                            : isOutlier
+                              ? <span style={s.pill}>{metricCfg.algorithm} · tol {metricCfg.tolerance}</span>
+                              : <span style={s.pill}>{metricCfg.deviations}σ · {metricCfg.algorithm}</span>}
                         </>
                       )}
                     </div>
@@ -264,9 +283,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                     <div style={s.accBody}>
                       <div>
                         <label style={s.miniLabel}>Modo</label>
-                        <select style={s.select} value={metricCfg.mode} disabled={!on} onChange={e => setMetricParam(t.key, 'mode', e.target.value)}>
+                        <select style={s.select} value={metricCfg.mode} disabled={!on} onChange={e => setMetricMode(t.key, e.target.value as 'threshold' | 'anomaly' | 'outlier')}>
                           <option value="threshold">threshold</option>
                           <option value="anomaly">anomaly</option>
+                          {features.outlierDetection && <option value="outlier">outlier</option>}
                         </select>
                       </div>
 
@@ -287,6 +307,31 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                           <div>
                             <label style={s.miniLabel}>Recovery warning ({t.unit}, opcional)</label>
                             <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
+                          </div>
+                        </>
+                      ) : isOutlier ? (
+                        <>
+                          <div>
+                            <label style={s.miniLabel}>Algoritmo</label>
+                            <select style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
+                              {OUTLIER_ALGORITHMS.map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={s.miniLabel}>Tolerância</label>
+                            <input style={s.select} type="number" min="0.1" step="0.1" value={metricCfg.tolerance ?? 3} disabled={!on} onChange={e => setMetricParam(t.key, 'tolerance', Number(e.target.value))} />
+                          </div>
+                          {(metricCfg.algorithm === 'MAD' || metricCfg.algorithm === 'scaledMAD') && (
+                            <div>
+                              <label style={s.miniLabel}>Percentual (%)</label>
+                              <input style={s.select} type="number" min="1" max="100" placeholder="ex.: 20" value={metricCfg.percentage ?? ''} disabled={!on} onChange={e => setMetricParam(t.key, 'percentage', e.target.value === '' ? undefined : Number(e.target.value))} />
+                            </div>
+                          )}
+                          <div>
+                            <label style={s.miniLabel}>Time window</label>
+                            <select style={s.select} value={metricCfg.queryWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'queryWindow', e.target.value)}>
+                              {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
                           </div>
                         </>
                       ) : (
@@ -328,6 +373,12 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
             para exigir uma folga antes de considerar recuperado — evita o monitor abrir/fechar repetido (flapping)
             quando o valor oscila perto do limite. No modo anomaly, a Datadog recomenda pelo menos 3x o período de
             sazonalidade de histórico pro algoritmo calibrar bem (ex.: ~3 semanas pra weekly).
+            {features.outlierDetection && (
+              <> No modo <strong>outlier</strong>, o monitor não é 1 por host: ele compara TODOS os hosts selecionados
+              entre si e aponta qual foge do padrão do grupo — por isso é criado só 1 monitor pra métrica, cobrindo
+              o grupo inteiro (ver preview antes de criar). Tolerância mais baixa = mais sensível. Percentual só se
+              aplica aos algoritmos MAD/scaledMAD.</>
+            )}
           </p>
         </div>
       )}
