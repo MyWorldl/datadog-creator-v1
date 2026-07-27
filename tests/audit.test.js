@@ -5,7 +5,7 @@ import {
   analyzeCoverage, coverageScore, buildSuggestedInfra, buildSuggestedApm,
   analyzeHostCoverage, analyzeServiceCoverage, coveragePercent, percentBand,
   AUDIT_CATALOG,
-} from '../src/lib/audit.js'
+} from '../src/lib/audit.ts'
 
 const monitorsSample = [
   { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' },      // CPU

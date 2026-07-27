@@ -1,7 +1,7 @@
 // tests/score-history.test.js — node --test, sem deps (usa o fallback em memória).
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { recordScore, getHistory, computeDelta } from '../src/lib/score-history.js'
+import { recordScore, getHistory, computeDelta } from '../src/lib/score-history.ts'
 
 test('computeDelta = diferença dos dois últimos pontos', () => {
   assert.equal(computeDelta([{ t: 1, score: 40 }, { t: 2, score: 46 }]), 6)

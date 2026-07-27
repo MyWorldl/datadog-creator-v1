@@ -21,7 +21,7 @@ export const datadogKeysSchema = z.object({
 })
 export type DatadogKeys = z.infer<typeof datadogKeysSchema>
 
-// connections/route.js aceita tudo do schema acima + um nome opcional.
+// connections/route.ts aceita tudo do schema acima + um nome opcional.
 export const createConnectionSchema = datadogKeysSchema.extend({
   name: z.string().trim().optional().default(''),
 })
@@ -63,21 +63,21 @@ export function parseDqlTokenList(raw: string | null | undefined, label: string)
   return { success: true, data: items }
 }
 
-// hosts/route.js: filter usa a sintaxe de BUSCA de host da Datadog (aceita
+// hosts/route.ts: filter usa a sintaxe de BUSCA de host da Datadog (aceita
 // espaço, AND/OR, etc — não é um token único como service/env/namespace),
 // então NÃO reaproveita isSafeDqlToken. Vai como query string já serializada
 // via URLSearchParams (nunca interpolada direto numa query DQL nossa) — só
 // um teto de tamanho contra abuso, sem restringir caracteres.
 export const hostFilterSchema = z.string().trim().max(500, 'Filtro muito longo.').optional().default('')
 
-// services/route.js: env é um valor de tag isolado (não uma busca composta).
+// services/route.ts: env é um valor de tag isolado (não uma busca composta).
 export const envQuerySchema = dqlToken('Valor de env').optional().default('*')
 
-// finops/route.js: mês no formato YYYY-MM (usado em monthBoundsMs — um valor
+// finops/route.ts: mês no formato YYYY-MM (usado em monthBoundsMs — um valor
 // fora desse formato quebrava o cálculo de forma silenciosa, sem erro claro).
 export const monthQuerySchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mês inválido (use o formato AAAA-MM).').optional()
 
-// connections/[id]/route.js: id é um uuid gerado pelo Postgres (Supabase) —
+// connections/[id]/route.ts: id é um uuid gerado pelo Postgres (Supabase) —
 // valor fora desse formato nunca bate com nenhuma linha, mas validar antes
 // devolve 400 claro em vez de rodar a query à toa.
 export const connectionIdSchema = z.uuid('Id de conexão inválido.')

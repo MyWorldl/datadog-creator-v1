@@ -15,7 +15,7 @@
 //     Limite generoso de propósito: a Home já dispara 2 GETs automáticos
 //     (scope-maturity + audit-monitors) a cada navegação, e confirmar criação
 //     de um plano de N monitores é SEMPRE 1 requisição (N chamadas ao Datadog
-//     acontecem dentro dela, no servidor — ver monitor-create-server.js) — o
+//     acontecem dentro dela, no servidor — ver monitor-create-server.ts) — o
 //     limite não deveria ser sentido em uso normal, só em abuso.
 //
 // Backend: se houver Redis externo (kv-store / Upstash) configurado, o estado

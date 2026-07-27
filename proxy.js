@@ -4,12 +4,12 @@
 // Aqui ele faz duas coisas a cada request: (1) refresca o cookie de sessão
 // do Supabase Auth (chamando getUser(), que revalida o token) e (2) aplica um
 // throttle geral nas rotas /api/connections/* e /api/datadog/* — ver
-// checkApiRateLimit em lib/rate-limit.js pro raciocínio do limite escolhido.
+// checkApiRateLimit em lib/rate-limit.ts pro raciocínio do limite escolhido.
 //
 // ⚠️ Segurança: por causa da CVE-2025-29927 (bypass de middleware via header
 // forjado), este proxy é apenas a PRIMEIRA camada. As rotas de API que mexem
 // com dados sensíveis revalidam a sessão com getServerUser() no servidor
-// (src/lib/supabase-server.js) — o rate limit aqui é defesa em profundidade
+// (src/lib/supabase-server.ts) — o rate limit aqui é defesa em profundidade
 // (reduz abuso antes de chegar na rota), não a única barreira de auth. A UI
 // (AppShell) só renderiza conteúdo autenticado quando SupabaseAuthContext
 // confirma a sessão.

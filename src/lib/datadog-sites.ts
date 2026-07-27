@@ -2,7 +2,7 @@
 //
 // Allowlist de sites Datadog válidos. Extraído de session-keys.ts pra ficar
 // num módulo SEM import de nada Next.js-runtime-only (next/headers, via
-// supabase-server.js) — session-keys.ts importa isso e mais getServerUser(),
+// supabase-server.ts) — session-keys.ts importa isso e mais getServerUser(),
 // o que tornava impossível importar só a allowlist (ex.: de schemas.ts) sem
 // arrastar next/headers pra dentro do `node --test` (ele não resolve fora
 // do runtime do Next, quebrando qualquer teste que importasse o módulo).
