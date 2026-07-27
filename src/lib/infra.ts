@@ -12,6 +12,21 @@
 //       'anomaly'   (type "query alert" com anomalies(...)): mesmo motor
 //         usado nos monitores de serviço. Bom quando o "normal" varia por
 //         host/dia.
+//       'outlier'   (type "query alert" com outliers(...), atrás da feature
+//         flag outlierDetection — ver lib/feature-flags.ts): DIFERENTE dos
+//         outros dois modos — não é 1 monitor por host, é 1 monitor pro
+//         GRUPO INTEIRO de hosts selecionados, que compara os hosts ENTRE SI
+//         e aponta qual deles foge do padrão do grupo (bom pra achar "a
+//         ovelha negra" num cluster/role, sem precisar de threshold fixo
+//         nem de histórico por host). Por isso o `host` vira `host[]` nesse
+//         modo e a expansão do plano (planInfraPreview) trata outlier num
+//         loop à parte do loop por-host normal.
+//         Sintaxe confirmada na doc (dashboards/functions/algorithms):
+//         outliers(<query>, '<algoritmo>', <tolerância>[, <percentual>]) —
+//         percentual só existe pros algoritmos MAD/scaledMAD. options do
+//         payload seguem o mesmo padrão de anomaly (thresholds.critical:1,
+//         sem threshold_windows — esse campo é específico de anomaly/
+//         alert_window, não documentado pra outlier).
 //   - kind:'check'  -> monitor de SERVICE CHECK (type "service check").
 //       Não compara um valor numérico: conta quantos dos últimos N reportes
 //       de um check vieram com status crítico/warning/ok. Usado aqui para
@@ -28,7 +43,8 @@
 // origem real dos seus hosts.
 
 export type InfraKind = 'cpu' | 'memory' | 'disk' | 'diskIO' | 'network' | 'load' | 'hostUp'
-export type InfraMode = 'threshold' | 'anomaly' | 'check'
+export type InfraMode = 'threshold' | 'anomaly' | 'outlier' | 'check'
+export type OutlierAlgorithm = 'DBSCAN' | 'MAD' | 'scaledDBSCAN' | 'scaledMAD'
 
 export interface InfraThresholds {
   critical: number
@@ -252,7 +268,7 @@ export const DEFAULT_INFRA_GROUP_BY = ['host']
 
 export interface InfraMetricConfig {
   enabled: boolean
-  mode: 'threshold' | 'anomaly'
+  mode: 'threshold' | 'anomaly' | 'outlier'
   thresholds: InfraThresholds & { criticalRecovery: number | null; warningRecovery: number | null }
   deviations: number
   direction: 'above' | 'below'
@@ -262,6 +278,12 @@ export interface InfraMetricConfig {
   alertWindow: string
   evaluationDelay: number
   priority: number | null
+  // Só usados no modo 'outlier' (ver OutlierAlgorithm) — tolerance é o
+  // parâmetro de sensibilidade do algoritmo (DBSCAN: multiplicador da
+  // distância ε; MAD: nº de desvios da mediana). percentage só se aplica
+  // aos algoritmos MAD/scaledMAD (% de pontos do grupo considerados outlier).
+  tolerance?: number
+  percentage?: number
 }
 
 export interface InfraCheckConfig {
@@ -354,8 +376,12 @@ export function initialInfraDiscovery(): InfraDiscoveryState {
 }
 
 // ── Construção de query/payload (fonte única) ──
-function scopeOf(host: string, extraTags?: string[]): string {
-  const parts = [`host:${host}`]
+// host aceita string[] só pro modo 'outlier' (grupo inteiro comparado numa
+// única query, via OR entre os hosts — sintaxe de escopo do Datadog aceita
+// boolean dentro de {}). Nos demais modos é sempre um host só.
+function scopeOf(host: string | string[], extraTags?: string[]): string {
+  const hostExpr = Array.isArray(host) ? host.map(h => `host:${h}`).join(' OR ') : `host:${host}`
+  const parts = [hostExpr]
   for (const t of (extraTags || [])) if (t) parts.push(t)
   return parts.join(',')
 }
@@ -366,10 +392,10 @@ function byClauseOf(groupBy?: string[]): string {
 
 export interface BuildInfraQueryArgs {
   kind: string
-  host: string
+  host: string | string[]
   extraTags?: string[]
   groupBy?: string[]
-  mode?: 'threshold' | 'anomaly'
+  mode?: 'threshold' | 'anomaly' | 'outlier'
   thresholds: InfraThresholds
   deviations?: number
   direction?: string
@@ -377,12 +403,19 @@ export interface BuildInfraQueryArgs {
   seasonality?: string
   queryWindow?: string
   alertWindow?: string
+  tolerance?: number
+  percentage?: number
 }
 
-export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m' }: BuildInfraQueryArgs): string {
+export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m', tolerance, percentage }: BuildInfraQueryArgs): string {
   const t = INFRA_BY_KEY[kind] as InfraMetricType
   const scope = scopeOf(host, extraTags)
-  const by = byClauseOf([...(groupBy || ['host']), ...(t.extraBy || [])])
+  // Outlier PRECISA de `by {host}` (é o que define "cada série = 1 host" pra
+  // comparar) — grupos custom (groupBy do usuário) ainda entram junto, mas
+  // 'host' nunca pode faltar aqui, senão outliers() não tem o que comparar.
+  const by = mode === 'outlier'
+    ? byClauseOf(['host', ...(groupBy || []).filter(g => g !== 'host'), ...(t.extraBy || [])])
+    : byClauseOf([...(groupBy || ['host']), ...(t.extraBy || [])])
   // `by` é passado PARA DENTRO de metric() (não concatenado depois) porque
   // expressões com mais de um termo (ex.: "network", soma de duas métricas)
   // precisam do `by {...}` em cada termo — colado só no final, o Datadog
@@ -392,6 +425,13 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   if (mode === 'anomaly') {
     const seas = algorithm !== 'basic' ? `, seasonality='${seasonality}'` : ''
     return `avg(${queryWindow}):anomalies(${m}, '${algorithm}', ${deviations}, direction='${direction}', alert_window='${alertWindow}', interval=60, count_default_zero='true'${seas}) >= 1`
+  }
+  if (mode === 'outlier') {
+    const algo = (algorithm || 'DBSCAN') as OutlierAlgorithm
+    // percentage só existe pra MAD/scaledMAD (doc: dashboards/functions/algorithms).
+    const supportsPercentage = algo === 'MAD' || algo === 'scaledMAD'
+    const pct = supportsPercentage && percentage != null ? `, ${percentage}` : ''
+    return `avg(${queryWindow}):outliers(${m}, '${algo}', ${tolerance ?? 3}${pct}) >= 1`
   }
   // threshold simples: type "metric alert" exige o valor de "critical" na
   // própria query (options.thresholds.critical deve bater com esse valor).
@@ -419,11 +459,13 @@ interface BuildMetricInfraArgs extends BuildInfraQueryArgs {
   thresholds: InfraThresholds & { criticalRecovery?: number | null; warningRecovery?: number | null }
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }: BuildMetricInfraArgs): InfraMonitorPayload {
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }: BuildMetricInfraArgs): InfraMonitorPayload {
   const t = INFRA_BY_KEY[kind] as InfraMetricType
-  const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${host} · Infra · ${t.label}`.trim()
+  const hostLabel = Array.isArray(host) ? `${host.length} host(s)` : host
+  const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${hostLabel} · Infra · ${t.label}${mode === 'outlier' ? ' (outlier)' : ''}`.trim()
 
-  const baseTags = ['created_by:monitorscreator', `host:${host}`, `infra_metric:${kind}`]
+  const baseTags = ['created_by:monitorscreator', `infra_metric:${kind}`]
+  for (const h of (Array.isArray(host) ? host : [host])) baseTags.push(`host:${h}`)
   for (const tg of (tags || [])) if (tg && !baseTags.includes(tg)) baseTags.push(tg)
 
   let resolvedMessage = message || t.message
@@ -432,13 +474,13 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
   return {
     name,
     type: 'query alert',
-    query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow }),
+    query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage }),
     message: resolvedMessage,
     tags: baseTags,
     // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5.
     ...(priority ? { priority } : {}),
     options: {
-      thresholds: mode === 'anomaly'
+      thresholds: (mode === 'anomaly' || mode === 'outlier')
         ? { critical: 1.0 }
         : {
             critical: thresholds.critical,
@@ -450,6 +492,9 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
             ...(Number.isFinite(thresholds.criticalRecovery) ? { critical_recovery: thresholds.criticalRecovery } : {}),
             ...(Number.isFinite(thresholds.warningRecovery) ? { warning_recovery: thresholds.warningRecovery } : {}),
           },
+      // threshold_windows/trigger_window é um artefato específico de anomaly
+      // (precisa casar com alert_window da query) — outlier não documenta
+      // esse campo, então não inventamos um valor pra ele aqui.
       ...(mode === 'anomaly' ? {
         threshold_windows: { trigger_window: alertWindow || 'last_15m', recovery_window: alertWindow || 'last_15m' },
       } : {}),
@@ -542,17 +587,42 @@ export interface InfraPlanItem {
 }
 
 // Expande o estado de descoberta de infra em uma lista de monitores
-// previstos. Um monitor por (host selecionado × métrica habilitada).
+// previstos. Um monitor por (host selecionado × métrica habilitada) — EXCETO
+// no modo 'outlier', que gera 1 monitor pro GRUPO INTEIRO de hosts
+// selecionados (ver comentário no topo do arquivo), por isso sai do loop
+// por host normal e é tratado à parte, antes dele.
 export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): InfraPlanItem[] {
   const d = infraDiscovery || {}
   const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '' } = d
   const hosts = Object.keys(selected).filter(h => selected[h])
 
   const plan: InfraPlanItem[] = []
+
+  // Outlier primeiro (1 item por métrica em modo outlier, cobrindo TODOS os
+  // hosts selecionados de uma vez — não entra no loop por host abaixo).
+  if (hosts.length > 0) {
+    for (const t of INFRA_TYPES) {
+      const cfg = metrics[t.key]
+      if (!cfg?.enabled || cfg.mode !== 'outlier') continue
+      const payload = buildInfraMonitorPayload({
+        kind: t.key, host: hosts, groupBy, tags, namePrefix, message: messages[t.key], notifyTarget,
+        mode: 'outlier',
+        thresholds: (t as InfraMetricType).defThresholds,
+        algorithm: cfg.algorithm || 'DBSCAN',
+        tolerance: cfg.tolerance ?? 3,
+        percentage: cfg.percentage,
+        queryWindow: cfg.queryWindow || 'last_1h',
+        evaluationDelay: cfg.evaluationDelay ?? 60,
+        priority: cfg.priority,
+      })
+      plan.push({ kind: t.key, label: t.label, service: `${hosts.length} host(s)`, operation: t.label, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
+    }
+  }
+
   for (const host of hosts) {
     for (const t of INFRA_TYPES) {
       const cfg = metrics[t.key]
-      if (!cfg?.enabled) continue
+      if (!cfg?.enabled || cfg.mode === 'outlier') continue // outlier já tratado acima, em grupo
 
       const payload = cfg.mode === 'check'
         ? buildInfraMonitorPayload({
