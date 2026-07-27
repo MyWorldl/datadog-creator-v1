@@ -57,6 +57,10 @@ const subNavDotStyle = (state: SubStepState): CSSProperties => ({
 const statusTagStyle = (up: boolean): CSSProperties => ({ fontSize: 10, fontWeight: 700, color: up ? 'var(--success)' : 'var(--danger)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.03em' })
 const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
 const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
+// Selo de "recurso em desenvolvimento" pro modo outlier (atrás da feature
+// flag) — não dá pra estilizar um <option> nativo, então o aviso visual
+// vive aqui, no cabeçalho do acordeon, junto do nome da métrica.
+const previewBadgeStyle: CSSProperties = { fontSize: 9.5, fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.04em' }
 
 export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const { features } = useApp()
@@ -241,6 +245,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                   <div style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleMetric(t.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{t.label}</span>
+                    {isOutlier && <span style={previewBadgeStyle}>Preview</span>}
                     <div style={s.pillRow}>
                       {isCheck ? (
                         <>
@@ -367,17 +372,12 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
             })}
           </div>
           <p style={s.hint}>
-            Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor. Ausência de
-            dados e renotificação seguem o padrão do Datadog. Recovery (modo threshold) é opcional: deixe em branco
-            para recuperar assim que o valor cruzar de volta o próprio critical/warning, ou defina um valor MENOR
-            para exigir uma folga antes de considerar recuperado — evita o monitor abrir/fechar repetido (flapping)
-            quando o valor oscila perto do limite. No modo anomaly, a Datadog recomenda pelo menos 3x o período de
-            sazonalidade de histórico pro algoritmo calibrar bem (ex.: ~3 semanas pra weekly).
+            Basic ignora sazonalidade. Alert window = trigger_window do monitor. Recovery (threshold) é opcional —
+            vazio recupera no próprio critical/warning; um valor menor evita flapping perto do limite. Anomaly
+            calibra melhor com ≥3x o período de sazonalidade (ex.: ~3 semanas pra weekly).
             {features.outlierDetection && (
-              <> No modo <strong>outlier</strong>, o monitor não é 1 por host: ele compara TODOS os hosts selecionados
-              entre si e aponta qual foge do padrão do grupo — por isso é criado só 1 monitor pra métrica, cobrindo
-              o grupo inteiro (ver preview antes de criar). Tolerância mais baixa = mais sensível. Percentual só se
-              aplica aos algoritmos MAD/scaledMAD.</>
+              <> Outlier: 1 monitor por métrica cobre todos os hosts selecionados, comparando-os entre si (não é
+              por host). Tolerância menor = mais sensível; percentual só vale pra MAD/scaledMAD.</>
             )}
           </p>
         </div>

@@ -66,6 +66,11 @@ test('envQuerySchema: ausente/indefinido usa default "*"; valor informado precis
   assert.equal(envQuerySchema.safeParse('prod;drop').success, false)
 })
 
+test('envQuerySchema: "*" literal (enviado explicitamente pelo client quando o campo env está vazio) é aceito — regressão do bug "Valor de env inválido" no caso mais comum (nenhum env digitado)', () => {
+  assert.equal(envQuerySchema.parse('*'), '*')
+  assert.equal(envQuerySchema.safeParse('**').success, false, 'só o wildcard exato "*" é aceito, não variações')
+})
+
 test('monthQuerySchema: aceita AAAA-MM válido, rejeita formato errado, opcional (undefined ok)', () => {
   assert.equal(monthQuerySchema.parse('2026-07'), '2026-07')
   assert.equal(monthQuerySchema.parse(undefined), undefined)

@@ -71,7 +71,15 @@ export function parseDqlTokenList(raw: string | null | undefined, label: string)
 export const hostFilterSchema = z.string().trim().max(500, 'Filtro muito longo.').optional().default('')
 
 // services/route.ts: env é um valor de tag isolado (não uma busca composta).
-export const envQuerySchema = dqlToken('Valor de env').optional().default('*')
+// '*' (wildcard "todos os envs") precisa ser aceito EXPLICITAMENTE além do
+// .default('*') abaixo: o client sempre manda env=* quando o campo está
+// vazio (DiscoveryConfigure.tsx: `env || '*'` na URL) — ou seja, o valor
+// literal "*" chega como input DEFINIDO, então o .default() nunca entra em
+// ação pra ele (só substitui quando o input é undefined). Sem esse
+// z.union, isSafeDqlToken('*') falhava (asterisco fora do charset de
+// isSafeDqlToken) e a rota devolvia "Valor de env inválido" bem no caso
+// mais comum (nenhum env digitado) — bug real, coberto agora por teste.
+export const envQuerySchema = z.union([z.literal('*'), dqlToken('Valor de env')]).optional().default('*')
 
 // finops/route.ts: mês no formato YYYY-MM (usado em monthBoundsMs — um valor
 // fora desse formato quebrava o cálculo de forma silenciosa, sem erro claro).
