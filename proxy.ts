@@ -1,4 +1,4 @@
-// proxy.js  (raiz do projeto)
+// proxy.ts  (raiz do projeto)
 //
 // No Next.js 16 o antigo "middleware.ts" passou a se chamar "proxy.ts/js".
 // Aqui ele faz duas coisas a cada request: (1) refresca o cookie de sessão
@@ -14,6 +14,7 @@
 // (AppShell) só renderiza conteúdo autenticado quando SupabaseAuthContext
 // confirma a sessão.
 
+import type { NextRequest } from 'next/server'
 import { updateSupabaseSession } from './src/lib/supabase-middleware'
 import { checkApiRateLimit, getClientIp } from './src/lib/rate-limit'
 
@@ -22,9 +23,9 @@ import { checkApiRateLimit, getClientIp } from './src/lib/rate-limit'
 // diferente deste throttle geral).
 const RATE_LIMITED_PREFIXES = ['/api/connections', '/api/datadog']
 
-export default async function proxy(request) {
+export default async function proxy(request: NextRequest): Promise<Response> {
   const { supabase, response } = updateSupabaseSession(request)
-  let userId = null
+  let userId: string | null = null
   if (supabase) {
     // getUser() força a revalidação/refresh do token e persiste os cookies
     // atualizados na response acima. Reaproveitamos o user.id (se houver)
