@@ -80,6 +80,26 @@ test('catálogo: itens sem monitor pronto no MonitorsCreator (infraKind:null) n�
   assert.ok(sug.plan.some(m => m.kind === 'cpu'), 'os tipos com infraKind continuam sendo sugeridos normalmente')
 })
 
+test('buildSuggestedInfra: catálogo K8s/DBM (sem infraKind, atrás de k8sDbmCoverage) nunca entra na leva sugerida de Infra', () => {
+  // Simula um host com gap também nas chaves K8s/DBM (group K8s/DBM, sem
+  // infraKind) — esses monitores vivem na aba dedicada do wizard
+  // (DiscoveryConfigureK8sDbm.tsx + config.k8sInfra), não no botão "Criar os
+  // que faltam" do AuditMonitors, que só conhece o grupo 'Infra'.
+  const k8sDbmKeys = [...K8S_CATALOG, ...DBM_CATALOG].map(c => c.key)
+  const gapHost = {
+    host: 'web',
+    metrics: Object.fromEntries([
+      ...AUDIT_CATALOG.filter(c => c.group === 'Infra').map(c => [c.key, false]),
+      ...k8sDbmKeys.map(k => [k, false]),
+    ]),
+    gapCount: 999,
+  }
+  const sug = buildSuggestedInfra([gapHost])
+  assert.ok(!sug.plan.some(m => k8sDbmKeys.includes(m.kind)),
+    'K8s/DBM não tem infraKind — não deve aparecer na leva sugerida mesmo com gap:true')
+  assert.ok(sug.plan.some(m => m.kind === 'cpu'), 'os tipos reais de Infra continuam sendo sugeridos normalmente')
+})
+
 test('analyzeHostCoverage: {*} cobre todos os hosts; host:X cobre só X', () => {
   const monitors = [
     { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' }, // CPU amplo

@@ -32,10 +32,23 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
+  // Kinds atrás de feature flag (hoje: K8s/DBM) — calculado uma vez, usado
+  // pelos dois formatos de body abaixo (plan pronto E discovery bruto).
+  const flaggedKinds = new Set<string>(INFRA_TYPES.filter(t => t.flag).map(t => t.key))
+
   let plan
   if (Array.isArray(body?.plan)) {
     const parsed = planSchema.safeParse(body.plan)
     if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+    // Defesa em profundidade: este caminho (plan já expandido) é usado hoje só
+    // pelo botão "Criar os que faltam" do AuditMonitors (buildSuggestedInfra),
+    // que nunca inclui kinds flagged — mas o body vem do client, então reforça
+    // aqui também (mesmo padrão do branch de discovery bruto, abaixo), caso
+    // alguém monte a requisição à mão ou a lógica de sugestão mude no futuro.
+    const hasFlagged = parsed.data.some(item => flaggedKinds.has(String((item as { kind?: unknown }).kind)))
+    if (hasFlagged && !isFeatureEnabled('k8sDbmCoverage')) {
+      return Response.json({ error: 'Cobertura de Kubernetes/Database Monitoring ainda não está disponível.' }, { status: 403 })
+    }
     plan = parsed.data
   } else {
     const parsed = discoveryBodySchema.safeParse(body?.infra || body)
@@ -57,7 +70,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     // métricas de banco) — atrás de k8sDbmCoverage. Genérico via INFRA_TYPES[].flag
     // em vez de listar as keys aqui, pra não precisar lembrar deste gate a
     // cada novo tipo flagged que for adicionado.
-    const flaggedKinds = new Set<string>(INFRA_TYPES.filter(t => t.flag).map(t => t.key))
     const hasFlagged = Object.entries(infraInput.metrics || {}).some(
       ([k, cfg]) => flaggedKinds.has(k) && (cfg as { enabled?: boolean })?.enabled
     )

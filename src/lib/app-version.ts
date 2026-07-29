@@ -27,6 +27,54 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.34.0',
+    date: '2026-07-29',
+    title: 'MonitorsCreator: cria monitores de K8s/DBM numa aba dedicada',
+    notes: [
+      'Nova aba "APM e Infraestrutura" (mesma flag) cria de fato os 4 monitores antes só detectados no AuditMonitors, em 3 seções por modelo de entidade: host (Node Ready + banco, com seletor de engine Postgres/MySQL), namespace (Pod Restarts, via change() sobre o contador cumulativo de restarts) e global (Pod Pending, monitor único pro cluster).',
+      'AuditMonitors ganhou um link direto pra essa aba na seção de cobertura K8s/DBM quando há lacunas.',
+      'Corrigido gap real: Pod Restarts/Pod Pending ignoravam as configurações de notificação sem dado/renotificação do wizard (vinham hardcoded) — agora respeitam, igual aos demais tipos de alerta.',
+      'Reforçada defesa em profundidade: a rota infra-monitors agora valida a flag também no caminho de plano já expandido (usado pelo botão "Criar os que faltam" do AuditMonitors), não só no caminho de discovery bruto.',
+    ],
+  },
+  {
+    version: '1.33.0',
+    date: '2026-07-27',
+    title: 'AuditMonitors: cobertura de Kubernetes e Database Monitoring (detecção)',
+    notes: [
+      'Novos grupos K8s e DBM no catálogo de auditoria — Restart de Pods, Node Ready, Pods pendentes, Conexões, Replicação, Deadlocks/slow queries — atrás de FEATURE_K8S_DBM_COVERAGE.',
+      'Cobertura no nível do ambiente (sem lista de nós/instâncias de banco descoberta pelo app, diferente de host/serviço): considera coberto se existir ao menos 1 monitor com a métrica-chave, em qualquer escopo.',
+    ],
+  },
+  {
+    version: '1.32.0',
+    date: '2026-07-27',
+    title: 'MonitorsCreator: badge "Preview" para features atrás de flag + correção de bug em "Descobrir serviços"',
+    notes: [
+      'Opções atrás de feature flag (como o modo outlier) agora mostram um selo "Preview" em vez de simplesmente aparecer/desaparecer conforme a flag — indica que é um recurso em desenvolvimento sem esconder a opção.',
+      'Textos de dica longos, resumidos.',
+      'Corrigido bug real: "Descobrir serviços" falhava com "Valor de env inválido" quando o campo env vinha vazio — o client manda o literal "*", que a validação rejeitava por não bater com a regex de token seguro.',
+    ],
+  },
+  {
+    version: '1.31.0',
+    date: '2026-07-27',
+    title: 'Feature flags + Outlier Detection no MonitorsCreator (Infra)',
+    notes: [
+      'Novo sistema de feature flags via env var (src/lib/feature-flags.ts) — liga/desliga uma funcionalidade em produção sem novo deploy, fail-closed por padrão (sem a env var, a flag fica desligada).',
+      'Primeiro consumidor: Outlier Detection no fluxo de Infraestrutura — modo que compara os hosts selecionados ENTRE SI via outliers() em vez de threshold fixo por host, atrás de FEATURE_OUTLIER_DETECTION.',
+    ],
+  },
+  {
+    version: '1.30.0',
+    date: '2026-07-27',
+    title: 'Migração completa para TypeScript',
+    notes: [
+      'lib, rotas de API e componentes React migrados de JavaScript para TypeScript em rounds incrementais, sem quebrar o restante do projeto durante a transição.',
+      'CI ganhou o step "Type-check (tsc)" (npm run typecheck), rodando antes dos testes.',
+    ],
+  },
+  {
     version: '1.29.0',
     date: '2026-07-22',
     title: 'AuditMonitors: cobertura por serviço (APM), % real, preview antes de criar',
