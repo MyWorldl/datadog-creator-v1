@@ -77,7 +77,7 @@ interface InfraTypeBase {
   flag?: FeatureFlag
 }
 
-interface InfraMetricType extends InfraTypeBase {
+export interface InfraMetricType extends InfraTypeBase {
   kind: 'metric'
   metric: (scope: string, by?: string, engine?: DbEngine) => string
   defThresholds: InfraThresholds

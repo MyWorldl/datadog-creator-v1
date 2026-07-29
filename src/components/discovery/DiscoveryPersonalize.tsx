@@ -2,15 +2,17 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { ALERT_TYPES, ALERT_BY_KEY } from '@/lib/discovery'
-import { INFRA_TYPES, INFRA_BY_KEY } from '@/lib/infra'
-import type { DiscoveryStepProps } from './types'
+import { ALERT_TYPES, ALERT_BY_KEY, POD_RESTARTS_TYPE, POD_PENDING_TYPE, type DiscoveryState } from '@/lib/discovery'
+import { INFRA_TYPES, INFRA_BY_KEY, type InfraDiscoveryState } from '@/lib/infra'
+import { sourcesFor, type DiscoveryStepProps, type PersonalizeSource } from './types'
 
 const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_namespace', 'http.status_code']
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
 const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 18 },
+  section: { display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 18, borderBottom: '0.5px solid var(--border)' },
+  sectionHeading: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
@@ -28,11 +30,20 @@ const s: Record<string, CSSProperties> = {
 
 const chipStyle = (on: boolean): CSSProperties => ({ fontSize: 12, padding: '6px 12px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface-2)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontWeight: on ? 600 : 400 })
 
+interface TypeLike {
+  key: string
+  label: string
+  message: string
+}
+
+interface EnabledKeyConfig {
+  enabled: boolean
+  priority?: number | null
+}
+
 // discovery.ts (DiscoveryState) e infra.ts (InfraDiscoveryState) divergem em
 // alerts/metrics e scopeType, mas compartilham o resto do shape usado aqui
-// (groupBy/tags/messages/namePrefix/notifyTarget/notifyNoData/renotifyInterval)
-// — este componente alterna entre os dois via isInfra, então tipamos só os
-// campos comuns e acessamos os divergentes com cast pontual.
+// (groupBy/tags/messages/namePrefix/notifyTarget/notifyNoData/renotifyInterval).
 interface PersonalizeCommon {
   namePrefix: string
   tags?: string[]
@@ -44,25 +55,52 @@ interface PersonalizeCommon {
   scopeType?: 'service' | 'namespace'
 }
 
-interface EnabledKeyConfig {
-  enabled: boolean
-  priority?: number | null
+// Resolve, por fonte, qual "catálogo" de tipos personalizar — cada
+// stateKey tem seu próprio conjunto: INFRA_TYPES pros dois slots infra-like
+// (excluindo os K8s/DBM do slot genérico 'infra', que agora vivem só em
+// 'k8sInfra'), ALERT_TYPES pro slot 'discovery', e [Pod Restarts, Pod
+// Pending] pro slot 'k8sDiscovery' (não fazem parte de ALERT_TYPES — não são
+// trace-based, ver comentário em lib/discovery.ts).
+function catalogFor(src: PersonalizeSource): { TYPES: TypeLike[]; BY_KEY: Record<string, TypeLike>; groupByOptions: string[]; entityLabel: string; entityTag: string; showGroupBy: boolean } {
+  if (src.stateKey === 'infra') {
+    return { TYPES: INFRA_TYPES.filter(t => !t.flag), BY_KEY: INFRA_BY_KEY, groupByOptions: COMMON_INFRA_GROUP_BY, entityLabel: 'host', entityTag: 'host', showGroupBy: true }
+  }
+  if (src.stateKey === 'k8sInfra') {
+    return { TYPES: INFRA_TYPES.filter(t => t.flag === 'k8sDbmCoverage'), BY_KEY: INFRA_BY_KEY, groupByOptions: COMMON_INFRA_GROUP_BY, entityLabel: 'host', entityTag: 'host', showGroupBy: true }
+  }
+  if (src.stateKey === 'k8sDiscovery') {
+    // groupBy não é exposto aqui: Pod Restarts/Pod Pending usam um `by`
+    // fixo (pod_name/kube_namespace), não o groupBy configurável genérico.
+    return { TYPES: [POD_RESTARTS_TYPE, POD_PENDING_TYPE], BY_KEY: { [POD_RESTARTS_TYPE.key]: POD_RESTARTS_TYPE, [POD_PENDING_TYPE.key]: POD_PENDING_TYPE }, groupByOptions: [], entityLabel: 'namespace', entityTag: 'kube_namespace', showGroupBy: false }
+  }
+  return { TYPES: ALERT_TYPES, BY_KEY: ALERT_BY_KEY, groupByOptions: COMMON_GROUP_BY, entityLabel: 'serviço', entityTag: 'service', showGroupBy: true }
 }
 
-export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
-  const isInfra = config.resourceType === 'infra'
-  const stateKey = isInfra ? 'infra' : 'discovery'
-  const d = (isInfra ? config.infra : config.discovery) as unknown as PersonalizeCommon
-  const setDisc = (patch: Partial<PersonalizeCommon>) => setConfig(c => ({ ...c, [stateKey]: { ...(c as unknown as Record<string, object>)[stateKey], ...patch } } as typeof c))
+function enabledKeySetFor(src: PersonalizeSource, state: InfraDiscoveryState | DiscoveryState): Record<string, EnabledKeyConfig> {
+  if (src.dataKind === 'infra') return (state as InfraDiscoveryState).metrics as unknown as Record<string, EnabledKeyConfig>
+  if (src.stateKey === 'k8sDiscovery') {
+    const d = state as DiscoveryState
+    return { [POD_RESTARTS_TYPE.key]: d.podRestarts, [POD_PENDING_TYPE.key]: d.podPending }
+  }
+  return (state as DiscoveryState).alerts as unknown as Record<string, EnabledKeyConfig>
+}
+
+interface SectionProps {
+  src: PersonalizeSource
+  config: DiscoveryStepProps['config']
+  setConfig: DiscoveryStepProps['setConfig']
+  last: boolean
+}
+
+function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
+  const isInfra = src.dataKind === 'infra'
+  const d = config[src.stateKey] as unknown as PersonalizeCommon
+  const setDisc = (patch: Partial<PersonalizeCommon>) => setConfig(c => ({ ...c, [src.stateKey]: { ...(c[src.stateKey] as object), ...patch } } as typeof c))
   const [tagInput, setTagInput] = useState('')
 
-  const TYPES = isInfra ? INFRA_TYPES : ALERT_TYPES
-  const BY_KEY = isInfra ? INFRA_BY_KEY : ALERT_BY_KEY
-  const groupByOptions = isInfra ? COMMON_INFRA_GROUP_BY : COMMON_GROUP_BY
-  const enabledKeySet = (isInfra ? config.infra.metrics : config.discovery.alerts) as unknown as Record<string, EnabledKeyConfig>
+  const { TYPES, BY_KEY, groupByOptions, entityLabel, entityTag, showGroupBy } = catalogFor(src)
+  const enabledKeySet = enabledKeySetFor(src, config[src.stateKey] as InfraDiscoveryState | DiscoveryState)
   const enabled = TYPES.filter(t => enabledKeySet[t.key]?.enabled)
-  const entityLabel = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'namespace' : 'serviço')
-  const entityTag = isInfra ? 'host' : (d.scopeType === 'namespace' ? 'kube_namespace' : 'service')
 
   function toggleGroup(tag: string) {
     const has = d.groupBy.includes(tag)
@@ -79,31 +117,35 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
   function setMessage(key: string, value: string) { setDisc({ messages: { ...d.messages, [key]: value } }) }
   function resetMessage(key: string) { setDisc({ messages: { ...d.messages, [key]: BY_KEY[key].message } }) }
   function setPriority(key: string, value: string) {
-    const field = isInfra ? 'metrics' : 'alerts'
-    const current = enabledKeySet
-    setConfig(c => ({
-      ...c,
-      [stateKey]: {
-        ...(c as unknown as Record<string, Record<string, unknown>>)[stateKey],
-        [field]: { ...current, [key]: { ...current[key], priority: value ? Number(value) : null } },
-      },
-    } as typeof c))
+    const field = isInfra ? 'metrics' : (src.stateKey === 'k8sDiscovery' ? null : 'alerts')
+    setConfig(c => {
+      const state = c[src.stateKey] as unknown as Record<string, unknown>
+      if (field) {
+        const current = state[field] as Record<string, EnabledKeyConfig>
+        return { ...c, [src.stateKey]: { ...state, [field]: { ...current, [key]: { ...current[key], priority: value ? Number(value) : null } } } } as typeof c
+      }
+      // k8sDiscovery: podRestarts/podPending não ficam num record — são campos diretos do estado.
+      const current = state[key] as EnabledKeyConfig
+      return { ...c, [src.stateKey]: { ...state, [key]: { ...current, priority: value ? Number(value) : null } } } as typeof c
+    })
   }
 
   return (
-    <div style={s.card}>
+    <div style={last ? { ...s.section, borderBottom: 'none', paddingBottom: 0 } : s.section}>
+      {src.heading && <p style={s.sectionHeading}>{src.heading}</p>}
+
       {/* Nome do monitor */}
       <div>
         <label style={s.label}>Nome do monitor (prefixo)</label>
         <input style={s.input} value={d.namePrefix} onChange={e => setDisc({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
         <p style={s.hint}>
-          Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;{entityLabel}&gt; · &lt;tipo&gt;</strong>.
+          Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;{entityLabel}&gt; · &lt;tipo&gt;</strong> (Pod Pending é global, sem entidade no nome).
         </p>
       </div>
 
       {/* Tags */}
       <div>
-        <label style={s.label}>Tags (aplicadas a todos os monitores)</label>
+        <label style={s.label}>Tags (aplicadas a todos os monitores desta seção)</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
             style={s.input}
@@ -121,7 +163,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
             ))}
           </div>
         )}
-        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator, {entityTag}:&lt;{entityLabel}&gt;{!isInfra && <> e operation:&lt;operation&gt;</>}.</p>
+        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator{src.stateKey !== 'k8sDiscovery' && <>, {entityTag}:&lt;{entityLabel}&gt;</>}{src.stateKey === 'discovery' && <> e operation:&lt;operation&gt;</>}.</p>
       </div>
 
       {/* Notificação */}
@@ -134,7 +176,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
           placeholder={isInfra ? '@equipe-infra' : '@equipe-ops'}
         />
         <p style={s.hint}>
-          Substitui {isInfra ? '@equipe-infra' : '@equipe-ops'} em TODAS as mensagens do plano (mesmo nas já
+          Substitui {isInfra ? '@equipe-infra' : '@equipe-ops'} em TODAS as mensagens desta seção (mesmo nas já
           personalizadas acima) — evita editar mensagem por mensagem pra rotear pra outro time/canal
           (ex.: @slack-checkout, @pagerduty-oncall). Em branco, mantém o padrão de cada template.
         </p>
@@ -142,11 +184,11 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
 
       {!isInfra && (
         <div>
-          <label style={s.label}>Alertas sem dado / renotificação (aplicado a todos os tipos habilitados)</label>
+          <label style={s.label}>Alertas sem dado / renotificação (aplicado a todos os tipos habilitados desta seção)</label>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
               <input type="checkbox" checked={!!d.notifyNoData} onChange={e => setDisc({ notifyNoData: e.target.checked })} />
-              Notificar quando o serviço parar de reportar dado
+              Notificar quando parar de reportar dado
             </label>
             <div>
               <label style={s.hint}>Reforçar notificação a cada (min, 0 = nunca)</label>
@@ -158,28 +200,25 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
               />
             </div>
           </div>
-          <p style={s.hint}>
-            Ausência de dado em monitor de SERVIÇO pode só significar baixo tráfego, não incidente — por isso vem
-            desligado por padrão; ligue para tipos de criticidade alta. Renotificação reforça a notificação
-            enquanto o monitor seguir em alerta (útil para P1/P2).
-          </p>
         </div>
       )}
 
       {/* Group By */}
-      <div>
-        <label style={s.label}>Group By (dimensões do monitor)</label>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {[...new Set([...groupByOptions, ...d.groupBy])].map(tag => (
-            <button key={tag} style={chipStyle(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
-          ))}
+      {showGroupBy && (
+        <div>
+          <label style={s.label}>Group By (dimensões do monitor)</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[...new Set([...groupByOptions, ...d.groupBy])].map(tag => (
+              <button key={tag} style={chipStyle(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
+            ))}
+          </div>
+          <p style={s.hint}>
+            {isInfra
+              ? 'Padrão: host. Disco também agrupa por device automaticamente.'
+              : 'Padrão: service e resource_name. Cada combinação vira um grupo avaliado separadamente.'}
+          </p>
         </div>
-        <p style={s.hint}>
-          {isInfra
-            ? 'Padrão: host. Disco também agrupa por device automaticamente.'
-            : 'Padrão: service e resource_name. Cada combinação vira um grupo avaliado separadamente.'}
-        </p>
-      </div>
+      )}
 
       {/* Mensagens */}
       <div>
@@ -209,11 +248,24 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
               <textarea style={s.textarea} value={d.messages[t.key] ?? ''} onChange={e => setMessage(t.key, e.target.value)} />
             </div>
           ))}
+          {enabled.length === 0 && <p style={s.hint}>Nenhum tipo habilitado nesta seção.</p>}
         </div>
         <p style={s.hint}>
           Variáveis: {isInfra ? '{{host.name}}' : '{{service.name}}'}, {'{{value}}'}. Use @ para notificar (ex.: @slack-canal).
         </p>
       </div>
+    </div>
+  )
+}
+
+export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
+  const sources = sourcesFor(config.resourceType)
+
+  return (
+    <div style={s.card}>
+      {sources.map((src, i) => (
+        <PersonalizeSection key={src.stateKey} src={src} config={config} setConfig={setConfig} last={i === sources.length - 1} />
+      ))}
 
       <div style={s.actions}>
         <button style={s.btnGhost} onClick={onBack}>← Voltar</button>

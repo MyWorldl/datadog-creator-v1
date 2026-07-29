@@ -2,10 +2,10 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { planPreview, type PlanItem } from '@/lib/discovery'
-import { planInfraPreview, type InfraPlanItem } from '@/lib/infra'
+import { planPreview, type PlanItem, type DiscoveryState } from '@/lib/discovery'
+import { planInfraPreview, type InfraPlanItem, type InfraDiscoveryState } from '@/lib/infra'
 import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
-import type { DiscoveryStepProps } from './types'
+import { sourcesFor, type DiscoveryStepProps } from './types'
 
 type PlanEntry = PlanItem | InfraPlanItem
 
@@ -77,11 +77,20 @@ const s: Record<string, CSSProperties> = {
 type DiscoveryCreateProps = Omit<DiscoveryStepProps, 'setConfig' | 'onNext'>
 
 export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps) {
-  const isInfra = config.resourceType === 'infra'
-  const d = isInfra ? config.infra : config.discovery
-  const plan: PlanEntry[] = isInfra ? planInfraPreview(config.infra) : planPreview(config.discovery)
-  const endpoint = isInfra ? '/api/datadog/infra-monitors' : '/api/datadog/service-monitors'
-  const bodyKey = isInfra ? 'infra' : 'discovery'
+  // resourceType 'k8sDbm' tem 2 fontes (k8sInfra + k8sDiscovery) que precisam
+  // de 2 requisições (endpoints diferentes) — 'services'/'infra' seguem com
+  // 1 fonte só, comportamento idêntico a antes.
+  const sources = sourcesFor(config.resourceType).map(src => {
+    const state = config[src.stateKey]
+    const isInfraSrc = src.dataKind === 'infra'
+    return {
+      state,
+      plan: (isInfraSrc ? planInfraPreview(state as InfraDiscoveryState) : planPreview(state as DiscoveryState)) as PlanEntry[],
+      endpoint: isInfraSrc ? '/api/datadog/infra-monitors' : '/api/datadog/service-monitors',
+      bodyKey: isInfraSrc ? 'infra' : 'discovery',
+    }
+  })
+  const plan: PlanEntry[] = sources.flatMap(src => src.plan)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState<CreatePlanResult | null>(null)
@@ -90,14 +99,23 @@ export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps
   async function create() {
     setError(''); setResults(null); setCreating(true)
     try {
-      const r = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [bodyKey]: d }),
-      })
-      const data = await r.json()
-      if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
-      setResults(data)
+      const merged: PlanResultItem[] = []
+      let created = 0, skipped = 0, total = 0
+      for (const src of sources) {
+        if (src.plan.length === 0) continue
+        const r = await fetch(src.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [src.bodyKey]: src.state }),
+        })
+        const data = await r.json()
+        if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
+        merged.push(...(data.results || []))
+        created += data.created || 0
+        skipped += data.skipped || 0
+        total += data.total || 0
+      }
+      setResults({ created, skipped, total, results: merged })
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setCreating(false) }
   }

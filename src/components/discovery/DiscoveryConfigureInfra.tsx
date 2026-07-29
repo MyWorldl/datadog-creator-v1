@@ -74,11 +74,10 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   const [subStep, setSubStep] = useState(0)
 
   const selectedNames = Object.keys(d.selected).filter(h => d.selected[h])
-  // Tipos atrás de flag (K8s Node Ready + métricas DBM) só aparecem com a
-  // flag k8sDbmCoverage ligada — mesmo padrão da seção K8s/DBM em
-  // ferramentas/audit/page.tsx (servidor só manda o item quando a flag está
-  // on; aqui é o client que filtra, já que INFRA_TYPES é estático).
-  const visibleTypes = INFRA_TYPES.filter(t => !t.flag || features[t.flag])
+  // Tipos com `flag` (K8s Node Ready + métricas DBM) vivem na aba dedicada
+  // "APM e Infraestrutura" (DiscoveryConfigureK8sDbm.tsx), não aqui — por
+  // isso ficam SEMPRE de fora desta lista, independente da flag.
+  const visibleTypes = INFRA_TYPES.filter(t => !t.flag)
 
   const searchTerms = hostSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
   const filtered = d.hosts.filter(h => {
@@ -250,7 +249,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                   <div style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleMetric(t.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{t.label}</span>
-                    {(isOutlier || t.flag) && <span style={previewBadgeStyle}>Preview</span>}
+                    {isOutlier && <span style={previewBadgeStyle}>Preview</span>}
                     <div style={s.pillRow}>
                       {isCheck ? (
                         <>
@@ -299,16 +298,6 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                           {features.outlierDetection && <option value="outlier">outlier</option>}
                         </select>
                       </div>
-
-                      {t.requiresEngine && (
-                        <div>
-                          <label style={s.miniLabel}>Engine do banco</label>
-                          <select style={s.select} value={metricCfg.dbEngine || 'postgres'} disabled={!on} onChange={e => setMetricParam(t.key, 'dbEngine', e.target.value)}>
-                            <option value="postgres">Postgres</option>
-                            <option value="mysql">MySQL</option>
-                          </select>
-                        </div>
-                      )}
 
                       {isThreshold ? (
                         <>

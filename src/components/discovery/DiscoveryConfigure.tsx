@@ -3,7 +3,7 @@
 
 import { useState, useRef, useEffect, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
-import { ALERT_TYPES, ALERT_WINDOW_OPTIONS, POD_RESTARTS_TYPE, type ScopeType } from '@/lib/discovery'
+import { ALERT_TYPES, ALERT_WINDOW_OPTIONS, type ScopeType } from '@/lib/discovery'
 import type { DiscoveryStepProps } from './types'
 
 const winShort = (w: string): string => (w || '').replace('last_', '')
@@ -110,12 +110,9 @@ const scopeBtnStyle = (on: boolean): CSSProperties => ({ fontSize: 12.5, fontWei
 const opChipStyle = (on: boolean): CSSProperties => ({ fontSize: 11.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace' })
 const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
 const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
-// Selo de "recurso em desenvolvimento" (atrás da feature flag k8sDbmCoverage) —
-// mesmo padrão usado em DiscoveryConfigureInfra.tsx e ferramentas/audit/page.tsx.
-const previewBadgeStyle: CSSProperties = { fontSize: 9.5, fontWeight: 800, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.04em' }
 
 export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
-  const { keysConfigured, datadogSite, features } = useApp()
+  const { keysConfigured, datadogSite } = useApp()
   const d = config.discovery
   const setDisc = (patch: Partial<typeof d>) => setConfig(c => ({ ...c, discovery: { ...c.discovery, ...patch } }))
 
@@ -248,23 +245,12 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   function setAlertParam(k: string, field: string, v: unknown) {
     setDisc({ alerts: { ...d.alerts, [k]: { ...d.alerts[k], [field]: v } } })
   }
-  function togglePodRestarts() {
-    setDisc({ podRestarts: { ...d.podRestarts, enabled: !d.podRestarts.enabled } })
-  }
-  function setPodRestartsParam(field: string, v: unknown) {
-    setDisc({ podRestarts: { ...d.podRestarts, [field]: v } })
-  }
 
   function handleNext() {
     if (selectedNames.length === 0) return setError(`Selecione ao menos um ${cfg.entityNoun}.`)
     const noOps = selectedNames.filter(name => !(d.selected[name]?.chosen?.length))
     if (noOps.length) return setError(`Escolha ao menos uma operação para: ${noOps.join(', ')}.`)
-    // Pod Restarts é um tipo de alerta à parte (namespace-only, sem
-    // operation) — conta como "tipo de alerta selecionado" pra quem quer só
-    // ele, sem nenhum dos 4 tipos baseados em trace.
-    if (!Object.values(d.alerts).some(a => a.enabled) && !d.podRestarts?.enabled) {
-      return setError('Selecione ao menos um tipo de alerta.')
-    }
+    if (!Object.values(d.alerts).some(a => a.enabled)) return setError('Selecione ao menos um tipo de alerta.')
     setError('')
     onNext()
   }
@@ -317,15 +303,13 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
         <>
           <div>
             <label style={s.label}>Escopo do filtro</label>
+            {/* Namespace removido da UI (agora vive na aba "APM e Infraestrutura",
+                junto de Pod Restarts) — scopeType/SCOPE_CONFIG.namespace continuam
+                no código pra facilitar reativar isso aqui no futuro, se necessário. */}
             <div style={s.scopeToggle}>
               <button style={scopeBtnStyle(scopeType !== 'namespace')} onClick={() => setScopeType('service')}>Por Serviço</button>
-              <button style={scopeBtnStyle(scopeType === 'namespace')} onClick={() => setScopeType('namespace')}>Por Namespace</button>
             </div>
-            <p style={s.hint}>
-              {scopeType === 'namespace'
-                ? 'A query e as tags do monitor usam kube_namespace: em vez de service: — um monitor cobre todos os serviços do namespace, quebrados por serviço via group by.'
-                : 'Um monitor por serviço, escopado por service:.'}
-            </p>
+            <p style={s.hint}>Um monitor por serviço, escopado por service:.</p>
           </div>
 
           <div>
@@ -486,45 +470,11 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                 </div>
               )
             })}
-
-            {scopeType === 'namespace' && features.k8sDbmCoverage && (
-              <div style={accStyle(d.podRestarts.enabled)}>
-                <div style={s.accHead} onClick={() => setOpenAlert(openAlert === POD_RESTARTS_TYPE.key ? null : POD_RESTARTS_TYPE.key)}>
-                  <input type="checkbox" checked={d.podRestarts.enabled} onClick={e => e.stopPropagation()} onChange={togglePodRestarts} />
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{POD_RESTARTS_TYPE.label}</span>
-                  <span style={previewBadgeStyle}>Preview</span>
-                  <div style={s.pillRow}>
-                    <span style={s.pill}>change()</span>
-                    <span style={s.pill}>limite {d.podRestarts.threshold}</span>
-                    <span style={s.pill}>{winShort(d.podRestarts.changeWindow)}</span>
-                  </div>
-                  <span style={chevStyle(openAlert === POD_RESTARTS_TYPE.key)}>▶</span>
-                </div>
-                {openAlert === POD_RESTARTS_TYPE.key && (
-                  <div style={s.accBody}>
-                    <div>
-                      <label style={s.miniLabel}>Limite (restarts na janela)</label>
-                      <input style={s.select} type="number" min="1" max="1000" value={d.podRestarts.threshold} disabled={!d.podRestarts.enabled} onChange={e => setPodRestartsParam('threshold', Number(e.target.value))} />
-                    </div>
-                    <div>
-                      <label style={s.miniLabel}>Janela (change window)</label>
-                      <select style={s.select} value={d.podRestarts.changeWindow} disabled={!d.podRestarts.enabled} onChange={e => setPodRestartsParam('changeWindow', e.target.value)}>
-                        {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
           <p style={s.hint}>
             Sazonalidade é ignorada no algoritmo basic. A alert window vira o trigger_window do monitor. A Datadog
             recomenda pelo menos 3x o período de sazonalidade de histórico pro algoritmo calibrar bem (ex.: ~3
             semanas pra weekly) — monitores muito novos podem levar alguns dias pra ficar precisos.
-            {scopeType === 'namespace' && features.k8sDbmCoverage && (
-              <> Pod Restarts: 1 monitor por namespace selecionado, sem depender de operação — usa change() sobre o
-              contador de restarts (cumulativo), não um valor absoluto.</>
-            )}
           </p>
         </div>
       )}

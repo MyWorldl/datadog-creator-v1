@@ -196,6 +196,58 @@ export interface PodRestartsConfig {
   priority: number | null
 }
 
+// Pod Pending — assim como Pod Restarts, fora de ALERT_TYPES (não é trace,
+// não tem operation). Mas diferente de Pod Restarts, NÃO tem entidade
+// nenhuma: é 1 monitor ÚNICO e GLOBAL pro cluster inteiro (kubernetes_state.
+// pod.status_phase{phase:pending} by {kube_namespace} só serve pra permitir
+// triagem por namespace DENTRO do mesmo monitor, não pra selecionar quais
+// namespaces entram). Por isso planPreview() gera no máximo 1 item pra esse
+// kind, independente de `selected`/scopeType — mesmo espírito do monitor de
+// consumo anômalo do FinOps (finops/monitor/route.ts), só que modelado aqui
+// dentro do plano (não como rota própria) pra reaproveitar Personalizar/
+// Revisar/Criar do wizard sem duplicar lógica.
+export interface PodPendingType {
+  key: 'podPending'
+  label: string
+  hint: string
+  message: string
+  defThreshold: number
+  defWindow: string
+  flag: FeatureFlag
+}
+
+export const POD_PENDING_TYPE: PodPendingType = {
+  key: 'podPending',
+  label: 'K8s · Pods pendentes',
+  defThreshold: 0,
+  defWindow: 'last_10m',
+  flag: 'k8sDbmCoverage',
+  hint: 'Monitor único e global (não por namespace/serviço selecionado): alerta quando há pods presos em "Pending" (aceitos mas não agendados) em qualquer namespace do cluster.',
+  message: `🔴 [K8s · Pods pendentes] {{kube_namespace.name}} — {{value}} pod(s) pendente(s) (limite: {{threshold}}).
+
+**O que monitora:** quantidade de pods no cluster no estado "Pending" (aceitos pelo control plane mas ainda não agendados/rodando em nenhum node), por namespace.
+
+**Por que importa:** um pod preso em Pending geralmente significa que o cluster não consegue agendá-lo — falta de capacidade, afinidade/taint impossível de satisfazer, ou volume que não monta — e isso atrasa deploys, autoscaling e recuperação de pods que crasharam (ficam sem substituto rodando).
+
+**Causas prováveis:**
+- Capacidade insuficiente no cluster (CPU/memória) para os requests do pod
+- Node affinity, anti-affinity ou taint/toleration impossível de satisfazer
+- PersistentVolumeClaim pendente (nenhum volume disponível pra montar)
+- Autoscaler ainda provisionando novo node (transitório) ou autoscaler travado
+- Falta de imagem (ImagePullBackOff represado como Pending no scheduler)
+
+**Ação recomendada:** verificar "kubectl describe pod" no namespace afetado pelo evento de scheduling (FailedScheduling), conferir capacidade disponível no cluster/node pool, e checar se o autoscaler está ativo e conseguindo provisionar novos nodes.
+
+@equipe-ops`,
+}
+
+export interface PodPendingConfig {
+  enabled: boolean
+  threshold: number
+  window: string
+  priority: number | null
+}
+
 // Preferência de operation "primária" (entradas web primeiro) — usada tanto
 // para sugerir a operation dominante no modo Serviço (descoberta automática)
 // quanto como sugestão/fallback no modo Namespace (entrada manual).
@@ -251,6 +303,7 @@ export interface DiscoveryState {
   scopeType: ScopeType
   alerts: Record<string, AlertConfig>
   podRestarts: PodRestartsConfig
+  podPending: PodPendingConfig
   groupBy: string[]
   messages: Record<string, string>
   namePrefix: string
@@ -283,8 +336,14 @@ export function initialDiscovery(): DiscoveryState {
       changeWindow: POD_RESTARTS_TYPE.defChangeWindow,
       priority: 3,
     },
+    podPending: {
+      enabled: false, // atrás da flag k8sDbmCoverage — global, não depende de `selected`
+      threshold: POD_PENDING_TYPE.defThreshold,
+      window: POD_PENDING_TYPE.defWindow,
+      priority: 3,
+    },
     groupBy: [...DEFAULT_GROUP_BY],
-    messages: Object.fromEntries([...ALERT_TYPES.map(a => [a.key, a.message]), [POD_RESTARTS_TYPE.key, POD_RESTARTS_TYPE.message]]),
+    messages: Object.fromEntries([...ALERT_TYPES.map(a => [a.key, a.message]), [POD_RESTARTS_TYPE.key, POD_RESTARTS_TYPE.message], [POD_PENDING_TYPE.key, POD_PENDING_TYPE.message]]),
     // Personalização (Etapas 3)
     namePrefix: '[MonitorsCreator]',
     tags: [],
@@ -467,9 +526,11 @@ export interface BuildPodRestartsMonitorArgs {
   namePrefix?: string
   priority?: number | null
   notifyTarget?: string
+  notifyNoData?: boolean
+  renotifyInterval?: number
 }
 
-export function buildPodRestartsMonitorPayload({ namespace, threshold = POD_RESTARTS_TYPE.defThreshold, changeWindow = POD_RESTARTS_TYPE.defChangeWindow, message, tags, namePrefix, priority, notifyTarget }: BuildPodRestartsMonitorArgs): MonitorPayload {
+export function buildPodRestartsMonitorPayload({ namespace, threshold = POD_RESTARTS_TYPE.defThreshold, changeWindow = POD_RESTARTS_TYPE.defChangeWindow, message, tags, namePrefix, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildPodRestartsMonitorArgs): MonitorPayload {
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${namespace} · ${POD_RESTARTS_TYPE.label}`.trim()
   const baseTags = ['created_by:monitorscreator', `kube_namespace:${namespace}`, 'infra_metric:podRestarts']
   for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
@@ -492,10 +553,56 @@ export function buildPodRestartsMonitorPayload({ namespace, threshold = POD_REST
       // critical PRECISA bater com o valor usado no `> ${threshold}` da query
       // (mesma regra do modo threshold em lib/infra.ts).
       thresholds: { critical: threshold },
-      notify_no_data: false,
+      notify_no_data: !!notifyNoData,
       notify_audit: false,
       require_full_window: false,
-      renotify_interval: 0,
+      renotify_interval: Number(renotifyInterval) || 0,
+      evaluation_delay: 60,
+    },
+  }
+}
+
+// ── Pod Pending (K8s, GLOBAL — sem entidade, sem operation) ──
+// Query confirmada via WebSearch (docs/exemplos oficiais do Datadog):
+//   min(last_10m):default_zero(max:kubernetes_state.pod.status_phase{phase:pending} by {kube_namespace}) > 0
+export function buildPodPendingQuery({ window = POD_PENDING_TYPE.defWindow, threshold = POD_PENDING_TYPE.defThreshold }: { window?: string; threshold?: number } = {}): string {
+  return `min(${window}):default_zero(max:kubernetes_state.pod.status_phase{phase:pending} by {kube_namespace}) > ${threshold}`
+}
+
+export interface BuildPodPendingMonitorArgs {
+  threshold?: number
+  window?: string
+  message?: string
+  tags?: string[]
+  namePrefix?: string
+  priority?: number | null
+  notifyTarget?: string
+  notifyNoData?: boolean
+  renotifyInterval?: number
+}
+
+export function buildPodPendingMonitorPayload({ threshold = POD_PENDING_TYPE.defThreshold, window = POD_PENDING_TYPE.defWindow, message, tags, namePrefix, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildPodPendingMonitorArgs = {}): MonitorPayload {
+  const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${POD_PENDING_TYPE.label}`.trim()
+  const baseTags = ['created_by:monitorscreator', 'infra_metric:podPending']
+  for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
+
+  let resolvedMessage = message || POD_PENDING_TYPE.message
+  if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-ops', notifyTarget)
+
+  return {
+    name,
+    type: 'query alert',
+    query: buildPodPendingQuery({ window, threshold }),
+    message: resolvedMessage,
+    tags: baseTags,
+    ...(priority ? { priority } : {}),
+    options: {
+      threshold_windows: { trigger_window: window, recovery_window: window },
+      thresholds: { critical: threshold },
+      notify_no_data: !!notifyNoData,
+      notify_audit: false,
+      require_full_window: false,
+      renotify_interval: Number(renotifyInterval) || 0,
       evaluation_delay: 60,
     },
   }
@@ -520,9 +627,23 @@ export function planPreview(discovery: Partial<DiscoveryState>): PlanItem[] {
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
     namePrefix = '[MonitorsCreator]', tags = [],
     scopeType = 'service', notifyTarget = '', notifyNoData = false, renotifyInterval = 0,
-    podRestarts } = d
+    podRestarts, podPending } = d
 
   const plan: PlanItem[] = []
+
+  // Pod Pending: GLOBAL — no máximo 1 item, independente de `selected` e de
+  // scopeType (não tem entidade pra selecionar). Roda antes de tudo.
+  if (podPending?.enabled) {
+    const payload = buildPodPendingMonitorPayload({
+      threshold: podPending.threshold, window: podPending.window,
+      message: messages[POD_PENDING_TYPE.key], tags, namePrefix,
+      priority: podPending.priority, notifyTarget, notifyNoData, renotifyInterval,
+    })
+    plan.push({
+      kind: POD_PENDING_TYPE.key, label: POD_PENDING_TYPE.label, service: 'cluster', operation: POD_PENDING_TYPE.label,
+      name: payload.name, query: payload.query, message: payload.message, priority: podPending.priority ?? null, payload,
+    })
+  }
 
   // Pod Restarts: 1 monitor por NAMESPACE selecionado (não por operação) —
   // roda antes e fora do loop de operação abaixo, mesmo padrão do outlier em
@@ -532,7 +653,7 @@ export function planPreview(discovery: Partial<DiscoveryState>): PlanItem[] {
       const payload = buildPodRestartsMonitorPayload({
         namespace, threshold: podRestarts.threshold, changeWindow: podRestarts.changeWindow,
         message: messages[POD_RESTARTS_TYPE.key], tags, namePrefix,
-        priority: podRestarts.priority, notifyTarget,
+        priority: podRestarts.priority, notifyTarget, notifyNoData, renotifyInterval,
       })
       plan.push({
         kind: POD_RESTARTS_TYPE.key, label: POD_RESTARTS_TYPE.label, service: namespace, operation: POD_RESTARTS_TYPE.label,
