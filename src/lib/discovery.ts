@@ -13,6 +13,8 @@
 //   {{service.name}}  -> nome do serviço (via group by service)
 //   {{value}}         -> valor avaliado
 
+import type { FeatureFlag } from './feature-flags'
+
 export type AlertDirection = 'above' | 'below' | 'both'
 export type AlertKey = 'latency' | 'errorRate' | 'highVolume' | 'lowVolume'
 export type ScopeType = 'service' | 'namespace'
@@ -137,6 +139,63 @@ export const ALERT_TYPES: AlertType[] = [
 export const ALERT_BY_KEY: Record<string, AlertType> = Object.fromEntries(ALERT_TYPES.map(a => [a.key, a]))
 export const DEFAULT_GROUP_BY = ['service', 'resource_name']
 
+// Pod Restarts (K8s) — FORA de ALERT_TYPES de propósito: os 4 tipos acima são
+// TODOS baseados em trace (metricExpr por operação APM); Pod Restarts é uma
+// métrica de infra do Kubernetes (kubernetes.containers.restarts), sem
+// conceito de "operation" — 1 monitor por NAMESPACE selecionado (não por
+// namespace × operação). Por isso entra num loop à parte em planPreview,
+// mesmo padrão do outlier em planInfraPreview (lib/infra.ts). Só faz sentido
+// com scopeType:'namespace' (não há tag de pod/container agregável por
+// "service" sozinho) e fica atrás da flag k8sDbmCoverage.
+//
+// A métrica kubernetes.containers.restarts é CUMULATIVA (contador que só
+// cresce) — por isso a query usa change() em vez de um threshold cru: um
+// threshold direto no valor absoluto nunca "resetaria" e o monitor ficaria
+// preso em alerta. Sintaxe confirmada no exemplo oficial do Datadog Operator
+// (github.com/DataDog/datadog-operator, metric-monitor-pods-restarting.yaml):
+// change(sum(last_5m),last_5m):exclude_null(avg:kubernetes.containers.restarts{*} by {pod_name}) > 5
+export interface PodRestartsType {
+  key: 'podRestarts'
+  label: string
+  hint: string
+  message: string
+  defThreshold: number
+  defChangeWindow: string
+  flag: FeatureFlag
+}
+
+export const POD_RESTARTS_TYPE: PodRestartsType = {
+  key: 'podRestarts',
+  label: 'K8s · Restart de Pods',
+  defThreshold: 5,
+  defChangeWindow: 'last_5m',
+  flag: 'k8sDbmCoverage',
+  hint: 'Alerta quando o nº de restarts de containers no namespace cresce mais que o limite dentro da janela (usa change(), não valor absoluto — o contador é cumulativo).',
+  message: `🔴 [K8s · Restart de Pods] {{pod_name.name}} — {{value}} restart(s) a mais na janela (limite: {{threshold}}).
+
+**O que monitora:** o aumento (delta) no número de restarts de containers dentro do namespace, na janela avaliada — não o total acumulado, e sim quanto ele CRESCEU no período.
+
+**Por que importa:** restarts frequentes geralmente indicam CrashLoopBackOff, OOMKilled ou falha de liveness probe — o pod fica instável, perde estado em memória e pode causar erros intermitentes ou indisponibilidade parcial mesmo que o serviço "volte" a cada restart.
+
+**Causas prováveis:**
+- Exceção não tratada causando crash da aplicação (CrashLoopBackOff)
+- Container sendo morto por estourar o limite de memória (OOMKilled)
+- Liveness/readiness probe mal configurado, matando pods saudáveis
+- Deploy recente com bug introduzido
+- Dependência externa indisponível na inicialização (banco, config, secret)
+
+**Ação recomendada:** verificar \`kubectl describe pod\` e os logs do container anterior (\`kubectl logs --previous\`) para a causa do crash, checar se há OOMKilled nos eventos do pod, e revisar se o deploy mais recente introduziu a instabilidade.
+
+@equipe-ops`,
+}
+
+export interface PodRestartsConfig {
+  enabled: boolean
+  threshold: number
+  changeWindow: string
+  priority: number | null
+}
+
 // Preferência de operation "primária" (entradas web primeiro) — usada tanto
 // para sugerir a operation dominante no modo Serviço (descoberta automática)
 // quanto como sugestão/fallback no modo Namespace (entrada manual).
@@ -191,6 +250,7 @@ export interface DiscoveryState {
   selected: Record<string, SelectedMeta>
   scopeType: ScopeType
   alerts: Record<string, AlertConfig>
+  podRestarts: PodRestartsConfig
   groupBy: string[]
   messages: Record<string, string>
   namePrefix: string
@@ -217,8 +277,14 @@ export function initialDiscovery(): DiscoveryState {
         priority: 3, // 1-5 (P1-P5) ou null = sem prioridade — campo nativo do Datadog. Default P3.
       }])
     ),
+    podRestarts: {
+      enabled: false, // atrás da flag k8sDbmCoverage + só faz sentido com scopeType:'namespace'
+      threshold: POD_RESTARTS_TYPE.defThreshold,
+      changeWindow: POD_RESTARTS_TYPE.defChangeWindow,
+      priority: 3,
+    },
     groupBy: [...DEFAULT_GROUP_BY],
-    messages: Object.fromEntries(ALERT_TYPES.map(a => [a.key, a.message])),
+    messages: Object.fromEntries([...ALERT_TYPES.map(a => [a.key, a.message]), [POD_RESTARTS_TYPE.key, POD_RESTARTS_TYPE.message]]),
     // Personalização (Etapas 3)
     namePrefix: '[MonitorsCreator]',
     tags: [],
@@ -384,6 +450,57 @@ export function buildMonitorPayload({ kind, service, env, operation, scopeType =
   }
 }
 
+// ── Pod Restarts (K8s, namespace-only, sem operation) ──
+export function buildPodRestartsQuery({ namespace, changeWindow = POD_RESTARTS_TYPE.defChangeWindow, threshold = POD_RESTARTS_TYPE.defThreshold }: { namespace: string; changeWindow?: string; threshold?: number }): string {
+  // Escopo só por kube_namespace (sem env:) — kubernetes.containers.restarts
+  // não tem cobertura confiável de unified service tagging (tag `env`), então
+  // filtrar por env aqui arriscaria "sem dados" em ambientes sem essa tag.
+  return `change(sum(${changeWindow}),${changeWindow}):exclude_null(avg:kubernetes.containers.restarts{kube_namespace:${namespace}} by {pod_name}) > ${threshold}`
+}
+
+export interface BuildPodRestartsMonitorArgs {
+  namespace: string
+  threshold?: number
+  changeWindow?: string
+  message?: string
+  tags?: string[]
+  namePrefix?: string
+  priority?: number | null
+  notifyTarget?: string
+}
+
+export function buildPodRestartsMonitorPayload({ namespace, threshold = POD_RESTARTS_TYPE.defThreshold, changeWindow = POD_RESTARTS_TYPE.defChangeWindow, message, tags, namePrefix, priority, notifyTarget }: BuildPodRestartsMonitorArgs): MonitorPayload {
+  const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${namespace} · ${POD_RESTARTS_TYPE.label}`.trim()
+  const baseTags = ['created_by:monitorscreator', `kube_namespace:${namespace}`, 'infra_metric:podRestarts']
+  for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
+
+  let resolvedMessage = message || POD_RESTARTS_TYPE.message
+  if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-ops', notifyTarget)
+
+  return {
+    name,
+    type: 'query alert',
+    query: buildPodRestartsQuery({ namespace, changeWindow, threshold }),
+    message: resolvedMessage,
+    tags: baseTags,
+    ...(priority ? { priority } : {}),
+    options: {
+      // change() não é anomaly — trigger/recovery_window aqui só documentam a
+      // janela usada no change(), o Datadog não exige que bata com nada (ao
+      // contrário do modo anomaly, onde alert_window==trigger_window é obrigatório).
+      threshold_windows: { trigger_window: changeWindow, recovery_window: changeWindow },
+      // critical PRECISA bater com o valor usado no `> ${threshold}` da query
+      // (mesma regra do modo threshold em lib/infra.ts).
+      thresholds: { critical: threshold },
+      notify_no_data: false,
+      notify_audit: false,
+      require_full_window: false,
+      renotify_interval: 0,
+      evaluation_delay: 60,
+    },
+  }
+}
+
 export interface PlanItem {
   kind: string
   label: string
@@ -402,9 +519,28 @@ export function planPreview(discovery: Partial<DiscoveryState>): PlanItem[] {
   const d = discovery || {}
   const { selected = {}, env = '', groupBy = [], alerts = {}, messages = {},
     namePrefix = '[MonitorsCreator]', tags = [],
-    scopeType = 'service', notifyTarget = '', notifyNoData = false, renotifyInterval = 0 } = d
+    scopeType = 'service', notifyTarget = '', notifyNoData = false, renotifyInterval = 0,
+    podRestarts } = d
 
   const plan: PlanItem[] = []
+
+  // Pod Restarts: 1 monitor por NAMESPACE selecionado (não por operação) —
+  // roda antes e fora do loop de operação abaixo, mesmo padrão do outlier em
+  // planInfraPreview (lib/infra.ts). Só existe em scopeType:'namespace'.
+  if (scopeType === 'namespace' && podRestarts?.enabled) {
+    for (const namespace of Object.keys(selected)) {
+      const payload = buildPodRestartsMonitorPayload({
+        namespace, threshold: podRestarts.threshold, changeWindow: podRestarts.changeWindow,
+        message: messages[POD_RESTARTS_TYPE.key], tags, namePrefix,
+        priority: podRestarts.priority, notifyTarget,
+      })
+      plan.push({
+        kind: POD_RESTARTS_TYPE.key, label: POD_RESTARTS_TYPE.label, service: namespace, operation: POD_RESTARTS_TYPE.label,
+        name: payload.name, query: payload.query, message: payload.message, priority: podRestarts.priority ?? null, payload,
+      })
+    }
+  }
+
   for (const [service, meta] of Object.entries(selected)) {
     const ops = (meta?.chosen && meta.chosen.length) ? meta.chosen : (meta?.operation ? [meta.operation] : [])
     for (const operation of ops) {

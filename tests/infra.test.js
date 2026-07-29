@@ -234,3 +234,64 @@ test('outlier: tags incluem host:<nome> de CADA host do grupo', () => {
   assert.ok(cpu.payload.tags.includes('host:web-1'))
   assert.ok(cpu.payload.tags.includes('host:web-2'))
 })
+
+// ── K8s Node Ready + DBM (atrás da feature flag k8sDbmCoverage) ──
+// Estes tipos existem em INFRA_TYPES independente da flag — quem gate-keeps
+// é a UI (DiscoveryConfigureInfra.tsx) e a rota (infra-monitors/route.ts),
+// não lib/infra.ts, então os testes abaixo não precisam mockar a flag.
+
+test('k8sNodeReady: todos os tipos flagged declaram flag:k8sDbmCoverage', () => {
+  const flagged = INFRA_TYPES.filter(t => ['k8sNodeReady', 'dbConnections', 'dbReplication', 'dbQueryHealth'].includes(t.key))
+  assert.equal(flagged.length, 4)
+  for (const t of flagged) assert.equal(t.flag, 'k8sDbmCoverage')
+})
+
+test('k8sNodeReady: threshold usa "<" (thresholdDirection:below) em vez de ">"', () => {
+  const q = buildInfraQuery({ kind: 'k8sNodeReady', host: 'node-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 1, warning: 1 } })
+  assert.match(q, /status:schedulable/)
+  assert.match(q, /< 1$/)
+  assert.ok(!q.includes('> 1'), 'não deve usar ">" pra essa métrica (valor ruim é baixo, não alto)')
+})
+
+test('dbConnections: Postgres usa percent_usage_connections; MySQL usa razão threads_connected/max_connections', () => {
+  const pg = buildInfraQuery({ kind: 'dbConnections', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 }, engine: 'postgres' })
+  assert.match(pg, /postgresql\.percent_usage_connections\{host:db-1\}/)
+  assert.match(pg, /> 90$/)
+
+  const my = buildInfraQuery({ kind: 'dbConnections', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 }, engine: 'mysql' })
+  assert.match(my, /mysql\.performance\.threads_connected\{host:db-1\}/)
+  assert.match(my, /mysql\.net\.max_connections_available\{host:db-1\}/)
+})
+
+test('dbConnections: sem engine explícito, cai no default (postgres)', () => {
+  const q = buildInfraQuery({ kind: 'dbConnections', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  assert.match(q, /postgresql\.percent_usage_connections/)
+})
+
+test('dbReplication: métrica muda por engine (Postgres vs MySQL)', () => {
+  const pg = buildInfraQuery({ kind: 'dbReplication', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 30, warning: 10 }, engine: 'postgres' })
+  assert.match(pg, /postgresql\.replication_delay/)
+  const my = buildInfraQuery({ kind: 'dbReplication', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 30, warning: 10 }, engine: 'mysql' })
+  assert.match(my, /mysql\.replication\.seconds_behind_master/)
+})
+
+test('dbQueryHealth: Postgres só soma deadlocks; MySQL soma deadlocks + slow_queries', () => {
+  // by {host} entra ANTES do modificador .as_count() (mesmo padrão de 'network' acima).
+  const pg = buildInfraQuery({ kind: 'dbQueryHealth', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 5, warning: 1 }, engine: 'postgres' })
+  assert.match(pg, /sum:postgresql\.deadlocks\{host:db-1\} by \{host\}\.as_count\(\)/)
+  assert.ok(!pg.includes('+'), 'Postgres é um termo só, sem soma')
+
+  const my = buildInfraQuery({ kind: 'dbQueryHealth', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 5, warning: 1 }, engine: 'mysql' })
+  assert.match(my, /sum:mysql\.innodb\.deadlocks\{host:db-1\} by \{host\}\.as_count\(\) \+ sum:mysql\.performance\.slow_queries\{host:db-1\} by \{host\}\.as_count\(\)/)
+})
+
+test('planInfraPreview: dbEngine escolhido pelo usuário chega até a query gerada', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'db-1': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.dbConnections.enabled = true
+  d.metrics.dbConnections.dbEngine = 'mysql'
+  const plan = planInfraPreview(d)
+  const item = plan.find(m => m.kind === 'dbConnections')
+  assert.match(item.query, /mysql\.performance\.threads_connected/)
+})

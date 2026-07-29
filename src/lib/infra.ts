@@ -42,9 +42,18 @@
 // (ex.: aws.ec2.cpuutilization). Ajuste INFRA_TYPES[].metric conforme a
 // origem real dos seus hosts.
 
+import type { FeatureFlag } from './feature-flags'
+
 export type InfraKind = 'cpu' | 'memory' | 'disk' | 'diskIO' | 'network' | 'load' | 'hostUp'
+  | 'k8sNodeReady' | 'dbConnections' | 'dbReplication' | 'dbQueryHealth'
 export type InfraMode = 'threshold' | 'anomaly' | 'outlier' | 'check'
 export type OutlierAlgorithm = 'DBSCAN' | 'MAD' | 'scaledDBSCAN' | 'scaledMAD'
+// Engine do banco por trás das métricas dbConnections/dbReplication/
+// dbQueryHealth — nomes de métrica (e, pra conexões, a fórmula) diferem entre
+// Postgres e MySQL, e o app não descobre sozinho qual engine roda em cada
+// host, então é o usuário quem escolhe (mesmo espírito do `algorithm` em
+// anomaly/outlier: um campo por tipo, não uma etapa de descoberta nova).
+export type DbEngine = 'postgres' | 'mysql'
 
 export interface InfraThresholds {
   critical: number
@@ -63,14 +72,25 @@ interface InfraTypeBase {
   unit: string
   hint: string
   message: string
+  // Flag que precisa estar ligada pra este tipo aparecer na lista (K8s/DBM
+  // ficam atrás de k8sDbmCoverage, mesmo padrão do badge "PREVIEW" do outlier).
+  flag?: FeatureFlag
 }
 
 interface InfraMetricType extends InfraTypeBase {
   kind: 'metric'
-  metric: (scope: string, by?: string) => string
+  metric: (scope: string, by?: string, engine?: DbEngine) => string
   defThresholds: InfraThresholds
   defDeviations: number
   extraBy?: string[]
+  // 'below' inverte o comparador do modo threshold (usa `<` em vez de `>`)
+  // pra métricas onde o valor RUIM é baixo (ex.: node schedulable = 0/1,
+  // queremos alertar quando cai abaixo de 1). Default (ausente) = 'above',
+  // preservando o comportamento de todas as métricas já existentes.
+  thresholdDirection?: 'above' | 'below'
+  // Só as métricas de banco (dbConnections/dbReplication/dbQueryHealth) usam
+  // engine — presença deste campo é o que a UI usa pra mostrar o seletor.
+  requiresEngine?: boolean
 }
 
 interface InfraCheckType extends InfraTypeBase {
@@ -262,6 +282,123 @@ export const INFRA_TYPES: InfraType[] = [
 
 @equipe-infra`,
   },
+  {
+    key: 'k8sNodeReady', kind: 'metric', label: 'K8s · Node Ready', unit: '',
+    // kubernetes_state.node.status{status:schedulable} = 1 quando o node está
+    // Ready e aceitando pods, 0 (ou ausente) quando não. É um exemplo oficial
+    // CLUSTER-WIDE (by {kubernetes_cluster}) — aqui adaptamos pra escopo
+    // POR HOST, então o tag `host:<host>` precisa bater com o hostname visto
+    // pelo Cluster Agent (nem sempre idêntico ao hostname do Agent comum).
+    metric: (scope, by = '') => `avg:kubernetes_state.node.status{${scope},status:schedulable}${by}`,
+    defThresholds: { critical: 1, warning: 1 },
+    defDeviations: 3,
+    thresholdDirection: 'below', // queremos alertar quando CAI abaixo de 1 (não-schedulable), não quando sobe
+    flag: 'k8sDbmCoverage',
+    hint: 'Alerta quando o node do Kubernetes deixa de estar "Ready"/schedulable (ex.: NotReady, cordoned). Requer Cluster Agent.',
+    message: `🔴 [Infra · K8s Node Ready] {{host.name}} — node não-schedulable (valor: {{value}}, esperado: {{threshold}}).
+
+**O que monitora:** se o node do Kubernetes está no estado Ready e aceitando novos pods (schedulable). Dispara quando o valor cai abaixo do esperado.
+
+**Por que importa:** um node NotReady para de receber novos pods e, dependendo da causa, pode ter os pods existentes despejados (evicted) — reduzindo a capacidade do cluster e podendo causar indisponibilidade se não houver capacidade sobrando em outros nodes.
+
+**Causas prováveis:**
+- Node cordoned/drained manualmente (manutenção)
+- Kubelet parou de reportar (crash, falta de recursos no host)
+- Pressão de disco/memória no node (DiskPressure/MemoryPressure)
+- Falha de rede entre o node e o control plane
+- Node sendo substituído/reciclado pelo autoscaler
+
+**Ação recomendada:** verificar "kubectl describe node" para a condição exata (NotReady/DiskPressure/MemoryPressure), confirmar se é manutenção esperada, e checar status do kubelet e conectividade com o control plane caso não seja.
+
+@equipe-infra`,
+  },
+  {
+    key: 'dbConnections', kind: 'metric', label: 'DBM · Conexões (%)', unit: '%',
+    // Postgres já expõe um percentual pronto (0-1). MySQL não tem essa métrica
+    // pronta — calculamos como threads_connected / max_connections_available,
+    // normalizando os dois engines pra mesma escala 0-100%.
+    metric: (scope, by = '', engine = 'postgres') => engine === 'mysql'
+      ? `(avg:mysql.performance.threads_connected{${scope}}${by} / avg:mysql.net.max_connections_available{${scope}}${by}) * 100`
+      : `avg:postgresql.percent_usage_connections{${scope}}${by} * 100`,
+    defThresholds: { critical: 90, warning: 80 },
+    defDeviations: 3,
+    requiresEngine: true,
+    flag: 'k8sDbmCoverage',
+    hint: 'Percentual de conexões em uso em relação ao limite máximo do banco (Postgres ou MySQL, escolha o engine ao lado).',
+    message: `🔴 [DBM · Conexões] {{host.name}} — conexões em {{value}}% (limite: {{threshold}}%).
+
+**O que monitora:** percentual de conexões ativas no banco de dados em relação ao limite máximo configurado (max_connections).
+
+**Por que importa:** ao esgotar o limite de conexões, novas conexões da aplicação passam a falhar imediatamente — um dos jeitos mais comuns de causar indisponibilidade total mesmo com o banco saudável em CPU/memória/disco.
+
+**Causas prováveis:**
+- Connection pool da aplicação mal dimensionado ou sem timeout
+- Vazamento de conexões (não fechadas após uso)
+- Aumento real no número de instâncias/réplicas da aplicação
+- Queries lentas segurando conexões por mais tempo que o normal
+- max_connections configurado baixo demais para a carga atual
+
+**Ação recomendada:** verificar conexões ociosas ("idle in transaction" no Postgres, "Sleep" no MySQL), revisar configuração do pool de conexões da aplicação e considerar um pooler (PgBouncer/ProxySQL) ou aumento do limite se justificado.
+
+@equipe-infra`,
+  },
+  {
+    key: 'dbReplication', kind: 'metric', label: 'DBM · Atraso de replicação', unit: 's',
+    metric: (scope, by = '', engine = 'postgres') => engine === 'mysql'
+      ? `avg:mysql.replication.seconds_behind_master{${scope}}${by}`
+      : `avg:postgresql.replication_delay{${scope}}${by}`,
+    defThresholds: { critical: 30, warning: 10 },
+    defDeviations: 3,
+    requiresEngine: true,
+    flag: 'k8sDbmCoverage',
+    hint: 'Atraso (em segundos) da réplica em relação ao primário (Postgres ou MySQL, escolha o engine ao lado).',
+    message: `🔴 [DBM · Replicação] {{host.name}} — réplica {{value}}s atrás do primário (limite: {{threshold}}s).
+
+**O que monitora:** atraso, em segundos, entre a réplica e o banco primário. Dispara quando esse atraso ultrapassa o limite configurado.
+
+**Por que importa:** réplicas muito atrasadas servem dados desatualizados para leituras (stale reads) e, em caso de failover, podem causar perda de dados recentes — o atraso crescente também costuma indicar que a réplica não está acompanhando o volume de escrita do primário.
+
+**Causas prováveis:**
+- Réplica subdimensionada (CPU/disco/rede) para o volume de escrita do primário
+- Pico de escrita no primário acima da capacidade normal de replicação
+- Rede lenta ou instável entre primário e réplica
+- Query longa ou lock bloqueando a aplicação do replication log na réplica
+- Réplica em recuperação após reinício ou reconexão
+
+**Ação recomendada:** verificar a saúde da réplica (I/O, rede, locks), confirmar se o volume de escrita no primário está anormal, e considerar aumentar recursos da réplica ou investigar a causa do atraso antes que afete failover/leituras.
+
+@equipe-infra`,
+  },
+  {
+    key: 'dbQueryHealth', kind: 'metric', label: 'DBM · Deadlocks / queries lentas', unit: 'ocorrências',
+    // .as_count() porque somamos ocorrências na janela (mesmo padrão de
+    // 'network' acima). MySQL soma deadlocks + slow queries num único
+    // monitor; Postgres só expõe deadlocks como métrica de contagem.
+    metric: (scope, by = '', engine = 'postgres') => engine === 'mysql'
+      ? `sum:mysql.innodb.deadlocks{${scope}}${by}.as_count() + sum:mysql.performance.slow_queries{${scope}}${by}.as_count()`
+      : `sum:postgresql.deadlocks{${scope}}${by}.as_count()`,
+    defThresholds: { critical: 5, warning: 1 },
+    defDeviations: 3,
+    requiresEngine: true,
+    flag: 'k8sDbmCoverage',
+    hint: 'Deadlocks (Postgres/MySQL) e queries lentas (MySQL) na janela — escolha o engine ao lado.',
+    message: `🔴 [DBM · Deadlocks/Queries lentas] {{host.name}} — {{value}} ocorrência(s) na janela (limite: {{threshold}}).
+
+**O que monitora:** número de deadlocks (Postgres e MySQL) e queries lentas (MySQL) registrados no banco dentro da janela avaliada.
+
+**Por que importa:** deadlocks fazem transações inteiras falharem e serem revertidas, e queries lentas seguram conexões e recursos por mais tempo — ambos degradam a experiência do usuário e, em volume alto, podem sinalizar um problema estrutural de schema/índices ou de concorrência na aplicação.
+
+**Causas prováveis:**
+- Transações que acessam as mesmas tabelas em ordens diferentes (deadlock)
+- Falta de índice adequado, causando table scans e queries lentas
+- Transações longas demais segurando locks por muito tempo
+- Aumento real de concorrência/volume de escrita na aplicação
+- Migração ou job em lote rodando durante horário de pico
+
+**Ação recomendada:** revisar o log de deadlocks/slow query log para identificar as queries e tabelas envolvidas, ajustar índices e ordem de acesso às tabelas nas transações, e mover jobs pesados para janelas de menor concorrência.
+
+@equipe-infra`,
+  },
 ]
 export const INFRA_BY_KEY: Record<string, InfraType> = Object.fromEntries(INFRA_TYPES.map(t => [t.key, t]))
 export const DEFAULT_INFRA_GROUP_BY = ['host']
@@ -284,6 +421,9 @@ export interface InfraMetricConfig {
   // aos algoritmos MAD/scaledMAD (% de pontos do grupo considerados outlier).
   tolerance?: number
   percentage?: number
+  // Só usado pelas métricas com requiresEngine:true (dbConnections/
+  // dbReplication/dbQueryHealth) — Postgres ou MySQL, escolhido pelo usuário.
+  dbEngine?: DbEngine
 }
 
 export interface InfraCheckConfig {
@@ -361,6 +501,7 @@ export function initialInfraDiscovery(): InfraDiscoveryState {
           // modo threshold pra métricas de integrações cloud que atrasam.
           evaluationDelay: 60,
           priority: 3,
+          ...(t.requiresEngine ? { dbEngine: 'postgres' as DbEngine } : {}),
         }]
       })
     ),
@@ -405,9 +546,10 @@ export interface BuildInfraQueryArgs {
   alertWindow?: string
   tolerance?: number
   percentage?: number
+  engine?: DbEngine
 }
 
-export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m', tolerance, percentage }: BuildInfraQueryArgs): string {
+export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction = 'above', algorithm = 'robust', seasonality = 'weekly', queryWindow = 'last_1h', alertWindow = 'last_15m', tolerance, percentage, engine }: BuildInfraQueryArgs): string {
   const t = INFRA_BY_KEY[kind] as InfraMetricType
   const scope = scopeOf(host, extraTags)
   // Outlier PRECISA de `by {host}` (é o que define "cada série = 1 host" pra
@@ -420,7 +562,7 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   // expressões com mais de um termo (ex.: "network", soma de duas métricas)
   // precisam do `by {...}` em cada termo — colado só no final, o Datadog
   // aplicaria o group-by apenas ao último termo da expressão.
-  const m = t.metric(scope, by)
+  const m = t.metric(scope, by, engine)
 
   if (mode === 'anomaly') {
     const seas = algorithm !== 'basic' ? `, seasonality='${seasonality}'` : ''
@@ -435,7 +577,10 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   }
   // threshold simples: type "metric alert" exige o valor de "critical" na
   // própria query (options.thresholds.critical deve bater com esse valor).
-  return `avg(${queryWindow}):${m} > ${thresholds.critical}`
+  // thresholdDirection:'below' inverte o comparador (ex.: k8sNodeReady, onde
+  // o valor RUIM é baixo, não alto).
+  const cmp = t.thresholdDirection === 'below' ? '<' : '>'
+  return `avg(${queryWindow}):${m} ${cmp} ${thresholds.critical}`
 }
 
 export interface InfraMonitorPayload {
@@ -459,7 +604,7 @@ interface BuildMetricInfraArgs extends BuildInfraQueryArgs {
   thresholds: InfraThresholds & { criticalRecovery?: number | null; warningRecovery?: number | null }
 }
 
-function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }: BuildMetricInfraArgs): InfraMonitorPayload {
+function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage, engine, message, tags, namePrefix, noDataMinutes = 10, evaluationDelay, priority, notifyTarget }: BuildMetricInfraArgs): InfraMonitorPayload {
   const t = INFRA_BY_KEY[kind] as InfraMetricType
   const hostLabel = Array.isArray(host) ? `${host.length} host(s)` : host
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${hostLabel} · Infra · ${t.label}${mode === 'outlier' ? ' (outlier)' : ''}`.trim()
@@ -474,7 +619,7 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
   return {
     name,
     type: 'query alert',
-    query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage }),
+    query: buildInfraQuery({ kind, host, extraTags, groupBy, mode, thresholds, deviations, direction, algorithm, seasonality, queryWindow, alertWindow, tolerance, percentage, engine }),
     message: resolvedMessage,
     tags: baseTags,
     // priority é campo de TOPO no monitor (não dentro de options) — P1 a P5.
@@ -614,6 +759,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
         queryWindow: cfg.queryWindow || 'last_1h',
         evaluationDelay: cfg.evaluationDelay ?? 60,
         priority: cfg.priority,
+        engine: cfg.dbEngine,
       })
       plan.push({ kind: t.key, label: t.label, service: `${hosts.length} host(s)`, operation: t.label, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
     }
@@ -643,6 +789,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
             alertWindow: cfg.alertWindow || 'last_15m',
             evaluationDelay: cfg.evaluationDelay ?? 60,
             priority: cfg.priority,
+            engine: (cfg as InfraMetricConfig).dbEngine,
           })
       plan.push({ kind: t.key, label: t.label, service: host, operation: t.label, name: payload.name, query: payload.query, message: payload.message, priority: cfg.priority ?? null, payload })
     }

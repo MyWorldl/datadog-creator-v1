@@ -1,7 +1,7 @@
 // tests/discovery.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialDiscovery, planPreview, buildAnomalyQuery, ALERT_TYPES, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.ts'
+import { initialDiscovery, planPreview, buildAnomalyQuery, buildPodRestartsQuery, ALERT_TYPES, POD_RESTARTS_TYPE, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.ts'
 
 // Monta uma discovery com 1 serviço + 1 operação e todos os alertas ligados.
 function fullPlan() {
@@ -178,4 +178,61 @@ test('notifyTarget: vazio preserva @equipe-ops; definido substitui em TODAS as m
     assert.ok(m.payload.message.includes('@slack-checkout-alerts'), `${m.kind}: mention não substituído`)
     assert.ok(!m.payload.message.includes('@equipe-ops'), `${m.kind}: @equipe-ops não deveria mais aparecer`)
   }
+})
+
+// ── Pod Restarts (K8s, namespace-only, sem operation — atrás de k8sDbmCoverage) ──
+// Gate de flag é responsabilidade da UI/rota, não de lib/discovery.ts — os
+// testes abaixo não precisam mockar a flag.
+
+test('buildPodRestartsQuery: usa change() sobre kubernetes.containers.restarts, escopado só por kube_namespace', () => {
+  const q = buildPodRestartsQuery({ namespace: 'payments' })
+  assert.match(q, /^change\(sum\(last_5m\),last_5m\):/)
+  assert.match(q, /exclude_null\(avg:kubernetes\.containers\.restarts\{kube_namespace:payments\} by \{pod_name\}\)/)
+  assert.match(q, /> 5$/)
+  assert.ok(!q.includes('env:'), 'não deve filtrar por env (tag não confiável nessa métrica)')
+})
+
+test('buildPodRestartsQuery: threshold e changeWindow customizados entram na query', () => {
+  const q = buildPodRestartsQuery({ namespace: 'checkout', threshold: 10, changeWindow: 'last_15m' })
+  assert.match(q, /^change\(sum\(last_15m\),last_15m\):/)
+  assert.match(q, /> 10$/)
+})
+
+test('planPreview: Pod Restarts gera 1 monitor por NAMESPACE selecionado, sem depender de operação escolhida', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  // Nota: nenhuma operação escolhida (chosen:[]) — Pod Restarts não depende disso.
+  d.selected = { payments: { opsCount: 0, operations: [], chosen: [] }, checkout: { opsCount: 0, operations: [], chosen: [] } }
+  for (const k of Object.keys(d.alerts)) d.alerts[k].enabled = false // só Pod Restarts habilitado
+  d.podRestarts.enabled = true
+  const plan = planPreview(d)
+
+  const podItems = plan.filter(m => m.kind === POD_RESTARTS_TYPE.key)
+  assert.equal(podItems.length, 2, 'esperado 1 monitor por namespace selecionado')
+  assert.deepEqual(podItems.map(m => m.service).sort(), ['checkout', 'payments'])
+  for (const m of podItems) {
+    assert.match(m.query, /kube_namespace:(payments|checkout)/)
+    assert.equal(m.payload.type, 'query alert')
+    assert.ok(m.payload.tags.includes(`kube_namespace:${m.service}`))
+  }
+})
+
+test('planPreview: Pod Restarts NÃO aparece em scopeType:service, mesmo habilitado', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'service'
+  d.selected = { web: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.podRestarts.enabled = true
+  const plan = planPreview(d)
+  assert.equal(plan.filter(m => m.kind === POD_RESTARTS_TYPE.key).length, 0)
+})
+
+test('planPreview: Pod Restarts e os 4 alertas de trace convivem no mesmo plano sem se misturar', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  d.selected = { payments: { opsCount: 1, operations: ['http.request'], chosen: ['http.request'] } }
+  d.alerts.latency.enabled = true
+  d.podRestarts.enabled = true
+  const plan = planPreview(d)
+  assert.equal(plan.filter(m => m.kind === POD_RESTARTS_TYPE.key).length, 1)
+  assert.equal(plan.filter(m => m.kind === 'latency').length, 1)
 })
