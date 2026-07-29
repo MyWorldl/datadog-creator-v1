@@ -44,16 +44,17 @@ export async function POST(request: NextRequest): Promise<Response> {
   // planPreview, que já tolera campos ausentes via default.
   const discoveryInput = parsed.data as unknown as Partial<DiscoveryState>
 
-  // Defesa em profundidade: a UI só mostra Pod Restarts atrás da feature flag
-  // (ver DiscoveryConfigure.tsx), mas o body vem do client — reforça aqui pra
-  // quem tentar montar a requisição à mão (mesmo padrão do outlier em infra-monitors/route.ts).
-  if (discoveryInput.podRestarts?.enabled && !isFeatureEnabled('k8sDbmCoverage')) {
+  // Defesa em profundidade: a UI só mostra Pod Restarts/Pod Pending atrás da
+  // feature flag (ver DiscoveryConfigureK8sDbm.tsx), mas o body vem do
+  // client — reforça aqui pra quem tentar montar a requisição à mão (mesmo
+  // padrão do outlier em infra-monitors/route.ts).
+  if ((discoveryInput.podRestarts?.enabled || discoveryInput.podPending?.enabled) && !isFeatureEnabled('k8sDbmCoverage')) {
     return Response.json({ error: 'Cobertura de Kubernetes/Database Monitoring ainda não está disponível.' }, { status: 403 })
   }
 
   const plan = planPreview(discoveryInput)
   if (plan.length === 0) {
-    return Response.json({ error: 'Nada a criar: selecione serviço(s), operação(ões) e tipo(s) de alerta.' }, { status: 400 })
+    return Response.json({ error: 'Nada a criar: selecione serviço(s)/namespace(s), operação(ões) e tipo(s) de alerta (ou habilite Pod Restarts/Pod Pending).' }, { status: 400 })
   }
 
   const ctx = ctxFrom({ apiKey, appKey, site })

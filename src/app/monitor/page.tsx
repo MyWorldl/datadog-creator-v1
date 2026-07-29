@@ -7,6 +7,7 @@ import { useState } from 'react'
 import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
+import { useApp } from '@/context/AppContext'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import type { ResourceType, WizardConfig } from '@/components/discovery/types'
@@ -16,6 +17,7 @@ import type { ResourceType, WizardConfig } from '@/components/discovery/types'
 // quando o usuário avança até ali).
 const DiscoveryConfigure = dynamic(() => import('@/components/discovery/DiscoveryConfigure'))
 const DiscoveryConfigureInfra = dynamic(() => import('@/components/discovery/DiscoveryConfigureInfra'))
+const DiscoveryConfigureK8sDbm = dynamic(() => import('@/components/discovery/DiscoveryConfigureK8sDbm'))
 const DiscoveryPersonalize = dynamic(() => import('@/components/discovery/DiscoveryPersonalize'))
 const DiscoveryReview = dynamic(() => import('@/components/discovery/DiscoveryReview'))
 const DiscoveryCreate = dynamic(() => import('@/components/discovery/DiscoveryCreate'))
@@ -25,19 +27,34 @@ const DiscoveryCreate = dynamic(() => import('@/components/discovery/DiscoveryCr
 // ─────────────────────────────────────────────
 const STEPS = ['Conectar', 'Configurar', 'Personalizar', 'Revisar', 'Criar']
 
+// Estado inicial da aba "APM e Infraestrutura" (K8s/DBM) — reaproveita
+// DiscoveryState, mas fixo em scopeType:'namespace' (Pod Restarts exige isso;
+// Pod Pending ignora) e com os 4 tipos de ALERT_TYPES desligados (essa aba
+// não expõe UI pra latência/erro/volume — só Pod Restarts/Pod Pending).
+function initialK8sDiscovery() {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  for (const k of Object.keys(d.alerts)) d.alerts[k].enabled = false
+  return d
+}
+
 // ─────────────────────────────────────────────
 // Estado inicial de todas as configurações
 // ─────────────────────────────────────────────
 const INITIAL_CONFIG: WizardConfig = {
   // O wizard opera somente no modo de descoberta.
   mode: 'discovery',
-  // 'services' (APM, por serviço/operação) ou 'infra' (por host: CPU/Memória/Disco).
+  // 'services' (APM, por serviço/operação), 'infra' (por host: CPU/Memória/
+  // Disco) ou 'k8sDbm' (Kubernetes/DBM, atrás da flag k8sDbmCoverage).
   resourceType: 'services',
   discovery: initialDiscovery(),
   infra: initialInfraDiscovery(),
+  k8sInfra: initialInfraDiscovery(),
+  k8sDiscovery: initialK8sDiscovery(),
 }
 
 export default function Home() {
+  const { features } = useApp()
   const [step, setStep]     = useState(0)
   const [config, setConfig] = useState<WizardConfig>(INITIAL_CONFIG)
 
@@ -91,6 +108,10 @@ export default function Home() {
               {([
                 { key: 'services', label: 'APM' },
                 { key: 'infra', label: 'Infraestrutura (Hosts)' },
+                // Aba dedicada a Kubernetes/DBM — só aparece com a flag ligada
+                // (mesmo padrão de "esconder por completo quando off" da
+                // seção K8s/DBM em ferramentas/audit/page.tsx).
+                ...(features.k8sDbmCoverage ? [{ key: 'k8sDbm', label: 'APM e Infraestrutura (K8s/DBM)' }] : []),
               ] as { key: ResourceType; label: string }[]).map(opt => {
                 const on = config.resourceType === opt.key
                 return (
@@ -112,6 +133,13 @@ export default function Home() {
 
             {config.resourceType === 'infra' ? (
               <DiscoveryConfigureInfra
+                config={config}
+                setConfig={setConfig}
+                onNext={goNext}
+                onBack={goBack}
+              />
+            ) : config.resourceType === 'k8sDbm' ? (
+              <DiscoveryConfigureK8sDbm
                 config={config}
                 setConfig={setConfig}
                 onNext={goNext}

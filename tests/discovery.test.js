@@ -1,7 +1,7 @@
 // tests/discovery.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialDiscovery, planPreview, buildAnomalyQuery, buildPodRestartsQuery, ALERT_TYPES, POD_RESTARTS_TYPE, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.ts'
+import { initialDiscovery, planPreview, buildAnomalyQuery, buildPodRestartsQuery, buildPodPendingQuery, ALERT_TYPES, POD_RESTARTS_TYPE, POD_PENDING_TYPE, DEFAULT_OPERATION, pickPrimaryOperation } from '../src/lib/discovery.ts'
 
 // Monta uma discovery com 1 serviço + 1 operação e todos os alertas ligados.
 function fullPlan() {
@@ -235,4 +235,52 @@ test('planPreview: Pod Restarts e os 4 alertas de trace convivem no mesmo plano 
   const plan = planPreview(d)
   assert.equal(plan.filter(m => m.kind === POD_RESTARTS_TYPE.key).length, 1)
   assert.equal(plan.filter(m => m.kind === 'latency').length, 1)
+})
+
+// ── Pod Pending (K8s, GLOBAL — sem entidade nem operation) ──
+
+test('buildPodPendingQuery: usa min()/default_zero() sobre kubernetes_state.pod.status_phase, quebrado por kube_namespace', () => {
+  const q = buildPodPendingQuery()
+  assert.match(q, /^min\(last_10m\):default_zero\(max:kubernetes_state\.pod\.status_phase\{phase:pending\} by \{kube_namespace\}\)/)
+  assert.match(q, /> 0$/)
+})
+
+test('buildPodPendingQuery: threshold e window customizados entram na query', () => {
+  const q = buildPodPendingQuery({ window: 'last_30m', threshold: 3 })
+  assert.match(q, /^min\(last_30m\):/)
+  assert.match(q, /> 3$/)
+})
+
+test('planPreview: Pod Pending gera NO MÁXIMO 1 item, independente de `selected`/scopeType', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'service' // nem precisa ser namespace — Pod Pending ignora scopeType
+  d.selected = {} // nem precisa de nenhuma entidade selecionada
+  d.podPending.enabled = true
+  const plan = planPreview(d)
+  const podPendingItems = plan.filter(m => m.kind === POD_PENDING_TYPE.key)
+  assert.equal(podPendingItems.length, 1)
+  assert.equal(podPendingItems[0].payload.type, 'query alert')
+})
+
+test('planPreview: Pod Pending desabilitado não aparece no plano', () => {
+  const d = initialDiscovery()
+  const plan = planPreview(d)
+  assert.equal(plan.filter(m => m.kind === POD_PENDING_TYPE.key).length, 0)
+})
+
+test('planPreview: Pod Restarts e Pod Pending respeitam notifyNoData/renotifyInterval do discovery state (antes vinha hardcoded false/0)', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  d.selected = { payments: { opsCount: 0, operations: [], chosen: [] } }
+  d.podRestarts.enabled = true
+  d.podPending.enabled = true
+  d.notifyNoData = true
+  d.renotifyInterval = 45
+  const plan = planPreview(d)
+  const podRestarts = plan.find(m => m.kind === POD_RESTARTS_TYPE.key)
+  const podPending = plan.find(m => m.kind === POD_PENDING_TYPE.key)
+  assert.equal(podRestarts.payload.options.notify_no_data, true)
+  assert.equal(podRestarts.payload.options.renotify_interval, 45)
+  assert.equal(podPending.payload.options.notify_no_data, true)
+  assert.equal(podPending.payload.options.renotify_interval, 45)
 })
