@@ -1,7 +1,7 @@
 // scripts/bump-version.mjs
 //
 // Atualiza package.json E insere a entrada correspondente no topo de
-// VERSION_HISTORY (src/lib/app-version.js) numa única execução — elimina a
+// VERSION_HISTORY (src/lib/app-version.ts) numa única execução — elimina a
 // classe de bug já vista duas vezes no projeto (versões 1.7.1 e 1.17.1)
 // onde os dois ficaram dessincronizados por terem sido editados à mão em
 // momentos diferentes. O CI (scripts/check-version-sync.mjs) falha o build
@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const pkgPath = path.join(root, 'package.json')
-const versionFilePath = path.join(root, 'src', 'lib', 'app-version.js')
+const versionFilePath = path.join(root, 'src', 'lib', 'app-version.ts')
 
 const [, , version, title, ...notes] = process.argv
 
@@ -55,10 +55,11 @@ const newPkgRaw = pkgRaw.replace(
 )
 await writeFile(pkgPath, newPkgRaw)
 
-// 2) src/lib/app-version.js — insere a entrada nova logo após
-//    "export const VERSION_HISTORY = [", na mesma formatação das existentes.
+// 2) src/lib/app-version.ts — insere a entrada nova logo após
+//    "export const VERSION_HISTORY: VersionEntry[] = [", na mesma formatação
+//    das existentes.
 const versionFileRaw = await readFile(versionFilePath, 'utf8')
-const marker = 'export const VERSION_HISTORY = [\n'
+const marker = 'export const VERSION_HISTORY: VersionEntry[] = [\n'
 const markerIndex = versionFileRaw.indexOf(marker)
 if (markerIndex === -1) {
   console.error(`Não encontrei "${marker.trim()}" em ${versionFilePath} — verifique se o arquivo mudou de formato.`)

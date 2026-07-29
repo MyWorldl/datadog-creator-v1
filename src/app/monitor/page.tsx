@@ -2,8 +2,12 @@
 // Página do MonitorsCreator — orquestra os 5 steps do wizard
 
 'use client'
+/* eslint-disable react-hooks/set-state-in-effect --
+   O efeito abaixo sincroniza o resourceType inicial com a query string
+   (?tab=k8sDbm, usado pelo link do AuditMonitors), um sistema externo ao
+   componente — mesmo padrão de Sidebar.tsx/AppContext.tsx, não é loop de render. */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
@@ -57,6 +61,17 @@ export default function Home() {
   const { features } = useApp()
   const [step, setStep]     = useState(0)
   const [config, setConfig] = useState<WizardConfig>(INITIAL_CONFIG)
+
+  // Deep-link ?tab=k8sDbm (usado pelo botão "Criar no MonitorsCreator" da
+  // seção K8s/DBM do AuditMonitors) — lido via window.location em vez de
+  // useSearchParams() pra não precisar de <Suspense> (a página é estática).
+  // Só troca se a flag estiver ligada (senão a aba nem existe pra selecionar).
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    if (tab === 'k8sDbm' && features.k8sDbmCoverage) {
+      setConfig(c => ({ ...c, resourceType: 'k8sDbm' }))
+    }
+  }, [features.k8sDbmCoverage])
 
   function goNext() { setStep(s => Math.min(s + 1, STEPS.length - 1)) }
   function goBack() { setStep(s => Math.max(s - 1, 0)) }

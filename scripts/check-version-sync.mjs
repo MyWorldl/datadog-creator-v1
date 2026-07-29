@@ -1,7 +1,7 @@
 // scripts/check-version-sync.mjs
 //
 // Rede de segurança pro CI: falha o build se package.json.version e
-// VERSION_HISTORY[0].version (src/lib/app-version.js) estiverem
+// VERSION_HISTORY[0].version (src/lib/app-version.ts) estiverem
 // dessincronizados — já aconteceu duas vezes antes (v1.7.1 e v1.17.1) por
 // edição manual em momentos diferentes. Use scripts/bump-version.mjs pra
 // evitar cair nisso de novo.
@@ -15,7 +15,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
-const { VERSION_HISTORY } = await import(pathToFileURL(path.join(root, 'src', 'lib', 'app-version.js')))
+// app-version.ts (migração TS) — Node 22+ importa .ts nativamente (type
+// stripping), sem precisar de build/transpile pra este script standalone.
+const { VERSION_HISTORY } = await import(pathToFileURL(path.join(root, 'src', 'lib', 'app-version.ts')))
 
 const latest = VERSION_HISTORY[0]?.version
 

@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
+import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
 import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
@@ -360,6 +361,11 @@ export default function AuditMonitorsPage() {
                     instâncias de banco como faz com hosts/serviços): considera coberto se existir pelo menos 1
                     monitor com a métrica-chave, em qualquer escopo.
                   </p>
+                  {features.k8sDbmCoverage && envItems.some(c => !c.covered) && (
+                    <Link href="/monitor?tab=k8sDbm" style={{ ...s.btn2, display: 'inline-block', textDecoration: 'none', marginTop: 4 }}>
+                      Criar monitores de K8s/DBM no MonitorsCreator →
+                    </Link>
+                  )}
                 </>
               )}
             </>
