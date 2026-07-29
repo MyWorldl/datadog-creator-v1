@@ -10,6 +10,7 @@ import { readSessionKeys } from '@/lib/session-keys'
 import { planPreview, type DiscoveryState } from '@/lib/discovery'
 import { ctxFrom, ddPost } from '@/lib/datadog-server'
 import { discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 interface MonitorCreateResult {
   kind: string
@@ -41,7 +42,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   // discoveryBodySchema é uma validação leve e genérica (compartilhada com
   // infra-monitors); o shape real de DiscoveryState é responsabilidade de
   // planPreview, que já tolera campos ausentes via default.
-  const plan = planPreview(parsed.data as unknown as Partial<DiscoveryState>)
+  const discoveryInput = parsed.data as unknown as Partial<DiscoveryState>
+
+  // Defesa em profundidade: a UI só mostra Pod Restarts atrás da feature flag
+  // (ver DiscoveryConfigure.tsx), mas o body vem do client — reforça aqui pra
+  // quem tentar montar a requisição à mão (mesmo padrão do outlier em infra-monitors/route.ts).
+  if (discoveryInput.podRestarts?.enabled && !isFeatureEnabled('k8sDbmCoverage')) {
+    return Response.json({ error: 'Cobertura de Kubernetes/Database Monitoring ainda não está disponível.' }, { status: 403 })
+  }
+
+  const plan = planPreview(discoveryInput)
   if (plan.length === 0) {
     return Response.json({ error: 'Nada a criar: selecione serviço(s), operação(ões) e tipo(s) de alerta.' }, { status: 400 })
   }

@@ -12,7 +12,7 @@
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { planInfraPreview, type InfraDiscoveryState } from '@/lib/infra'
+import { planInfraPreview, INFRA_TYPES, type InfraDiscoveryState } from '@/lib/infra'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
 import { planSchema, discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
@@ -51,6 +51,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     const hasOutlier = Object.values(infraInput.metrics || {}).some(m => (m as { mode?: string })?.mode === 'outlier')
     if (hasOutlier && !isFeatureEnabled('outlierDetection')) {
       return Response.json({ error: 'Outlier Detection ainda não está disponível.' }, { status: 403 })
+    }
+
+    // Mesma defesa em profundidade, agora pros tipos K8s/DBM (Node Ready +
+    // métricas de banco) — atrás de k8sDbmCoverage. Genérico via INFRA_TYPES[].flag
+    // em vez de listar as keys aqui, pra não precisar lembrar deste gate a
+    // cada novo tipo flagged que for adicionado.
+    const flaggedKinds = new Set<string>(INFRA_TYPES.filter(t => t.flag).map(t => t.key))
+    const hasFlagged = Object.entries(infraInput.metrics || {}).some(
+      ([k, cfg]) => flaggedKinds.has(k) && (cfg as { enabled?: boolean })?.enabled
+    )
+    if (hasFlagged && !isFeatureEnabled('k8sDbmCoverage')) {
+      return Response.json({ error: 'Cobertura de Kubernetes/Database Monitoring ainda não está disponível.' }, { status: 403 })
     }
 
     plan = planInfraPreview(infraInput)
