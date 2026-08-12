@@ -124,3 +124,22 @@ export const discoveryBodySchema = z.object({
   renotifyInterval: z.number().optional(),
 }).passthrough()
 export type DiscoveryBody = z.infer<typeof discoveryBodySchema>
+
+// ── Renomeação em lote (bulk-rename/route.ts) ──
+// search/replace são texto livre (nomes de monitor têm colchetes, emoji,
+// @menções etc.) — só limita o tamanho (teto de abuso), sem regex de
+// caracteres permitidos como em isSafeDqlToken (aqui não vira query, só
+// comparação/substring em lib/bulk-rename.ts). search vazio é bloqueado
+// explicitamente: "".includes('') é sempre true, então deixaria passar
+// buscaria "casar" e sobrescrever o nome de TODOS os monitores da org.
+export const bulkRenamePreviewSchema = z.object({
+  search: z.string().trim().min(1, 'Informe o texto a buscar no nome do monitor.').max(200, 'Texto de busca muito longo.'),
+  replace: z.string().max(200, 'Texto de substituição muito longo.').optional().default(''),
+})
+
+export const bulkRenameApplySchema = z.object({
+  renames: z.array(z.object({
+    id: z.union([z.string(), z.number()]),
+    name: z.string().trim().min(1, 'Nome do monitor não pode ficar vazio.').max(300, 'Nome muito longo.'),
+  })).min(1, 'Nenhum monitor selecionado.').max(500, 'Limite de 500 monitores por vez.'),
+})

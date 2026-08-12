@@ -11,7 +11,7 @@ import { useSession, signOut } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import {
   IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics,
-  IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow,
+  IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow, IconRename,
 } from '@/components/Icons'
 
 interface NavItem {
@@ -49,6 +49,7 @@ const categories: NavCategory[] = [
       { href: '/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
       { href: '/ferramentas/audit', label: 'AuditMonitors', Icon: IconAnalytics },
       { href: '/ferramentas/analise', label: 'ScopeMaturity', Icon: IconScope },
+      { href: '/ferramentas/bulk-rename', label: 'Renomear em Lote', Icon: IconRename },
     ],
   },
   {

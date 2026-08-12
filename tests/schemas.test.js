@@ -5,6 +5,7 @@ import {
   datadogKeysSchema, createConnectionSchema, firstIssueMessage,
   hostFilterSchema, envQuerySchema, monthQuerySchema, connectionIdSchema,
   parseDqlTokenList, planSchema, discoveryBodySchema,
+  bulkRenamePreviewSchema, bulkRenameApplySchema,
 } from '../src/lib/schemas.ts'
 
 test('datadogKeysSchema: aceita chaves e site válidos', () => {
@@ -143,4 +144,38 @@ test('discoveryBodySchema: aceita o formato real de initialDiscovery() (selected
 
 test('discoveryBodySchema: scopeType fora de service/namespace é rejeitado', () => {
   assert.equal(discoveryBodySchema.safeParse({ scopeType: 'invalido' }).success, false)
+})
+
+test('bulkRenamePreviewSchema: search vazio é rejeitado (evita "casar" todos os monitores)', () => {
+  const r = bulkRenamePreviewSchema.safeParse({ search: '', replace: 'x' })
+  assert.equal(r.success, false)
+})
+
+test('bulkRenamePreviewSchema: replace ausente vira "" (permite só remover o trecho buscado)', () => {
+  const r = bulkRenamePreviewSchema.safeParse({ search: '[old]' })
+  assert.equal(r.success, true)
+  assert.equal(r.data.replace, '')
+})
+
+test('bulkRenamePreviewSchema: aceita texto livre com colchetes/emoji/@menção (não é token DQL)', () => {
+  const r = bulkRenamePreviewSchema.safeParse({ search: '🔴 [MonitorsCreator] @equipe-antiga', replace: '@equipe-nova' })
+  assert.equal(r.success, true)
+})
+
+test('bulkRenamePreviewSchema: rejeita busca absurdamente longa (teto de abuso)', () => {
+  const r = bulkRenamePreviewSchema.safeParse({ search: 'x'.repeat(500) })
+  assert.equal(r.success, false)
+})
+
+test('bulkRenameApplySchema: rejeita lista vazia e nome vazio; aceita lista válida', () => {
+  assert.equal(bulkRenameApplySchema.safeParse({ renames: [] }).success, false)
+  assert.equal(bulkRenameApplySchema.safeParse({ renames: [{ id: 1, name: '' }] }).success, false)
+  const r = bulkRenameApplySchema.safeParse({ renames: [{ id: 1, name: 'novo nome' }, { id: 'abc', name: 'outro' }] })
+  assert.equal(r.success, true)
+  assert.equal(r.data.renames.length, 2)
+})
+
+test('bulkRenameApplySchema: rejeita lote acima do limite (500)', () => {
+  const renames = Array.from({ length: 501 }, (_, i) => ({ id: i, name: `monitor ${i}` }))
+  assert.equal(bulkRenameApplySchema.safeParse({ renames }).success, false)
 })

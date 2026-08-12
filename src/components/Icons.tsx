@@ -35,6 +35,9 @@ export const IconSettings = ({ size = 18 }: IconProps) => (
 export const IconInfo = ({ size = 18 }: IconProps) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
 )
+export const IconRename = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M17 3a2.83 2.83 0 0 1 4 4L7 21l-4 1 1-4z"/></svg>
+)
 export const IconLogout = ({ size = 16 }: IconProps) => (
   <svg {...base(size)}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>
 )
