@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.35.0',
+    date: '2026-08-12',
+    title: 'Renomear Monitores em Lote (busca/substituição no nome)',
+    notes: [
+      'Nova ferramenta (Renomear em Lote) que busca um trecho no nome de monitores existentes e substitui em todos de uma vez — fluxo de preview (revisar/desmarcar cada match) antes de aplicar, com retry em 429.',
+      'Só o campo name muda via PUT parcial /api/v1/monitor/{id}; query, tags e demais opções do monitor ficam intactas.',
+      'Novo helper ddPut em datadog-server.ts (a API só tinha ddGet/ddPost até então).',
+    ],
+  },
+  {
     version: '1.34.0',
     date: '2026-07-29',
     title: 'MonitorsCreator: cria monitores de K8s/DBM numa aba dedicada',

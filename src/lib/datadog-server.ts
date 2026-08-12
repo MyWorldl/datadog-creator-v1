@@ -128,6 +128,26 @@ export async function ddPost<T = unknown>(ctx: DatadogCtx, path: string, body: u
   } catch (e) { return { ok: false, error: (e as Error).message } }
 }
 
+// PUT parcial: a API do Datadog aceita um body só com os campos que devem
+// mudar (ex.: { name: "..." }) — os demais campos do monitor (query, tags,
+// options etc.) ficam intactos. Usado hoje só pelo rename em lote
+// (bulk-rename/route.ts).
+export async function ddPut<T = unknown>(ctx: DatadogCtx, path: string, body: unknown): Promise<DdResult<T>> {
+  try {
+    const r = await fetch(`https://api.${ctx.site}${path}`, {
+      method: 'PUT',
+      headers: {
+        'DD-API-KEY': ctx.apiKey, 'DD-APPLICATION-KEY': ctx.appKey,
+        'Content-Type': 'application/json', Accept: 'application/json',
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    })
+    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) } as DdResult<T>
+    return { ok: true, json: await r.json() }
+  } catch (e) { return { ok: false, error: (e as Error).message } }
+}
+
 // ── Metrics: último valor de uma query no intervalo (fromMs/toMs em ms) ──
 // GET /api/v1/query  -> series[0].pointlist[[ts_ms, value], ...]
 // Usada como fallback do Usage Metering (usage/summary) quando a conta não
