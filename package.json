@@ -1,6 +1,6 @@
 {
   "name": "datadog-creator",
-  "version": "1.36.1",
+  "version": "1.36.2",
   "private": true,
   "engines": {
     "node": "22.x"
@@ -17,26 +17,26 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.67.0",
-    "@supabase/ssr": "^0.12.0",
+    "@sentry/nextjs": "^10.69.0",
+    "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.110.1",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "exceljs": "^4.4.0",
-    "next": "16.2.11",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.1",
-    "@types/react": "19.2.17",
+    "@types/react": "19.2.18",
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.11",
+    "eslint-config-next": "16.3.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.2.0",
+    "lint-staged": "^17.3.0",
     "tailwindcss": "^4",
     "typescript": "^6.0.3"
   },
