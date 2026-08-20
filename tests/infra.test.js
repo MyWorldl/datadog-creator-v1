@@ -26,6 +26,33 @@ test('rede: o by {host,device} entra em CADA termo da soma', () => {
   assert.equal(matches.length, 2, 'esperado o by em ambos os termos (packets_in e packets_out)')
 })
 
+test('windowAgg: network e dbQueryHealth usam sum(window) em modo threshold (total na janela, não média por intervalo)', () => {
+  const network = buildInfraQuery({ kind: 'network', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 50, warning: 10 } })
+  assert.match(network, /^sum\(last_1h\):/)
+
+  const dbQueryHealth = buildInfraQuery({ kind: 'dbQueryHealth', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 5, warning: 1 } })
+  assert.match(dbQueryHealth, /^sum\(last_1h\):/)
+})
+
+test('windowAgg: tipos sem .as_count() continuam avg(window) (regressão — comportamento de sempre preservado)', () => {
+  const cpu = buildInfraQuery({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  assert.match(cpu, /^avg\(last_1h\):/)
+
+  const k8sNodeReady = buildInfraQuery({ kind: 'k8sNodeReady', host: 'node-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 1, warning: 1 } })
+  assert.match(k8sNodeReady, /^avg\(last_1h\):/)
+
+  const dbConnections = buildInfraQuery({ kind: 'dbConnections', host: 'db-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  assert.match(dbConnections, /^avg\(last_1h\):/)
+})
+
+test('windowAgg: modo anomaly sempre usa avg(window) fixo, mesmo pra tipos com windowAgg:sum (network/dbQueryHealth)', () => {
+  // anomaly tem semântica própria (histórico/padrão, não total-na-janela) —
+  // avg() externo é o padrão correto documentado pro modo anomaly, mesmo
+  // envolvendo .as_count() por dentro (mesmo padrão do highVolume em discovery.ts).
+  const q = buildInfraQuery({ kind: 'network', host: 'web', groupBy: ['host'], mode: 'anomaly', deviations: 3, alertWindow: 'last_15m' })
+  assert.match(q, /^avg\(last_1h\):/)
+})
+
 test('service check (Agent Down): payload correto', () => {
   const p = buildInfraMonitorPayload({ kind: 'hostUp', host: 'web', counts: { critical: 3, warning: 1 }, window: 4 })
   assert.equal(p.type, 'service check')
@@ -56,6 +83,19 @@ test('planInfraPreview: um monitor por (host × métrica habilitada)', () => {
   d.metrics.memory.enabled = true // 2 métricas
   const plan = planInfraPreview(d)
   assert.equal(plan.length, 4) // 2 hosts × 2 métricas
+})
+
+test('no_data_timeframe: k8sNodeReady usa defNoDataMinutes:5 (mecanismo real de disparo); demais tipos mantêm o padrão de 10', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'node-1': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.k8sNodeReady.enabled = true
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  const k8sNodeReady = plan.find(m => m.kind === 'k8sNodeReady')
+  assert.equal(cpu.payload.options.no_data_timeframe, 10, 'padrão de sempre, não deve mudar pros outros tipos')
+  assert.equal(k8sNodeReady.payload.options.no_data_timeframe, 5, 'mais curto — aqui é o mecanismo real de disparo, não só um fallback')
 })
 
 test('priority: padrão é P3 (initialInfraDiscovery já vem com priority:3 pra cada métrica/check)', () => {

@@ -182,7 +182,14 @@ export async function sloBudget(ctx: DatadogCtx, maxSlos = 15): Promise<SloBudge
   const list = await ddGet<{ data?: { id: string; thresholds?: { target?: number }[] }[] }>(ctx, '/api/v1/slo?limit=1000')
   if (!list.ok) return { measured: false, detail: 'Sem acesso à API de SLO.' }
   const slos = Array.isArray(list.json?.data) ? list.json.data : []
-  if (slos.length === 0) return { measured: true, pct: 0, evaluated: 0, detail: 'Nenhum SLO configurado.' }
+  // measured:false (não pct:0) quando não há SLO nenhum: "error budget
+  // respeitado" mede COMPLIANCE de SLOs existentes — sem nenhum SLO, não há o
+  // que medir, então N/D é o sinal correto (excluído da média do pilar). Sem
+  // isso, scope-maturity/route.ts contava 0 aqui E 0 em "Serviços com SLO"
+  // (que corretamente fica 0 — adoção zero é um fato real) pela MESMA causa,
+  // descontando o pilar Processos duas vezes por um único motivo (achado da
+  // auditoria — penalizava demais ambientes greenfield sem SLO configurado).
+  if (slos.length === 0) return { measured: false, detail: 'Nenhum SLO configurado.' }
 
   const now = Math.floor(Date.now() / 1000)
   const from = now - 30 * 24 * 3600

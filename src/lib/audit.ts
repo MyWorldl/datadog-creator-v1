@@ -37,6 +37,16 @@ import { buildMonitorPayload, DEFAULT_OPERATION, ALERT_BY_KEY, DEFAULT_GROUP_BY,
 
 const any = (q: string, ...subs: string[]): boolean => subs.some(s => q.includes(s))
 
+function escapeRegExp(s: string): string { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+
+// Casa "<tag>:<nome>" só quando <nome> termina ali (não é PREFIXO de um nome
+// maior) — sem isso, host:web1 "casava" com uma query escopada em host:web10,
+// e service:api casava com service:api-gateway (achado da auditoria: falso-
+// positivo sistemático em nomenclatura numerada/hierárquica, comum em produção).
+function tagMatches(query: string, tag: string, name: string): boolean {
+  return new RegExp(`${tag}:${escapeRegExp(name)}(?![\\w-])`).test(query)
+}
+
 export type AuditGroup = 'Infra' | 'APM' | 'K8s' | 'DBM'
 
 export interface AuditCatalogItem {
@@ -73,7 +83,12 @@ export const AUDIT_CATALOG: AuditCatalogItem[] = [
   // ── APM (serviço) — apm liga no tipo de alerta do discovery.ts ──
   { key: 'apmLatency', group: 'APM', label: 'Latência (APM)', apm: 'latency', detect: q => q.includes('trace.') && (/p\d\d:trace\./.test(q) || q.includes('.duration') || (q.includes('avg:trace.') && !q.includes('.hits') && !q.includes('.errors'))) },
   { key: 'apmErrors', group: 'APM', label: 'Erros (APM)', apm: 'errorRate', detect: q => q.includes('trace.') && q.includes('.errors') },
-  { key: 'apmHits', group: 'APM', label: 'Throughput (APM)', apm: 'highVolume', detect: q => q.includes('trace.') && q.includes('.hits') },
+  // !q.includes('.errors'): a query de errorRate é uma RAZÃO (errors/hits) —
+  // contém '.hits' no denominador por construção. Sem essa exclusão, todo
+  // monitor de Taxa de Erro era contado (errado) como cobertura de Throughput
+  // também, inflando o score de APM e fazendo buildSuggestedApm nunca sugerir
+  // o monitor de volume que realmente falta (achado da auditoria).
+  { key: 'apmHits', group: 'APM', label: 'Throughput (APM)', apm: 'highVolume', detect: q => q.includes('trace.') && q.includes('.hits') && !q.includes('.errors') },
   // ── Kubernetes (kube-state-metrics/kubelet) — atrás da flag k8sDbmCoverage ──
   { key: 'k8sPodRestarts', group: 'K8s', label: 'Restart de Pods', detect: q => any(q, 'kubernetes_state.container.restarts', 'kubernetes.containers.restarts') },
   { key: 'k8sNodeReady', group: 'K8s', label: 'Node Ready (condição)', detect: q => any(q, 'kubernetes_state.node.by_condition', 'kubernetes_state.node.status') },
@@ -174,12 +189,17 @@ export function analyzeHostCoverage(monitors: DatadogMonitor[], hostNames: strin
   const broad: Record<string, boolean> = {}
   const specific: Record<string, Set<string>> = {}
   for (const c of INFRA_CATALOG) {
-    broad[c.key] = queries.some(q => { try { return c.detect(q) && q.includes('{*}') } catch { return false } })
+    // '{*}' cobre monitores de MÉTRICA amplos; '.over("*")' é a sintaxe
+    // equivalente pra monitores de SERVICE CHECK (ex.: hostUp/Agent Down criado
+    // manualmente fora do app — o app nunca gera essa sintaxe sozinho, sempre
+    // usa .over("host:X") por host) — sem isso, um Agent Down amplo feito na
+    // mão nunca era reconhecido como cobertura, gerando lacuna sugerida à toa.
+    broad[c.key] = queries.some(q => { try { return c.detect(q) && (q.includes('{*}') || q.includes('.over("*")')) } catch { return false } })
     const set = new Set<string>()
     for (const q of queries) {
       try {
         if (!c.detect(q)) continue
-        for (const h of (hostNames || [])) if (q.includes(`host:${h}`)) set.add(h)
+        for (const h of (hostNames || [])) if (tagMatches(q, 'host', h)) set.add(h)
       } catch { /* query estranha: ignora */ }
     }
     specific[c.key] = set
@@ -222,7 +242,7 @@ export function analyzeServiceCoverage(monitors: DatadogMonitor[], serviceNames:
     for (const q of queries) {
       try {
         if (!c.detect(q)) continue
-        for (const svc of (serviceNames || [])) if (q.includes(`service:${svc}`)) set.add(svc)
+        for (const svc of (serviceNames || [])) if (tagMatches(q, 'service', svc)) set.add(svc)
       } catch { /* query estranha: ignora */ }
     }
     specific[c.key] = set
@@ -260,7 +280,14 @@ export function coveragePercent(entityRows: (HostCoverageRow | ServiceCoverageRo
 export type PercentBand = 'red' | 'yellow' | 'green' | null
 
 // Faixa de cor a partir do %, faixas de negócio (não CSS — page.js mapeia
-// band -> var(--css)): <=40 vermelho, 40-75 amarelo, >=75 verde.
+// band -> var(--css)): <=40 vermelho, 40-75 amarelo, >=75 verde. Escolhidas
+// pra bater com a UI já existente, não derivadas de nenhuma análise
+// estatística — por isso são assimétricas (40/35/25 pontos por faixa),
+// diferente da escala de 5 níveis iguais (20 em 20) que o ScopeMaturity usa
+// (scope-maturity/route.ts, bandLevel) pro score de MATURIDADE. As duas
+// ferramentas medem coisas diferentes (cobertura factual vs. maturidade
+// composta de várias dimensões) e cada banding foi calibrado pra sua própria
+// leitura visual — divergem de propósito, não por descuido (achado da auditoria).
 export function percentBand(percent: number | null): PercentBand {
   if (percent == null) return null
   if (percent <= 40) return 'red'

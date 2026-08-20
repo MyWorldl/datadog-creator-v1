@@ -27,6 +27,20 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.36.0',
+    date: '2026-08-20',
+    title: 'Correções do Raio-X do Monitoramento (auditoria de métricas)',
+    notes: [
+      'Corrigido bug real: monitor de Taxa de Erro (contém .hits no denominador da fórmula) era contado como cobertura de Throughput no AuditMonitors — inflava o score de APM e fazia o app nunca sugerir o monitor de volume que realmente faltava.',
+      'Corrigido falso-positivo de cobertura por substring sem limite de nome: host:web1/service:api não contam mais como cobertura de web10/api-gateway.',
+      'Rede e DBM · Deadlocks (Infra) passaram a usar sum(janela) em vez de avg(janela) no modo threshold — bate com a semântica de \'total na janela\' que a mensagem do monitor já prometia; demais tipos continuam avg(janela), sem mudança.',
+      'Corrigido desconto duplo de maturidade: no ScopeMaturity, ambientes sem nenhum SLO configurado levavam 0 em duas dimensões do pilar Processos pela mesma causa — Error Budget agora vira N/D (não 0) quando não há SLO, já que não há o que medir.',
+      'K8s Node Ready ganhou no_data_timeframe mais curto (5min) e comentário explicando que o disparo real é por ausência de dado, não pelo comparador numérico.',
+      'AuditMonitors reconhece .over("*") como cobertura ampla de service check (Agent Down), além de {*} pra métricas.',
+      'Documentação: por que percentBand (AuditMonitors) e bandLevel (ScopeMaturity) usam escalas diferentes, risco de MySQL >=8.0.22 na métrica de replicação, e nota de revisão periódica dos preços do FinOps.',
+    ],
+  },
+  {
     version: '1.35.0',
     date: '2026-08-12',
     title: 'Renomear Monitores em Lote (busca/substituição no nome)',

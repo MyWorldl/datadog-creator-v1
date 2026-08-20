@@ -91,6 +91,26 @@ export interface InfraMetricType extends InfraTypeBase {
   // Só as métricas de banco (dbConnections/dbReplication/dbQueryHealth) usam
   // engine — presença deste campo é o que a UI usa pra mostrar o seletor.
   requiresEngine?: boolean
+  // Agregador de JANELA no modo threshold (avg(window):.../sum(window):...).
+  // Default ausente = 'avg' (preserva o comportamento de sempre). Só faz
+  // diferença pra métricas cuja fórmula usa .as_count() (network,
+  // dbQueryHealth): a regra do Datadog "use sum, não avg, com .as_count()" é
+  // sobre o agregador ESPACIAL (sum:metric{...}, que essas fórmulas já usam
+  // corretamente) — não sobre este agregador externo, então avg() não é uma
+  // query inválida. Mas semanticamente, avg(window) sobre uma métrica de
+  // CONTAGEM por intervalo devolve a média de ocorrências por intervalo,
+  // enquanto a mensagem desses monitores promete um TOTAL "na janela" — daí
+  // 'sum' nesses dois tipos, pra bater cálculo com o que o texto promete
+  // (achado da auditoria). Não mexe em anomaly/outlier (outro modo, outra
+  // semântica — lá avg() externo é o padrão correto e documentado, mesmo com
+  // .as_count() dentro, como em discovery.ts/highVolume).
+  windowAgg?: 'avg' | 'sum'
+  // no_data_timeframe (minutos) pra esse tipo — default ausente = 10 (mesmo
+  // de sempre, ver buildMetricInfraMonitorPayload). Só usado hoje por
+  // k8sNodeReady, onde o notify_no_data É o mecanismo real de disparo (ver
+  // comentário no type) — um valor mais curto que o padrão genérico de 10min
+  // faz sentido especificamente ali.
+  defNoDataMinutes?: number
 }
 
 interface InfraCheckType extends InfraTypeBase {
@@ -213,6 +233,7 @@ export const INFRA_TYPES: InfraType[] = [
     metric: (scope, by = '') => `sum:system.net.packets_in.error{${scope}}${by}.as_count() + sum:system.net.packets_out.error{${scope}}${by}.as_count()`,
     defThresholds: { critical: 50, warning: 10 },
     defDeviations: 3,
+    windowAgg: 'sum', // total na janela, não média por intervalo — ver comentário no campo
     hint: 'Pacotes de rede com erro (entrada+saída) na janela — indica problema de interface/driver/cabo, não uso normal de banda.',
     extraBy: ['device'], // interface de rede
     message: `🔴 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (limite: {{threshold}}).
@@ -284,15 +305,24 @@ export const INFRA_TYPES: InfraType[] = [
   },
   {
     key: 'k8sNodeReady', kind: 'metric', label: 'K8s · Node Ready', unit: '',
-    // kubernetes_state.node.status{status:schedulable} = 1 quando o node está
-    // Ready e aceitando pods, 0 (ou ausente) quando não. É um exemplo oficial
-    // CLUSTER-WIDE (by {kubernetes_cluster}) — aqui adaptamos pra escopo
-    // POR HOST, então o tag `host:<host>` precisa bater com o hostname visto
-    // pelo Cluster Agent (nem sempre idêntico ao hostname do Agent comum).
+    // kubernetes_state.node.status é emitida como 1 sob a tag status:schedulable
+    // OU status:unschedulable — NUNCA as duas, nunca 0 (confirmado no código-
+    // fonte do check kubernetes_state do Agent). Ou seja: quando um node fica
+    // NotReady, a série com a tag `schedulable` não cai pra 0 — ela SOME (a
+    // tag trocou). Na prática, quem dispara este monitor é o notify_no_data
+    // (defNoDataMinutes abaixo), não o comparador `< 1` — o threshold fica
+    // como salvaguarda caso a métrica um dia mude de comportamento, mas
+    // raramente é o que aciona o alerta de fato (achado da auditoria: o
+    // comentário anterior overstate o papel do comparador numérico).
+    // É um exemplo oficial CLUSTER-WIDE (by {kubernetes_cluster}) — aqui
+    // adaptamos pra escopo POR HOST, então o tag `host:<host>` precisa bater
+    // com o hostname visto pelo Cluster Agent (nem sempre idêntico ao
+    // hostname do Agent comum).
     metric: (scope, by = '') => `avg:kubernetes_state.node.status{${scope},status:schedulable}${by}`,
     defThresholds: { critical: 1, warning: 1 },
     defDeviations: 3,
-    thresholdDirection: 'below', // queremos alertar quando CAI abaixo de 1 (não-schedulable), não quando sobe
+    thresholdDirection: 'below', // salvaguarda — ver comentário acima sobre quem dispara de fato
+    defNoDataMinutes: 5, // mais curto que o padrão (10min): aqui é o mecanismo real de disparo, não só um fallback
     flag: 'k8sDbmCoverage',
     hint: 'Alerta quando o node do Kubernetes deixa de estar "Ready"/schedulable (ex.: NotReady, cordoned). Requer Cluster Agent.',
     message: `🔴 [Infra · K8s Node Ready] {{host.name}} — node não-schedulable (valor: {{value}}, esperado: {{threshold}}).
@@ -344,6 +374,13 @@ export const INFRA_TYPES: InfraType[] = [
   },
   {
     key: 'dbReplication', kind: 'metric', label: 'DBM · Atraso de replicação', unit: 's',
+    // MySQL: seconds_behind_master é o nome consagrado/mais amplamente
+    // populado, mas MySQL >=8.0.22 pode reportar só o nome moderno
+    // (seconds_behind_source, terminologia source/replica) — não somamos os
+    // dois aqui de propósito: não existe operador "or" em métrica Datadog, e
+    // somar cegamente dobraria o valor em instalações que populam as duas
+    // (achado da auditoria — sem uma forma verificável de fallback numa
+    // query só, deixado como nota pra quem for adaptar ao ambiente).
     metric: (scope, by = '', engine = 'postgres') => engine === 'mysql'
       ? `avg:mysql.replication.seconds_behind_master{${scope}}${by}`
       : `avg:postgresql.replication_delay{${scope}}${by}`,
@@ -381,6 +418,7 @@ export const INFRA_TYPES: InfraType[] = [
     defDeviations: 3,
     requiresEngine: true,
     flag: 'k8sDbmCoverage',
+    windowAgg: 'sum', // total na janela, não média por intervalo — ver comentário no campo
     hint: 'Deadlocks (Postgres/MySQL) e queries lentas (MySQL) na janela — escolha o engine ao lado.',
     message: `🔴 [DBM · Deadlocks/Queries lentas] {{host.name}} — {{value}} ocorrência(s) na janela (limite: {{threshold}}).
 
@@ -490,8 +528,11 @@ export function initialInfraDiscovery(): InfraDiscoveryState {
           algorithm: 'robust',
           seasonality: 'weekly',
           // queryWindow (janela externa do avg()) alinhado à recomendação do
-          // Datadog pro modo anomaly (~5x o alert_window de 15m) — mesmo
-          // valor já usado em discovery.ts pros tipos com alertWindow=15m.
+          // Datadog pro modo anomaly ("cerca de 5x" o alert_window, doc oficial)
+          // — na prática o valor real fica entre ~4x-6x conforme o tipo, porque
+          // o Datadog só aceita um conjunto fechado de strings de janela (não
+          // existe "last_75m" pra bater exatamente 5x um alert_window de 15m).
+          // Mesmo valor já usado em discovery.ts pros tipos com alertWindow=15m.
           // Também vale pro modo threshold (mesmo campo): resulta numa média
           // mais suave/menos sensível a picos passageiros.
           queryWindow: 'last_1h',
@@ -578,9 +619,11 @@ export function buildInfraQuery({ kind, host, extraTags, groupBy, mode, threshol
   // threshold simples: type "metric alert" exige o valor de "critical" na
   // própria query (options.thresholds.critical deve bater com esse valor).
   // thresholdDirection:'below' inverte o comparador (ex.: k8sNodeReady, onde
-  // o valor RUIM é baixo, não alto).
+  // o valor RUIM é baixo, não alto). windowAgg troca avg()->sum() só pros
+  // tipos de CONTAGEM (network, dbQueryHealth) — ver comentário no campo.
   const cmp = t.thresholdDirection === 'below' ? '<' : '>'
-  return `avg(${queryWindow}):${m} ${cmp} ${thresholds.critical}`
+  const agg = t.windowAgg ?? 'avg'
+  return `${agg}(${queryWindow}):${m} ${cmp} ${thresholds.critical}`
 }
 
 export interface InfraMonitorPayload {
@@ -788,6 +831,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
             queryWindow: cfg.queryWindow || 'last_1h',
             alertWindow: cfg.alertWindow || 'last_15m',
             evaluationDelay: cfg.evaluationDelay ?? 60,
+            noDataMinutes: (t as InfraMetricType).defNoDataMinutes,
             priority: cfg.priority,
             engine: (cfg as InfraMetricConfig).dbEngine,
           })

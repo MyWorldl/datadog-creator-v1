@@ -18,6 +18,12 @@
 // price = preço de LISTA (anual) por unidade — ver pricing/list. Preço real
 // contratado difere (committed use/descontos); por isso é editável na UI.
 //
+// Os valores abaixo são um SNAPSHOT do catálogo de preços — a Datadog muda
+// esses valores ao longo do tempo, e nada aqui detecta isso automaticamente.
+// Recomendação (achado da auditoria): revisar periodicamente contra
+// https://www.datadoghq.com/pricing/list/ — a edição na UI cobre drift
+// pontual, mas não substitui uma checagem de tempos em tempos.
+//
 // Cálculo: custo ≈ (bytes ? valor/1e9 : valor) / per × price
 //
 // SIMPLIFICAÇÃO CONHECIDA: todo produto usa preço LINEAR (mesmo $/unidade em
