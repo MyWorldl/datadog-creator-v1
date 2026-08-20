@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.37.0',
+    date: '2026-08-20',
+    title: 'Renomear em Lote: carregar e filtrar monitores em vez de buscar às cegas',
+    notes: [
+      'Trocado o fluxo de busca-por-tentativa (round trip a cada clique em Buscar, sem indicar o que existe) por carregar todos os monitores uma vez e filtrar/selecionar localmente — mesmo padrão de lista com checkbox já usado na descoberta de hosts.',
+      'Nova barra de filtro acima da lista de monitores: filtra ao digitar (sem clicar em nada), aceita vários termos separados por vírgula, não diferencia maiúsculas/minúsculas — só para navegar/selecionar, não afeta o que será renomeado.',
+      'Os campos "Buscar no nome"/"Substituir por" continuam calculando o preview do nome novo, agora inteiramente no cliente e só para os monitores marcados na lista — sem round trip por tentativa de busca.',
+      'Rota GET /api/datadog/bulk-rename-monitors simplificada: devolve todos os monitores (id/nome) de uma vez, sem exigir um termo de busca antes de mostrar qualquer coisa.',
+    ],
+  },
+  {
     version: '1.36.3',
     date: '2026-08-20',
     title: 'Documentação: vulnerabilidade moderada de exceljs/uuid aceita de propósito',
