@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.36.2',
+    date: '2026-08-20',
+    title: 'Bump de dependências menores/patch (Next.js, React, Supabase SSR, Sentry, lint-staged)',
+    notes: [
+      'Aplicado manualmente o mesmo pacote de bumps menores/patch que um PR do Dependabot já tinha proposto (PR estava com CI vermelho e desatualizado — 1 mês de commits de diferença — então reaplicado do zero em cima da main atual e revalidado).',
+      'next 16.2.11 -> 16.3.0, react/react-dom 19.2.7 -> 19.2.8, @types/react 19.2.17 -> 19.2.18, eslint-config-next 16.2.11 -> 16.3.0, @sentry/nextjs ^10.67.0 -> ^10.69.0, @supabase/ssr ^0.12.0 -> ^0.12.4, lint-staged ^17.2.0 -> ^17.3.0.',
+      'Como efeito colateral, resolveu as 2 vulnerabilidades moderadas restantes de next/postcss no npm audit — só a moderada de exceljs/uuid continua pendente (downgrade major, decisão em aberto).',
+      'Não aplicado: bump do ESLint 9->10 (outro PR do Dependabot) — testado manualmente e quebra o lint nesta versão do projeto (TypeError: scopeManager.addGlobals is not a function), provavelmente por incompatibilidade com eslint-config-next/typescript-eslint ainda não atualizados pro ESLint 10. Descartado.',
+    ],
+  },
+  {
     version: '1.36.1',
     date: '2026-08-20',
     title: 'Correção de dependências vulneráveis (npm audit)',
