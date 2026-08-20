@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.36.1',
+    date: '2026-08-20',
+    title: 'Correção de dependências vulneráveis (npm audit)',
+    notes: [
+      'npm audit fix (sem --force) — resolvidas as 4 vulnerabilidades ALTAS que o gate do CI (npm audit --audit-level=high) estava reportando (brace-expansion, fast-uri, js-yaml, nanoid), sem nenhuma mudança de comportamento (só bumps semver-compatíveis em package-lock.json).',
+      'Restam 2 vulnerabilidades MODERADAS (exceljs/uuid) cujo único fix disponível é um downgrade major do exceljs (4.x -> 3.4.0) — não aplicado: precisa de decisão explícita, dado o risco pra exportação de Excel (DiscoveryCreate.tsx).',
+    ],
+  },
+  {
     version: '1.36.0',
     date: '2026-08-20',
     title: 'Correções do Raio-X do Monitoramento (auditoria de métricas)',
