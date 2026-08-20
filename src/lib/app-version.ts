@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.36.3',
+    date: '2026-08-20',
+    title: 'Documentação: vulnerabilidade moderada de exceljs/uuid aceita de propósito',
+    notes: [
+      'exceljs@4.x traz uma vulnerabilidade moderada transitiva (uuid <11.1.1) sem exposição real (só afeta geração interna de UUID, nunca recebe input do usuário). Investigado a fundo: o único fix (downgrade pra exceljs@3.4.0) troca essa moderada por uma cadeia PIOR — vulnerabilidade ALTA de path traversal via symlink em fast-csv/tmp. Decisão: manter 4.x, documentado em DiscoveryCreate.tsx e no comentário do gate de auditoria no CI.',
+      'npm audit --audit-level=high continua verde (exceljs/uuid é moderada, não bloqueia o gate).',
+    ],
+  },
+  {
     version: '1.36.2',
     date: '2026-08-20',
     title: 'Bump de dependências menores/patch (Next.js, React, Supabase SSR, Sentry, lint-staged)',

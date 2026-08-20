@@ -37,6 +37,13 @@ async function downloadResultsExcel(plan: PlanEntry[], resultsList: PlanResultIt
 
   if (rows.length === 0) return
 
+  // exceljs@4.x traz uma vulnerabilidade MODERADA transitiva (uuid <11.1.1 —
+  // "missing buffer bounds check", só afeta geração interna de UUID, nunca
+  // recebe input do usuário aqui). Investigado e mantido de propósito: o
+  // único fix (`npm audit fix --force`) baixa pra exceljs@3.4.0, que troca
+  // essa moderada por uma cadeia PIOR (fast-csv/tmp — vulnerabilidade ALTA de
+  // path traversal via symlink). Decisão: manter 4.x — ver npm audit e
+  // https://github.com/advisories/GHSA-w5hq-g745-h8pq.
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
   const sheet = wb.addWorksheet('Monitores')
