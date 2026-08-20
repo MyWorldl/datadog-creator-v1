@@ -313,7 +313,12 @@ export async function GET(): Promise<Response> {
   // Nível 1-5 por faixa de 20 pontos, mas TRAVADO PELO ELO MAIS FRACO: um pilar
   // forte não pode mascarar um crítico. O nível não passa de (nível do pior
   // pilar + 1), então enquanto houver pilar muito atrás o ambiente não "sobe".
-  // Mesma filosofia do refino do AuditMonitors (média não infla o resultado).
+  // Mesma filosofia do refino do AuditMonitors (média não infla o resultado) —
+  // mas a ESCALA em si é diferente de propósito: aqui são 5 faixas IGUAIS (20
+  // em 20), enquanto o AuditMonitors (lib/audit.ts, percentBand) usa 3 faixas
+  // assimétricas (40/35/25). Cada uma foi calibrada pra sua própria leitura
+  // visual — maturidade composta de várias dimensões aqui, cobertura factual
+  // por métrica lá — não é uma inconsistência a corrigir (achado da auditoria).
   const bandLevel = (v: number): number => Math.max(1, Math.min(5, Math.floor(v / 20) + 1))
   const LEVEL_LABELS: Record<number, string> = { 1: 'Inicial', 2: 'Reativo', 3: 'Gerenciado', 4: 'Proativo', 5: 'Otimizado' }
   const levelFromScore = bandLevel(score)

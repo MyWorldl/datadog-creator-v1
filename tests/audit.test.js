@@ -10,7 +10,7 @@ import {
 const monitorsSample = [
   { query: 'avg(last_10m):100 - avg:system.cpu.idle{*} by {host} > 90' },      // CPU
   { query: '"datadog.agent.up".over("host:web").by("host").last(4).count_by_status()' }, // Agent Down
-  { query: '( sum:trace.web.request.errors{*}.as_count() / sum:trace.web.request.hits{*}.as_count() ) * 100 > 5' }, // APM erros + hits
+  { query: '( sum:trace.web.request.errors{*}.as_count() / sum:trace.web.request.hits{*}.as_count() ) * 100 > 5' }, // APM erros (NÃO é throughput — ver teste de contaminação cruzada abaixo)
   { query: 'avg(last_5m):p95:trace.web.request{service:web} > 1' },             // APM latência
 ]
 
@@ -20,12 +20,29 @@ test('detecta métricas cobertas por nome na query', () => {
   assert.equal(byKey.cpu.covered, true)
   assert.equal(byKey.hostUp.covered, true)
   assert.equal(byKey.apmErrors.covered, true)
-  assert.equal(byKey.apmHits.covered, true)
   assert.equal(byKey.apmLatency.covered, true)
+  // apmHits NÃO deve ser coberto aqui: o único monitor "trace./.hits" da
+  // amostra é a query de errorRate (errors/hits), que não é um monitor de
+  // throughput de verdade — ver teste de contaminação cruzada abaixo.
+  assert.equal(byKey.apmHits.covered, false)
   // memória/disco/rede/load NÃO estão nos monitores de exemplo -> lacuna
   assert.equal(byKey.memory.covered, false)
   assert.equal(byKey.disk.covered, false)
   assert.equal(byKey.network.covered, false)
+})
+
+test('apmHits: NÃO conta um monitor de errorRate (errors/hits) como cobertura de throughput (bug corrigido)', () => {
+  const errorRateOnly = [
+    { query: '( sum:trace.checkout.errors{service:checkout}.as_count() / sum:trace.checkout.hits{service:checkout}.as_count() ) * 100 > 5' },
+  ]
+  const cov = analyzeCoverage(errorRateOnly)
+  const byKey = Object.fromEntries(cov.map(c => [c.key, c]))
+  assert.equal(byKey.apmErrors.covered, true, 'a query de fato cobre errorRate')
+  assert.equal(byKey.apmHits.covered, false, 'não deve inferir throughput coberto só porque a fórmula de erro contém .hits')
+
+  // Um monitor de throughput de VERDADE (sem .errors) continua detectado normalmente.
+  const realThroughput = [{ query: 'avg(last_1h):anomalies(sum:trace.checkout.hits{service:checkout}.as_count(), \'agile\', 2) >= 1' }]
+  assert.equal(analyzeCoverage(realThroughput).find(c => c.key === 'apmHits').covered, true)
 })
 
 test('coverageScore = % de itens cobertos', () => {
@@ -112,6 +129,34 @@ test('analyzeHostCoverage: {*} cobre todos os hosts; host:X cobre só X', () => 
   assert.equal(byHost.web.metrics.memory, true)  // host:web
   assert.equal(byHost.db.metrics.memory, false)  // db sem monitor de memória
   assert.ok(byHost.db.gapCount >= 1)
+})
+
+test('analyzeHostCoverage: monitor de host:web10 NÃO conta como cobertura de web1 (falso-positivo de substring corrigido)', () => {
+  // "host:web10" CONTÉM "host:web1" como substring (web10 começa com web1) —
+  // sem checar o limite do nome, web1 aparecia falsamente coberto.
+  const monitors = [{ query: 'avg(last_5m):100 - avg:system.cpu.idle{host:web10} by {host} > 90' }]
+  const hc = analyzeHostCoverage(monitors, ['web1', 'web10'])
+  const byHost = Object.fromEntries(hc.map(h => [h.host, h]))
+  assert.equal(byHost.web10.metrics.cpu, true, 'web10 é o host de fato escopado')
+  assert.equal(byHost.web1.metrics.cpu, false, 'web1 não deve ser marcado como coberto só por ser prefixo de web10')
+})
+
+test('analyzeServiceCoverage: monitor de service:api-gateway NÃO conta como cobertura de api (falso-positivo de substring corrigido)', () => {
+  // "service:api-gateway" CONTÉM "service:api" como substring — sem checar o
+  // limite do nome, `api` aparecia falsamente coberto por um monitor de outro serviço.
+  const monitors = [{ query: 'avg(last_5m):p95:trace.http.request{service:api-gateway} > 1' }]
+  const sc = analyzeServiceCoverage(monitors, ['api', 'api-gateway'])
+  const byService = Object.fromEntries(sc.map(s => [s.service, s]))
+  assert.equal(byService['api-gateway'].metrics.apmLatency, true, 'api-gateway é o serviço de fato escopado')
+  assert.equal(byService.api.metrics.apmLatency, false, 'api não deve ser marcado como coberto só por ser prefixo de api-gateway')
+})
+
+test('analyzeHostCoverage: reconhece .over("*") como cobertura ampla (service check, ex.: Agent Down manual)', () => {
+  const monitors = [{ query: '"datadog.agent.up".over("*").by("host").last(4).count_by_status()' }]
+  const hc = analyzeHostCoverage(monitors, ['web1', 'db1'])
+  const byHost = Object.fromEntries(hc.map(h => [h.host, h]))
+  assert.equal(byHost.web1.metrics.hostUp, true)
+  assert.equal(byHost.db1.metrics.hostUp, true)
 })
 
 test('analyzeServiceCoverage: {*} cobre todos os serviços; service:X cobre só X', () => {

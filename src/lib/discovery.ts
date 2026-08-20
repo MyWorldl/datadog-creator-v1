@@ -361,9 +361,10 @@ export function initialDiscovery(): DiscoveryState {
     notifyNoData: false,
     renotifyInterval: 0,
     // queryWindow não é mais global aqui — cada ALERT_TYPES já tem seu próprio
-    // default (~5x o alertWindow do tipo, recomendação do Datadog pra janela
-    // externa do avg() em anomalies()), usado em planPreview via
-    // cfg.queryWindow || a.queryWindow.
+    // default ("cerca de 5x" o alertWindow do tipo por doc oficial, mas o
+    // valor real fica entre ~4x-6x conforme o tipo — Datadog só aceita um
+    // conjunto fechado de strings de janela, ver mesma nota em infra.ts),
+    // usado em planPreview via cfg.queryWindow || a.queryWindow.
   }
 }
 
@@ -383,6 +384,14 @@ function metricExpr(kind: string, op: string, sc: string, by: string): string {
     case 'latency':
       return `p95:trace.${op}{${sc}}${by}`
     case 'errorRate':
+      // Razão errors/hits: em janelas sem tráfego (hits=0) o resultado é
+      // indefinido (0/0). Não há função Datadog documentada pra dar um piso
+      // seguro no denominador (checado: não existe clamp_min/equivalente em
+      // dashboards/functions/arithmetic/) — o mecanismo esperado pra esse
+      // caso é count_default_zero='true', já ligado no anomalies() abaixo,
+      // que é a forma documentada do Datadog de tratar um ponto sem valor
+      // válido como 0 em vez de pulá-lo (achado da auditoria: sem essa nota,
+      // parecia um gap não tratado).
       return `( sum:trace.${op}.errors{${sc}}${by}.as_count() / sum:trace.${op}.hits{${sc}}${by}.as_count() ) * 100`
     case 'highVolume':
     case 'lowVolume':
