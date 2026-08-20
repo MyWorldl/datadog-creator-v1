@@ -1,17 +1,16 @@
 // src/app/api/datadog/bulk-rename-monitors/route.ts
 //
 // Renomeação em lote de monitores existentes, por busca/substituição no
-// nome — GET monta o preview (quem casa e qual seria o nome novo), POST
-// aplica de fato (1 PUT por monitor, só o campo `name`; query/tags/options
-// ficam intactos). Fluxo preview -> revisão -> confirmação, mesmo espírito
-// do "Criar os que faltam" do AuditMonitors.
+// nome — GET lista todos os monitores de uma vez só (id/name), pra a página
+// filtrar/selecionar/calcular o preview inteiramente no cliente (sem round
+// trip por tentativa de busca); POST aplica de fato (1 PUT por monitor, só
+// o campo `name`; query/tags/options ficam intactos).
 
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddPut, listMonitors, type DatadogCtx } from '@/lib/datadog-server'
-import { computeRenames } from '@/lib/bulk-rename'
-import { bulkRenamePreviewSchema, bulkRenameApplySchema, firstIssueMessage } from '@/lib/schemas'
+import { bulkRenameApplySchema, firstIssueMessage } from '@/lib/schemas'
 
 function sleep(ms: number): Promise<void> { return new Promise(res => setTimeout(res, ms)) }
 
@@ -30,7 +29,7 @@ async function renameWithRetry(ctx: DatadogCtx, id: string | number, name: strin
   return last!
 }
 
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   const user = await getServerUser()
   if (!user) return Response.json({ error: 'Não autenticado.' }, { status: 401 })
 
@@ -39,13 +38,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Sessão sem credenciais do Datadog.' }, { status: 412 })
   }
 
-  const url = new URL(request.url)
-  const parsed = bulkRenamePreviewSchema.safeParse({
-    search: url.searchParams.get('search') || '',
-    replace: url.searchParams.get('replace') || '',
-  })
-  if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
-
   const ctx = ctxFrom({ apiKey, appKey, site })
   const monitorsR = await listMonitors(ctx)
   if (!monitorsR.ok) {
@@ -53,8 +45,10 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   const monitors = (Array.isArray(monitorsR.json) ? monitorsR.json : []) as { id: string | number; name?: string }[]
-  const matches = computeRenames(monitors, parsed.data.search, parsed.data.replace)
-  return Response.json({ total: matches.length, matches, partial: !!monitorsR.partial })
+  const list = monitors
+    .filter((m): m is { id: string | number; name: string } => typeof m.name === 'string')
+    .map(m => ({ id: m.id, name: m.name }))
+  return Response.json({ total: list.length, monitors: list, partial: !!monitorsR.partial })
 }
 
 export async function POST(request: NextRequest): Promise<Response> {
