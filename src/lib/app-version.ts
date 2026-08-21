@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.39.0',
+    date: '2026-08-21',
+    title: 'Mensagens de monitor passam a variar por estado (alerta, warning, recuperação, sem dados)',
+    notes: [
+      'As 17 mensagens de monitor (11 em Infra/DBM/K8s, 6 em APM/Serviço/K8s) agora usam as variáveis condicionais da Datadog ({{#is_alert}}, {{#is_warning}}, {{#is_alert_recovery}}, {{#is_warning_recovery}}, {{#is_no_data}}) — antes o mesmo texto estático aparecia disparando, recuperando ou sem dado, então uma notificação de recuperação lia como se o problema ainda estivesse ativo.',
+      'Monitores com threshold de warning distinto (a maioria dos de Infra/DBM/Agent Down) ganham uma linha própria pra esse nível, usando {{warn_threshold}} — antes só {{threshold}} (sempre o crítico) aparecia em qualquer nível de alerta.',
+      'Só a primeira linha de cada mensagem mudou — o corpo (O que monitora/Por que importa/Causas prováveis/Ação recomendada) e o @equipe-infra/@equipe-ops (fora de qualquer bloco condicional, dispara em toda notificação) ficam idênticos a antes. Nome, query, tags e thresholds dos monitores não mudam.',
+      '2 testes novos garantindo que toda mensagem tem os blocos condicionais esperados e que o @-mention nunca fica preso dentro de um bloco condicional.',
+    ],
+  },
+  {
     version: '1.38.0',
     date: '2026-08-21',
     title: 'Auditoria de métricas de monitor: bug crítico no K8s Node Ready + ajustes de opções',

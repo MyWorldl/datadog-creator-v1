@@ -207,6 +207,25 @@ test('notifyTarget: vazio preserva @equipe-infra; definido substitui na mensagem
   assert.ok(hostUp.payload.message.includes('@pagerduty-infra-oncall'))
 })
 
+test('mensagens: todas usam variáveis condicionais de estado (is_alert/is_alert_recovery/is_no_data); warning só nos tipos que têm threshold de warning distinto', () => {
+  const warningLess = new Set(['k8sNodeReady']) // critical===warning (0) — sem nível intermediário real, ver comentário no type
+  for (const t of INFRA_TYPES) {
+    assert.match(t.message, /\{\{#is_alert\}\}.*\{\{\/is_alert\}\}/s, `${t.key}: falta bloco is_alert`)
+    assert.match(t.message, /\{\{#is_alert_recovery\}\}.*\{\{\/is_alert_recovery\}\}/s, `${t.key}: falta bloco is_alert_recovery`)
+    assert.match(t.message, /\{\{#is_no_data\}\}.*\{\{\/is_no_data\}\}/s, `${t.key}: falta bloco is_no_data`)
+    if (warningLess.has(t.key)) {
+      assert.ok(!t.message.includes('{{#is_warning}}'), `${t.key}: não deveria ter bloco is_warning`)
+    } else {
+      assert.match(t.message, /\{\{#is_warning\}\}.*\{\{\/is_warning\}\}/s, `${t.key}: falta bloco is_warning`)
+      assert.match(t.message, /\{\{#is_warning_recovery\}\}.*\{\{\/is_warning_recovery\}\}/s, `${t.key}: falta bloco is_warning_recovery`)
+    }
+    // @equipe-infra sempre FORA de qualquer bloco condicional — precisa disparar
+    // em toda notificação, inclusive recuperação (recomendação da doc da Datadog).
+    const afterLastBlock = t.message.split(/\{\{\/is_[a-z_]+\}\}/).pop()
+    assert.match(afterLastBlock, /@equipe-infra/, `${t.key}: @equipe-infra deveria estar fora dos blocos condicionais`)
+  }
+})
+
 // ── Outlier Detection (atrás da feature flag outlierDetection) ──
 // Diferente de threshold/anomaly: outlier compara os hosts SELECIONADOS
 // entre si, então a query usa TODOS os hosts de uma vez (host[], não host
