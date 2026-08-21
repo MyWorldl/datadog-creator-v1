@@ -54,7 +54,7 @@ export const ALERT_TYPES: AlertType[] = [
     key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
     algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia na latência p95 (desvio do padrão histórico).',
-    message: `🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).
+    message: `{{#is_alert}}🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Latência] {{service.name}} — p95 voltou ao padrão histórico (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Latência] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** compara a latência p95 das requisições do serviço com o padrão histórico via detecção de anomalia, em vez de um limite fixo.
 
@@ -75,7 +75,7 @@ export const ALERT_TYPES: AlertType[] = [
     key: 'errorRate', label: 'Taxa de Erro', direction: 'above', def: 2,
     algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m', queryWindow: 'last_30m',
     hint: 'Anomalia na taxa de erros (erros/requisições).',
-    message: `🔴 [Anomalia · Taxa de Erro] {{service.name}} — erros fora do padrão (atual: {{value}}%).
+    message: `{{#is_alert}}🔴 [Anomalia · Taxa de Erro] {{service.name}} — erros fora do padrão (atual: {{value}}%).{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Taxa de Erro] {{service.name}} — taxa de erro voltou ao padrão (atual: {{value}}%).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Taxa de Erro] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** compara a taxa de erros (respostas 5xx ou exceções tratadas) do serviço com o padrão histórico, sinalizando desvios significativos.
 
@@ -96,7 +96,7 @@ export const ALERT_TYPES: AlertType[] = [
     key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 2,
     algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia de pico: requisições acima do padrão histórico.',
-    message: `⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.
+    message: `{{#is_alert}}⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Alto volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Alto volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** compara o volume atual de requisições com o padrão histórico esperado para o horário/dia, sinalizando tráfego significativamente acima do normal.
 
@@ -117,7 +117,7 @@ export const ALERT_TYPES: AlertType[] = [
     key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 2,
     algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
     hint: 'Anomalia de queda: requisições abaixo do padrão histórico.',
-    message: `⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.
+    message: `{{#is_alert}}⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Baixo volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Baixo volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** compara o volume atual de requisições com o padrão histórico esperado, sinalizando tráfego significativamente abaixo do normal.
 
@@ -171,7 +171,7 @@ export const POD_RESTARTS_TYPE: PodRestartsType = {
   defChangeWindow: 'last_5m',
   flag: 'k8sDbmCoverage',
   hint: 'Alerta quando o nº de restarts de containers no namespace cresce mais que o limite dentro da janela (usa change(), não valor absoluto — o contador é cumulativo).',
-  message: `🔴 [K8s · Restart de Pods] {{pod_name.name}} — {{value}} restart(s) a mais na janela (limite: {{threshold}}).
+  message: `{{#is_alert}}🔴 [K8s · Restart de Pods] {{pod_name.name}} — {{value}} restart(s) a mais na janela (limite: {{threshold}}).{{/is_alert}}{{#is_alert_recovery}}✅ [K8s · Restart de Pods] {{pod_name.name}} — restarts voltaram ao normal na janela.{{/is_alert_recovery}}{{#is_no_data}}⚪ [K8s · Restart de Pods] {{pod_name.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** o aumento (delta) no número de restarts de containers dentro do namespace, na janela avaliada — não o total acumulado, e sim quanto ele CRESCEU no período.
 
@@ -223,7 +223,7 @@ export const POD_PENDING_TYPE: PodPendingType = {
   defWindow: 'last_10m',
   flag: 'k8sDbmCoverage',
   hint: 'Monitor único e global (não por namespace/serviço selecionado): alerta quando há pods presos em "Pending" (aceitos mas não agendados) em qualquer namespace do cluster.',
-  message: `🔴 [K8s · Pods pendentes] {{kube_namespace.name}} — {{value}} pod(s) pendente(s) (limite: {{threshold}}).
+  message: `{{#is_alert}}🔴 [K8s · Pods pendentes] {{kube_namespace.name}} — {{value}} pod(s) pendente(s) (limite: {{threshold}}).{{/is_alert}}{{#is_alert_recovery}}✅ [K8s · Pods pendentes] {{kube_namespace.name}} — não há mais pods pendentes acima do limite.{{/is_alert_recovery}}{{#is_no_data}}⚪ [K8s · Pods pendentes] {{kube_namespace.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** quantidade de pods no cluster no estado "Pending" (aceitos pelo control plane mas ainda não agendados/rodando em nenhum node), por namespace.
 

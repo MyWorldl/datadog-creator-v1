@@ -132,7 +132,7 @@ export const INFRA_TYPES: InfraType[] = [
     defThresholds: { critical: 90, warning: 80 },
     defDeviations: 3,
     hint: 'Uso de CPU acima do limite (ou fora do padrão histórico).',
-    message: `🔴 [Infra · CPU] {{host.name}} — CPU em {{value}}% (limite: {{threshold}}%).
+    message: `{{#is_alert}}🔴 [Infra · CPU] {{host.name}} — CPU em {{value}}% (crítico: {{threshold}}%).{{/is_alert}}{{#is_warning}}🟡 [Infra · CPU] {{host.name}} — CPU em {{value}}% (warning: {{warn_threshold}}%).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · CPU] {{host.name}} — CPU voltou ao normal ({{value}}%, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · CPU] {{host.name}} — CPU voltou ao normal ({{value}}%, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · CPU] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** percentual de uso de CPU do host em relação à capacidade total, dentro da janela avaliada. Dispara quando o valor ultrapassa o limite configurado.
 
@@ -156,7 +156,7 @@ export const INFRA_TYPES: InfraType[] = [
     defThresholds: { critical: 90, warning: 80 },
     defDeviations: 3,
     hint: 'Uso de memória acima do limite (ou fora do padrão histórico).',
-    message: `🔴 [Infra · Memória] {{host.name}} — memória em {{value}}% (limite: {{threshold}}%).
+    message: `{{#is_alert}}🔴 [Infra · Memória] {{host.name}} — memória em {{value}}% (crítico: {{threshold}}%).{{/is_alert}}{{#is_warning}}🟡 [Infra · Memória] {{host.name}} — memória em {{value}}% (warning: {{warn_threshold}}%).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Memória] {{host.name}} — memória voltou ao normal ({{value}}%, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Memória] {{host.name}} — memória voltou ao normal ({{value}}%, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Memória] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** percentual de uso de memória RAM do host em relação à capacidade total, alertando quando o consumo ultrapassa o limite configurado.
 
@@ -181,7 +181,7 @@ export const INFRA_TYPES: InfraType[] = [
     defDeviations: 3,
     hint: 'Uso de espaço em disco acima do limite (ou fora do padrão histórico).',
     extraBy: ['device'], // disco quase sempre precisa de {host,device}
-    message: `🔴 [Infra · Disco] {{host.name}} — disco em {{value}}% (limite: {{threshold}}%).
+    message: `{{#is_alert}}🔴 [Infra · Disco] {{host.name}} — disco em {{value}}% (crítico: {{threshold}}%).{{/is_alert}}{{#is_warning}}🟡 [Infra · Disco] {{host.name}} — disco em {{value}}% (warning: {{warn_threshold}}%).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Disco] {{host.name}} — disco voltou ao normal ({{value}}%, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Disco] {{host.name}} — disco voltou ao normal ({{value}}%, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Disco] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** percentual de espaço em disco utilizado em relação à capacidade total do volume/partição monitorada.
 
@@ -210,7 +210,7 @@ export const INFRA_TYPES: InfraType[] = [
     defDeviations: 3,
     hint: 'Percentual de tempo com o disco ocupado em operações de I/O (gargalo de leitura/escrita, não é espaço livre). Só Linux — a métrica não é populada em hosts Windows.',
     extraBy: ['device'],
-    message: `🔴 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (limite: {{threshold}}%). Possível gargalo de leitura/escrita.
+    message: `{{#is_alert}}🔴 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (crítico: {{threshold}}%). Possível gargalo de leitura/escrita.{{/is_alert}}{{#is_warning}}🟡 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (warning: {{warn_threshold}}%).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Disco I/O] {{host.name}} — I/O voltou ao normal ({{value}}%, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Disco I/O] {{host.name}} — I/O voltou ao normal ({{value}}%, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Disco I/O] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** percentual de utilização/saturação de I/O do disco (tempo em que o disco está ocupado processando leitura/escrita), sinalizando quando ultrapassa o limite.
 
@@ -240,7 +240,7 @@ export const INFRA_TYPES: InfraType[] = [
     windowAgg: 'sum', // total na janela, não média por intervalo — ver comentário no campo
     hint: 'Pacotes de rede com erro (entrada+saída) na janela — indica problema de interface/driver/cabo, não uso normal de banda.',
     extraBy: ['device'], // interface de rede
-    message: `🔴 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (limite: {{threshold}}).
+    message: `{{#is_alert}}🔴 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (crítico: {{threshold}}).{{/is_alert}}{{#is_warning}}🟡 [Infra · Rede] {{host.name}} — {{value}} erro(s) de pacote na janela (warning: {{warn_threshold}}).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Rede] {{host.name}} — erros de pacote voltaram ao normal ({{value}}, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Rede] {{host.name}} — erros de pacote voltaram ao normal ({{value}}, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Rede] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** quantidade de erros de pacote (descartes, colisões, falhas de transmissão/recepção) na interface de rede do host dentro da janela, comparado ao limite configurado.
 
@@ -266,7 +266,7 @@ export const INFRA_TYPES: InfraType[] = [
     defThresholds: { critical: 2, warning: 1 },
     defDeviations: 3,
     hint: 'Load average de 5min dividido pelo nº de CPUs. Acima de 1x, há mais processos esperando CPU do que núcleos disponíveis. Só Linux — a métrica não é populada em hosts Windows.',
-    message: `🔴 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (limite: {{threshold}}x).
+    message: `{{#is_alert}}🔴 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (crítico: {{threshold}}x).{{/is_alert}}{{#is_warning}}🟡 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (warning: {{warn_threshold}}x).{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Load] {{host.name}} — load voltou ao normal ({{value}}x, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Load] {{host.name}} — load voltou ao normal ({{value}}x, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Load] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** load average do host normalizado pelo número de núcleos de CPU, alertando quando ultrapassa o limite (1x = demanda igual à capacidade total de processamento).
 
@@ -291,7 +291,7 @@ export const INFRA_TYPES: InfraType[] = [
     defCounts: { critical: 3, warning: 1 }, // nº de reportes "down" nos últimos `window` para disparar
     defWindow: 4, // últimos N reportes do check considerados
     hint: 'Alerta quando o Agent do host para de enviar heartbeat (crash, host desligado, rede caiu) — reage ao check em si, não a uma métrica ausente.',
-    message: `🔴 [Infra · Agent Down] {{host.name}} — o Agent parou de reportar.
+    message: `{{#is_alert}}🔴 [Infra · Agent Down] {{host.name}} — o Agent parou de reportar.{{/is_alert}}{{#is_warning}}🟡 [Infra · Agent Down] {{host.name}} — reportes intermitentes do Agent.{{/is_warning}}{{#is_alert_recovery}}✅ [Infra · Agent Down] {{host.name}} — Agent voltou a reportar normalmente.{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [Infra · Agent Down] {{host.name}} — Agent voltou a reportar normalmente.{{/is_warning_recovery}}{{#is_no_data}}⚪ [Infra · Agent Down] {{host.name}} — sem dados recentes do check.{{/is_no_data}}
 
 **O que monitora:** se o agente de monitoramento do host está reportando métricas dentro do intervalo esperado. Dispara quando o host para de enviar dados.
 
@@ -345,7 +345,7 @@ export const INFRA_TYPES: InfraType[] = [
     defDeviations: 3,
     flag: 'k8sDbmCoverage',
     hint: 'Alerta quando a condição Ready do node do Kubernetes fica false (NotReady) — ex.: kubelet travado, falha de rede, pressão de disco/memória. Requer Cluster Agent.',
-    message: `🔴 [Infra · K8s Node Ready] {{host.name}} — node NotReady (condição Ready = false).
+    message: `{{#is_alert}}🔴 [Infra · K8s Node Ready] {{host.name}} — node NotReady (condição Ready = false).{{/is_alert}}{{#is_alert_recovery}}✅ [Infra · K8s Node Ready] {{host.name}} — node voltou a Ready.{{/is_alert_recovery}}{{#is_no_data}}⚪ [Infra · K8s Node Ready] {{host.name}} — sem dados recentes do Cluster Agent pra esse node.{{/is_no_data}}
 
 **O que monitora:** a condição \`Ready\` do node do Kubernetes, reportada pelo kubelet ao control plane. Dispara quando o node fica NotReady.
 
@@ -375,7 +375,7 @@ export const INFRA_TYPES: InfraType[] = [
     requiresEngine: true,
     flag: 'k8sDbmCoverage',
     hint: 'Percentual de conexões em uso em relação ao limite máximo do banco (Postgres ou MySQL, escolha o engine ao lado).',
-    message: `🔴 [DBM · Conexões] {{host.name}} — conexões em {{value}}% (limite: {{threshold}}%).
+    message: `{{#is_alert}}🔴 [DBM · Conexões] {{host.name}} — conexões em {{value}}% (crítico: {{threshold}}%).{{/is_alert}}{{#is_warning}}🟡 [DBM · Conexões] {{host.name}} — conexões em {{value}}% (warning: {{warn_threshold}}%).{{/is_warning}}{{#is_alert_recovery}}✅ [DBM · Conexões] {{host.name}} — conexões voltaram ao normal ({{value}}%, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [DBM · Conexões] {{host.name}} — conexões voltaram ao normal ({{value}}%, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [DBM · Conexões] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** percentual de conexões ativas no banco de dados em relação ao limite máximo configurado (max_connections).
 
@@ -409,7 +409,7 @@ export const INFRA_TYPES: InfraType[] = [
     requiresEngine: true,
     flag: 'k8sDbmCoverage',
     hint: 'Atraso (em segundos) da réplica em relação ao primário (Postgres ou MySQL, escolha o engine ao lado).',
-    message: `🔴 [DBM · Replicação] {{host.name}} — réplica {{value}}s atrás do primário (limite: {{threshold}}s).
+    message: `{{#is_alert}}🔴 [DBM · Replicação] {{host.name}} — réplica {{value}}s atrás do primário (crítico: {{threshold}}s).{{/is_alert}}{{#is_warning}}🟡 [DBM · Replicação] {{host.name}} — réplica {{value}}s atrás do primário (warning: {{warn_threshold}}s).{{/is_warning}}{{#is_alert_recovery}}✅ [DBM · Replicação] {{host.name}} — atraso de replicação voltou ao normal ({{value}}s, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [DBM · Replicação] {{host.name}} — atraso de replicação voltou ao normal ({{value}}s, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [DBM · Replicação] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** atraso, em segundos, entre a réplica e o banco primário. Dispara quando esse atraso ultrapassa o limite configurado.
 
@@ -440,7 +440,7 @@ export const INFRA_TYPES: InfraType[] = [
     flag: 'k8sDbmCoverage',
     windowAgg: 'sum', // total na janela, não média por intervalo — ver comentário no campo
     hint: 'Deadlocks (Postgres/MySQL) e queries lentas (MySQL) na janela — escolha o engine ao lado.',
-    message: `🔴 [DBM · Deadlocks/Queries lentas] {{host.name}} — {{value}} ocorrência(s) na janela (limite: {{threshold}}).
+    message: `{{#is_alert}}🔴 [DBM · Deadlocks/Queries lentas] {{host.name}} — {{value}} ocorrência(s) na janela (crítico: {{threshold}}).{{/is_alert}}{{#is_warning}}🟡 [DBM · Deadlocks/Queries lentas] {{host.name}} — {{value}} ocorrência(s) na janela (warning: {{warn_threshold}}).{{/is_warning}}{{#is_alert_recovery}}✅ [DBM · Deadlocks/Queries lentas] {{host.name}} — ocorrências voltaram ao normal ({{value}}, abaixo do limite).{{/is_alert_recovery}}{{#is_warning_recovery}}✅ [DBM · Deadlocks/Queries lentas] {{host.name}} — ocorrências voltaram ao normal ({{value}}, abaixo do limite).{{/is_warning_recovery}}{{#is_no_data}}⚪ [DBM · Deadlocks/Queries lentas] {{host.name}} — sem dados recentes.{{/is_no_data}}
 
 **O que monitora:** número de deadlocks (Postgres e MySQL) e queries lentas (MySQL) registrados no banco dentro da janela avaliada.
 

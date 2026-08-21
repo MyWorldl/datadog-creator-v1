@@ -285,6 +285,18 @@ test('planPreview: Pod Restarts e Pod Pending respeitam notifyNoData/renotifyInt
   assert.equal(podPending.payload.options.renotify_interval, 45)
 })
 
+test('mensagens: todas usam variáveis condicionais de estado (is_alert/is_alert_recovery/is_no_data); nenhum tipo aqui tem threshold de warning, então is_warning não deve aparecer', () => {
+  const allTypes = [...ALERT_TYPES, POD_RESTARTS_TYPE, POD_PENDING_TYPE]
+  for (const t of allTypes) {
+    assert.match(t.message, /\{\{#is_alert\}\}.*\{\{\/is_alert\}\}/s, `${t.key}: falta bloco is_alert`)
+    assert.match(t.message, /\{\{#is_alert_recovery\}\}.*\{\{\/is_alert_recovery\}\}/s, `${t.key}: falta bloco is_alert_recovery`)
+    assert.match(t.message, /\{\{#is_no_data\}\}.*\{\{\/is_no_data\}\}/s, `${t.key}: falta bloco is_no_data`)
+    assert.ok(!t.message.includes('{{#is_warning}}'), `${t.key}: não deveria ter bloco is_warning (sem threshold de warning)`)
+    const afterLastBlock = t.message.split(/\{\{\/is_[a-z_]+\}\}/).pop()
+    assert.match(afterLastBlock, /@equipe-ops/, `${t.key}: @equipe-ops deveria estar fora dos blocos condicionais`)
+  }
+})
+
 test('require_full_window: true em todos os monitores (achado da auditoria — doc recomenda false só pra métricas esparsas, nenhum tipo aqui é esparso)', () => {
   for (const m of fullPlan()) assert.equal(m.payload.options.require_full_window, true, m.kind)
 
