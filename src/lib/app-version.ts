@@ -27,6 +27,18 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.38.0',
+    date: '2026-08-21',
+    title: 'Auditoria de métricas de monitor: bug crítico no K8s Node Ready + ajustes de opções',
+    notes: [
+      'CRÍTICO: monitor "K8s · Node Ready" usava kubernetes_state.node.status{status:schedulable}, que mede se o node está cordoned (kubectl cordon), não a condição Ready/NotReady do Kubernetes — um node podia ficar NotReady (kubelet travado, sem rede) e o monitor nunca disparar. Trocado para kubernetes_state.node.by_condition{condition:ready,status:false}, que dispara direto quando o node fica NotReady de verdade.',
+      'require_full_window trocado de false para true em todos os monitores de infra/DBM/K8s/serviço — a doc da Datadog recomenda false só para métricas esparsas (lambda/cloud com gaps), e nenhuma métrica criada aqui é esparsa; false podia deixar o monitor disparar com janela de dados incompleta.',
+      'options.threshold_windows (exclusivo de monitores de anomaly detection, por doc) removido dos monitores Pod Restarts e Pod Pending, que usam change()/threshold simples, não anomaly — alinhado ao padrão que os monitores de infra já seguiam.',
+      'Hints de Disco I/O e Load Average agora avisam que são métricas só-Linux (system.io.util, system.load.norm.5) — não populam em hosts Windows.',
+      'Comentários corrigidos: tipo do monitor threshold é sempre "query alert" (não "metric alert"), e a ressalva sobre mysql.replication.seconds_behind_master sumir em MySQL 8.0.22+ era infundada (Datadog mapeia os dois nomes de campo pra essa métrica).',
+    ],
+  },
+  {
     version: '1.37.0',
     date: '2026-08-20',
     title: 'Renomear em Lote: carregar e filtrar monitores em vez de buscar às cegas',

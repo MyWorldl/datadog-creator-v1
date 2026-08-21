@@ -284,3 +284,29 @@ test('planPreview: Pod Restarts e Pod Pending respeitam notifyNoData/renotifyInt
   assert.equal(podPending.payload.options.notify_no_data, true)
   assert.equal(podPending.payload.options.renotify_interval, 45)
 })
+
+test('require_full_window: true em todos os monitores (achado da auditoria — doc recomenda false só pra métricas esparsas, nenhum tipo aqui é esparso)', () => {
+  for (const m of fullPlan()) assert.equal(m.payload.options.require_full_window, true, m.kind)
+
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  d.selected = { payments: { opsCount: 0, operations: [], chosen: [] } }
+  d.podRestarts.enabled = true
+  d.podPending.enabled = true
+  const plan = planPreview(d)
+  assert.equal(plan.find(m => m.kind === POD_RESTARTS_TYPE.key).payload.options.require_full_window, true)
+  assert.equal(plan.find(m => m.kind === POD_PENDING_TYPE.key).payload.options.require_full_window, true)
+})
+
+test('threshold_windows: ausente em Pod Restarts/Pod Pending (não são anomaly — campo é exclusivo dela, achado da auditoria)', () => {
+  const d = initialDiscovery()
+  d.scopeType = 'namespace'
+  d.selected = { payments: { opsCount: 0, operations: [], chosen: [] } }
+  d.podRestarts.enabled = true
+  d.podPending.enabled = true
+  const plan = planPreview(d)
+  assert.ok(!('threshold_windows' in plan.find(m => m.kind === POD_RESTARTS_TYPE.key).payload.options))
+  assert.ok(!('threshold_windows' in plan.find(m => m.kind === POD_PENDING_TYPE.key).payload.options))
+  // mas os anomaly (ALERT_TYPES) continuam com o campo, obrigatório pra esse tipo
+  for (const m of fullPlan()) assert.ok('threshold_windows' in m.payload.options, m.kind)
+})

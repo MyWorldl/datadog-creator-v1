@@ -7,8 +7,10 @@
 //
 // Dois "tipos" de item em INFRA_TYPES (campo `kind`):
 //   - kind:'metric' -> monitor de métrica. Pode ser criado como:
-//       'threshold' (type "metric alert"): compara a média da janela contra
-//         critical/warning. Bom para limites operacionais conhecidos.
+//       'threshold' (type "query alert", não "metric alert" — a query sempre
+//         tem `by {host,...}`, e "metric alert" é reservado a série única sem
+//         group-by): compara a média da janela contra critical/warning. Bom
+//         para limites operacionais conhecidos.
 //       'anomaly'   (type "query alert" com anomalies(...)): mesmo motor
 //         usado nos monitores de serviço. Bom quando o "normal" varia por
 //         host/dia.
@@ -201,10 +203,12 @@ export const INFRA_TYPES: InfraType[] = [
     // system.io.util = % do tempo em que o device esteve ocupado com I/O.
     // Mede SATURAÇÃO (gargalo de leitura/escrita), diferente de "disk" acima
     // (que mede espaço ocupado). Requer o check "disk" do Agent habilitado.
+    // Confirmado na doc: métrica só Linux, não populada em hosts Windows
+    // (achado da auditoria).
     metric: (scope, by = '') => `avg:system.io.util{${scope}}${by}`,
     defThresholds: { critical: 90, warning: 75 },
     defDeviations: 3,
-    hint: 'Percentual de tempo com o disco ocupado em operações de I/O (gargalo de leitura/escrita, não é espaço livre).',
+    hint: 'Percentual de tempo com o disco ocupado em operações de I/O (gargalo de leitura/escrita, não é espaço livre). Só Linux — a métrica não é populada em hosts Windows.',
     extraBy: ['device'],
     message: `🔴 [Infra · Disco I/O] {{host.name}} — I/O em {{value}}% (limite: {{threshold}}%). Possível gargalo de leitura/escrita.
 
@@ -256,11 +260,12 @@ export const INFRA_TYPES: InfraType[] = [
   {
     key: 'load', kind: 'metric', label: 'Load Average (normalizado)', unit: 'x',
     // system.load.norm.5 = load média de 5min ÷ nº de CPUs. >1 significa mais
-    // processos prontos para rodar do que núcleos disponíveis.
+    // processos prontos para rodar do que núcleos disponíveis. Confirmado na
+    // doc: métrica só Linux, não populada em hosts Windows (achado da auditoria).
     metric: (scope, by = '') => `avg:system.load.norm.5{${scope}}${by}`,
     defThresholds: { critical: 2, warning: 1 },
     defDeviations: 3,
-    hint: 'Load average de 5min dividido pelo nº de CPUs. Acima de 1x, há mais processos esperando CPU do que núcleos disponíveis.',
+    hint: 'Load average de 5min dividido pelo nº de CPUs. Acima de 1x, há mais processos esperando CPU do que núcleos disponíveis. Só Linux — a métrica não é populada em hosts Windows.',
     message: `🔴 [Infra · Load] {{host.name}} — load normalizado em {{value}}x (limite: {{threshold}}x).
 
 **O que monitora:** load average do host normalizado pelo número de núcleos de CPU, alertando quando ultrapassa o limite (1x = demanda igual à capacidade total de processamento).
@@ -305,40 +310,55 @@ export const INFRA_TYPES: InfraType[] = [
   },
   {
     key: 'k8sNodeReady', kind: 'metric', label: 'K8s · Node Ready', unit: '',
-    // kubernetes_state.node.status é emitida como 1 sob a tag status:schedulable
-    // OU status:unschedulable — NUNCA as duas, nunca 0 (confirmado no código-
-    // fonte do check kubernetes_state do Agent). Ou seja: quando um node fica
-    // NotReady, a série com a tag `schedulable` não cai pra 0 — ela SOME (a
-    // tag trocou). Na prática, quem dispara este monitor é o notify_no_data
-    // (defNoDataMinutes abaixo), não o comparador `< 1` — o threshold fica
-    // como salvaguarda caso a métrica um dia mude de comportamento, mas
-    // raramente é o que aciona o alerta de fato (achado da auditoria: o
-    // comentário anterior overstate o papel do comparador numérico).
-    // É um exemplo oficial CLUSTER-WIDE (by {kubernetes_cluster}) — aqui
-    // adaptamos pra escopo POR HOST, então o tag `host:<host>` precisa bater
-    // com o hostname visto pelo Cluster Agent (nem sempre idêntico ao
-    // hostname do Agent comum).
-    metric: (scope, by = '') => `avg:kubernetes_state.node.status{${scope},status:schedulable}${by}`,
-    defThresholds: { critical: 1, warning: 1 },
+    // ACHADO CRÍTICO DA AUDITORIA: a métrica usada aqui antes,
+    // kubernetes_state.node.status{status:schedulable}, mede SCHEDULABILITY
+    // (spec.unschedulable, resultado de um "kubectl cordon" manual) — não a
+    // condição Ready/NotReady do Kubernetes. São dois campos independentes do
+    // objeto Node: um node pode ficar NotReady (kubelet travado, sem rede,
+    // DiskPressure) e continuar schedulable=1 normalmente, porque nada marca
+    // unschedulable automaticamente quando o node quebra. Ou seja: o monitor
+    // antigo nunca disparava no cenário real que deveria pegar.
+    // Métrica certa: kubernetes_state.node.by_condition (SINGULAR — a versão
+    // PLURAL, kubernetes_state.nodes.by_condition, é agregada cluster-wide de
+    // propósito e não carrega tag de node/host nenhuma, escopar por host nela
+    // não retorna nada). Confirmado via código-fonte do check kubernetes_state
+    // (DataDog/integrations-core): só é emitida 1 linha por node por scrape —
+    // a que tem valor 1 — então a série condition:ready,status:false aparece
+    // de fato (e só) quando o node está NotReady, e SOME quando ele volta a
+    // Ready. Por isso a query dispara direto no `> 0` (sem precisar de
+    // notify_no_data como mecanismo primário, diferente do design anterior) —
+    // notify_no_data continua ligado só como rede de segurança genérica
+    // (mesmo padrão dos outros tipos), não mais como gatilho principal.
+    // Tag de host: a métrica não tem uma tag `host` literal nos labels crus,
+    // mas o check resolve o hostname Datadog a partir da tag `node` via
+    // hostname_override (default da integração) — o mesmo mecanismo que já
+    // sustenta host:<host> nos outros tipos K8s daqui. Confiança forte por
+    // leitura de código-fonte, não testado contra um cluster real (não é
+    // possível neste ambiente) — vale validar no Metrics Explorer antes de
+    // confiar 100% em produção.
+    metric: (scope, by = '') => `avg:kubernetes_state.node.by_condition{${scope},condition:ready,status:false}${by}`,
+    // critical/warning:0 -> query vira "> 0": dispara assim que a série
+    // (valor sempre 1 quando existe) aparece na janela. Não é "0 problemas
+    // tolerados" no sentido usual — é o valor que faz `>` disparar numa
+    // métrica que só existe como 1-ou-ausente (nunca fracionária).
+    defThresholds: { critical: 0, warning: 0 },
     defDeviations: 3,
-    thresholdDirection: 'below', // salvaguarda — ver comentário acima sobre quem dispara de fato
-    defNoDataMinutes: 5, // mais curto que o padrão (10min): aqui é o mecanismo real de disparo, não só um fallback
     flag: 'k8sDbmCoverage',
-    hint: 'Alerta quando o node do Kubernetes deixa de estar "Ready"/schedulable (ex.: NotReady, cordoned). Requer Cluster Agent.',
-    message: `🔴 [Infra · K8s Node Ready] {{host.name}} — node não-schedulable (valor: {{value}}, esperado: {{threshold}}).
+    hint: 'Alerta quando a condição Ready do node do Kubernetes fica false (NotReady) — ex.: kubelet travado, falha de rede, pressão de disco/memória. Requer Cluster Agent.',
+    message: `🔴 [Infra · K8s Node Ready] {{host.name}} — node NotReady (condição Ready = false).
 
-**O que monitora:** se o node do Kubernetes está no estado Ready e aceitando novos pods (schedulable). Dispara quando o valor cai abaixo do esperado.
+**O que monitora:** a condição \`Ready\` do node do Kubernetes, reportada pelo kubelet ao control plane. Dispara quando o node fica NotReady.
 
-**Por que importa:** um node NotReady para de receber novos pods e, dependendo da causa, pode ter os pods existentes despejados (evicted) — reduzindo a capacidade do cluster e podendo causar indisponibilidade se não houver capacidade sobrando em outros nodes.
+**Por que importa:** um node NotReady deixa de receber novos pods (o scheduler evita agendá-lo ali) e, dependendo da causa e do tempo parado, o control plane pode despejar (evict) os pods já rodando nele — reduzindo a capacidade do cluster e podendo causar indisponibilidade se não houver capacidade sobrando em outros nodes.
 
 **Causas prováveis:**
-- Node cordoned/drained manualmente (manutenção)
-- Kubelet parou de reportar (crash, falta de recursos no host)
+- Kubelet travado, sem recursos pra responder ou crashado
 - Pressão de disco/memória no node (DiskPressure/MemoryPressure)
 - Falha de rede entre o node e o control plane
+- Falha no runtime de containers (containerd/CRI-O travado ou crashado)
 - Node sendo substituído/reciclado pelo autoscaler
 
-**Ação recomendada:** verificar "kubectl describe node" para a condição exata (NotReady/DiskPressure/MemoryPressure), confirmar se é manutenção esperada, e checar status do kubelet e conectividade com o control plane caso não seja.
+**Ação recomendada:** rodar "kubectl describe node" pra ver a condição e a mensagem exata reportada pelo kubelet, confirmar se é uma substituição esperada do autoscaler, e checar status do kubelet/containerd e conectividade com o control plane caso não seja.
 
 @equipe-infra`,
   },
@@ -374,13 +394,13 @@ export const INFRA_TYPES: InfraType[] = [
   },
   {
     key: 'dbReplication', kind: 'metric', label: 'DBM · Atraso de replicação', unit: 's',
-    // MySQL: seconds_behind_master é o nome consagrado/mais amplamente
-    // populado, mas MySQL >=8.0.22 pode reportar só o nome moderno
-    // (seconds_behind_source, terminologia source/replica) — não somamos os
-    // dois aqui de propósito: não existe operador "or" em métrica Datadog, e
-    // somar cegamente dobraria o valor em instalações que populam as duas
-    // (achado da auditoria — sem uma forma verificável de fallback numa
-    // query só, deixado como nota pra quem for adaptar ao ambiente).
+    // MySQL: seconds_behind_master é o nome consagrado da métrica Datadog.
+    // Verificado direto no código do check (mysql/const.py): tanto o campo
+    // legado (Seconds_Behind_Master, SHOW SLAVE STATUS) quanto o moderno
+    // (Seconds_Behind_Source, SHOW REPLICA STATUS, MySQL >=8.0.22/MariaDB
+    // >=10.5.1) são mapeados pra ESSE MESMO nome de métrica Datadog — não
+    // precisa de fallback, continua populado normalmente em instalações
+    // modernas (achado da auditoria de métricas, ressalva anterior descartada).
     metric: (scope, by = '', engine = 'postgres') => engine === 'mysql'
       ? `avg:mysql.replication.seconds_behind_master{${scope}}${by}`
       : `avg:postgresql.replication_delay{${scope}}${by}`,
@@ -695,7 +715,13 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
       // falso "sem dados" ou leitura de janela incompleta.
       ...(evaluationDelay ? { evaluation_delay: evaluationDelay } : {}),
       notify_audit: false,
-      require_full_window: false,
+      // A doc recomenda require_full_window:false explicitamente só pra
+      // métricas ESPARSAS (lambda/cloud com gaps naturais) — nenhuma métrica
+      // de infra/DBM daqui é esparsa (Agent/DBM reportam continuamente), então
+      // `true` evita avaliar/disparar com janela incompleta (ex.: logo após
+      // criar o monitor ou reiniciar o host). Achado da auditoria de métricas
+      // — ver https://docs.datadoghq.com/monitors/faq/what-is-the-do-not-require-a-full-window-of-data-for-evaluation-monitor-parameter/
+      require_full_window: true,
     },
   }
 }
