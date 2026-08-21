@@ -461,7 +461,14 @@ export interface MonitorPayload {
   tags: string[]
   priority?: number
   options: {
-    threshold_windows: { trigger_window: string; recovery_window: string }
+    // threshold_windows é documentado como exclusivo/obrigatório de monitores
+    // de anomaly detection (trigger_window precisa bater com o alert_window
+    // da query) — por isso é opcional aqui: só buildMonitorPayload (sempre
+    // anomaly) o inclui; buildPodRestartsMonitorPayload (change()) e
+    // buildPodPendingMonitorPayload (threshold) não, mesmo padrão já usado em
+    // lib/infra.ts (só inclui quando mode==='anomaly'). Achado da auditoria —
+    // ver https://docs.datadoghq.com/monitors/guide/anomaly-monitor/
+    threshold_windows?: { trigger_window: string; recovery_window: string }
     thresholds: { critical: number }
     notify_no_data: boolean
     notify_audit: boolean
@@ -508,7 +515,10 @@ export function buildMonitorPayload({ kind, service, env, operation, scopeType =
       // ver o comentário em initialDiscovery() sobre o porquê de cada default.
       notify_no_data: !!notifyNoData,
       notify_audit: false,
-      require_full_window: false,
+      // true: doc recomenda false só pra métricas ESPARSAS (achado da
+      // auditoria) — serviços com operação selecionada têm tráfego regular,
+      // não é o caso de gap esperado que a recomendação de false cobre.
+      require_full_window: true,
       renotify_interval: Number(renotifyInterval) || 0,
       // interval=60 na query (rollup de 60s) — doc do Datadog recomenda
       // evaluation_delay >= esse rollup, pra evitar falso alarme por dado
@@ -555,16 +565,15 @@ export function buildPodRestartsMonitorPayload({ namespace, threshold = POD_REST
     tags: baseTags,
     ...(priority ? { priority } : {}),
     options: {
-      // change() não é anomaly — trigger/recovery_window aqui só documentam a
-      // janela usada no change(), o Datadog não exige que bata com nada (ao
-      // contrário do modo anomaly, onde alert_window==trigger_window é obrigatório).
-      threshold_windows: { trigger_window: changeWindow, recovery_window: changeWindow },
+      // threshold_windows omitido de propósito: change() não é anomaly, e a
+      // doc documenta esse campo como exclusivo/obrigatório só pra anomaly
+      // (achado da auditoria — ver comentário em MonitorPayload acima).
       // critical PRECISA bater com o valor usado no `> ${threshold}` da query
       // (mesma regra do modo threshold em lib/infra.ts).
       thresholds: { critical: threshold },
       notify_no_data: !!notifyNoData,
       notify_audit: false,
-      require_full_window: false,
+      require_full_window: true, // doc recomenda false só pra métricas esparsas — ver comentário em buildMonitorPayload
       renotify_interval: Number(renotifyInterval) || 0,
       evaluation_delay: 60,
     },
@@ -606,11 +615,12 @@ export function buildPodPendingMonitorPayload({ threshold = POD_PENDING_TYPE.def
     tags: baseTags,
     ...(priority ? { priority } : {}),
     options: {
-      threshold_windows: { trigger_window: window, recovery_window: window },
+      // threshold_windows omitido de propósito — mesmo motivo do Pod Restarts
+      // acima (não é anomaly, doc documenta o campo como exclusivo dela).
       thresholds: { critical: threshold },
       notify_no_data: !!notifyNoData,
       notify_audit: false,
-      require_full_window: false,
+      require_full_window: true, // doc recomenda false só pra métricas esparsas — ver comentário em buildMonitorPayload
       renotify_interval: Number(renotifyInterval) || 0,
       evaluation_delay: 60,
     },

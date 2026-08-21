@@ -53,6 +53,13 @@ test('windowAgg: modo anomaly sempre usa avg(window) fixo, mesmo pra tipos com w
   assert.match(q, /^avg\(last_1h\):/)
 })
 
+test('require_full_window: true em todos os modos (achado da auditoria — doc recomenda false só pra métricas esparsas, nenhuma métrica de infra/DBM aqui é esparsa)', () => {
+  const threshold = buildInfraMonitorPayload({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  const anomaly = buildInfraMonitorPayload({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'anomaly', deviations: 3, alertWindow: 'last_15m', thresholds: { critical: 90, warning: 80 } })
+  assert.equal(threshold.options.require_full_window, true)
+  assert.equal(anomaly.options.require_full_window, true)
+})
+
 test('service check (Agent Down): payload correto', () => {
   const p = buildInfraMonitorPayload({ kind: 'hostUp', host: 'web', counts: { critical: 3, warning: 1 }, window: 4 })
   assert.equal(p.type, 'service check')
@@ -85,7 +92,7 @@ test('planInfraPreview: um monitor por (host × métrica habilitada)', () => {
   assert.equal(plan.length, 4) // 2 hosts × 2 métricas
 })
 
-test('no_data_timeframe: k8sNodeReady usa defNoDataMinutes:5 (mecanismo real de disparo); demais tipos mantêm o padrão de 10', () => {
+test('no_data_timeframe: todos os tipos usam o padrão de 10min (k8sNodeReady dispara direto na query agora, não depende mais de no-data)', () => {
   const d = initialInfraDiscovery()
   d.selected = { 'node-1': true }
   for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
@@ -94,8 +101,8 @@ test('no_data_timeframe: k8sNodeReady usa defNoDataMinutes:5 (mecanismo real de 
   const plan = planInfraPreview(d)
   const cpu = plan.find(m => m.kind === 'cpu')
   const k8sNodeReady = plan.find(m => m.kind === 'k8sNodeReady')
-  assert.equal(cpu.payload.options.no_data_timeframe, 10, 'padrão de sempre, não deve mudar pros outros tipos')
-  assert.equal(k8sNodeReady.payload.options.no_data_timeframe, 5, 'mais curto — aqui é o mecanismo real de disparo, não só um fallback')
+  assert.equal(cpu.payload.options.no_data_timeframe, 10)
+  assert.equal(k8sNodeReady.payload.options.no_data_timeframe, 10, 'não é mais um caso especial — notify_no_data virou só a rede de segurança genérica, não o gatilho principal')
 })
 
 test('priority: padrão é P3 (initialInfraDiscovery já vem com priority:3 pra cada métrica/check)', () => {
@@ -286,11 +293,12 @@ test('k8sNodeReady: todos os tipos flagged declaram flag:k8sDbmCoverage', () => 
   for (const t of flagged) assert.equal(t.flag, 'k8sDbmCoverage')
 })
 
-test('k8sNodeReady: threshold usa "<" (thresholdDirection:below) em vez de ">"', () => {
-  const q = buildInfraQuery({ kind: 'k8sNodeReady', host: 'node-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 1, warning: 1 } })
-  assert.match(q, /status:schedulable/)
-  assert.match(q, /< 1$/)
-  assert.ok(!q.includes('> 1'), 'não deve usar ">" pra essa métrica (valor ruim é baixo, não alto)')
+test('k8sNodeReady: usa kubernetes_state.node.by_condition{condition:ready,status:false}, dispara direto com "> 0" (achado da auditoria: métrica antiga media schedulability, não a condição Ready)', () => {
+  const q = buildInfraQuery({ kind: 'k8sNodeReady', host: 'node-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 0, warning: 0 } })
+  assert.match(q, /kubernetes_state\.node\.by_condition/)
+  assert.ok(!q.includes('kubernetes_state.nodes.by_condition'), 'tem que ser singular (nodes.by_condition plural é cluster-wide, sem tag de host)')
+  assert.match(q, /condition:ready,status:false/)
+  assert.match(q, /> 0$/)
 })
 
 test('dbConnections: Postgres usa percent_usage_connections; MySQL usa razão threads_connected/max_connections', () => {
