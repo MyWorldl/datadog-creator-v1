@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.41.0',
+    date: '2026-08-25',
+    title: 'Query window dos monitores de anomaly detection ajustado pra 5x exato do alert window',
+    notes: [
+      'APM (Latência/Alto volume/Baixo volume) e todos os tipos de Infra em modo anomaly: query_window passou de last_1h (4x) para last_75m (5x exato) do alert_window de 15m. Taxa de Erro: de last_30m (6x) para last_25m (5x exato) do alert_window de 5m. Bate exatamente a recomendação oficial da Datadog ("Datadog recommends the query_window to be around five times the alert_window", docs.datadoghq.com/monitors/types/anomaly/).',
+      'Corrigida uma suposição errada num comentário antigo: a Datadog NÃO limita o query_window a um conjunto fechado de janelas (5m/15m/1h) — a doc de configuração de monitor confirma um campo custom aceitando qualquer duração entre 1min e 48h, o que permite bater a proporção 5x exatamente em vez de aproximar pro preset mais próximo.',
+    ],
+  },
+  {
     version: '1.40.0',
     date: '2026-08-25',
     title: 'Renomear conexões Datadog salvas',

@@ -547,15 +547,19 @@ export function initialInfraDiscovery(): InfraDiscoveryState {
           direction: 'above',
           algorithm: 'robust',
           seasonality: 'weekly',
-          // queryWindow (janela externa do avg()) alinhado à recomendação do
-          // Datadog pro modo anomaly ("cerca de 5x" o alert_window, doc oficial)
-          // — na prática o valor real fica entre ~4x-6x conforme o tipo, porque
-          // o Datadog só aceita um conjunto fechado de strings de janela (não
-          // existe "last_75m" pra bater exatamente 5x um alert_window de 15m).
-          // Mesmo valor já usado em discovery.ts pros tipos com alertWindow=15m.
+          // queryWindow (janela externa do avg()) = exatamente 5x o
+          // alert_window de 15m, batendo em cheio a recomendação oficial do
+          // Datadog pro modo anomaly ("Datadog recommends the query_window to
+          // be around five times the alert_window" — docs.datadoghq.com/
+          // monitors/types/anomaly/). Achado da auditoria: o comentário
+          // anterior assumia que a Datadog só aceitava um conjunto fechado de
+          // janelas (5m/15m/1h) — não é verdade, a doc de configuração de
+          // monitor confirma um campo "custom" aceitando qualquer duração
+          // entre 1min e 48h, então "last_75m" é uma janela válida. Mesmo
+          // valor já usado em discovery.ts pros tipos com alertWindow=15m.
           // Também vale pro modo threshold (mesmo campo): resulta numa média
           // mais suave/menos sensível a picos passageiros.
-          queryWindow: 'last_1h',
+          queryWindow: 'last_75m',
           alertWindow: 'last_15m',
           // interval=60 na query do modo anomaly (rollup de 60s) — doc do
           // Datadog recomenda evaluation_delay >= esse rollup. Também útil no
@@ -825,7 +829,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
         algorithm: cfg.algorithm || 'DBSCAN',
         tolerance: cfg.tolerance ?? 3,
         percentage: cfg.percentage,
-        queryWindow: cfg.queryWindow || 'last_1h',
+        queryWindow: cfg.queryWindow || 'last_75m',
         evaluationDelay: cfg.evaluationDelay ?? 60,
         priority: cfg.priority,
         engine: cfg.dbEngine,
@@ -854,7 +858,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
             direction: cfg.direction || 'above',
             algorithm: cfg.algorithm || 'robust',
             seasonality: cfg.seasonality || 'weekly',
-            queryWindow: cfg.queryWindow || 'last_1h',
+            queryWindow: cfg.queryWindow || 'last_75m',
             alertWindow: cfg.alertWindow || 'last_15m',
             evaluationDelay: cfg.evaluationDelay ?? 60,
             noDataMinutes: (t as InfraMetricType).defNoDataMinutes,

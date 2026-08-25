@@ -52,7 +52,7 @@ export interface AlertType {
 export const ALERT_TYPES: AlertType[] = [
   {
     key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
-    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia na latência p95 (desvio do padrão histórico).',
     message: `{{#is_alert}}🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Latência] {{service.name}} — p95 voltou ao padrão histórico (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Latência] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
@@ -73,7 +73,7 @@ export const ALERT_TYPES: AlertType[] = [
   },
   {
     key: 'errorRate', label: 'Taxa de Erro', direction: 'above', def: 2,
-    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m', queryWindow: 'last_30m',
+    algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_5m', queryWindow: 'last_25m',
     hint: 'Anomalia na taxa de erros (erros/requisições).',
     message: `{{#is_alert}}🔴 [Anomalia · Taxa de Erro] {{service.name}} — erros fora do padrão (atual: {{value}}%).{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Taxa de Erro] {{service.name}} — taxa de erro voltou ao padrão (atual: {{value}}%).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Taxa de Erro] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
@@ -94,7 +94,7 @@ export const ALERT_TYPES: AlertType[] = [
   },
   {
     key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 2,
-    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia de pico: requisições acima do padrão histórico.',
     message: `{{#is_alert}}⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Alto volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Alto volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
@@ -115,7 +115,7 @@ export const ALERT_TYPES: AlertType[] = [
   },
   {
     key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 2,
-    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_1h',
+    algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia de queda: requisições abaixo do padrão histórico.',
     message: `{{#is_alert}}⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Baixo volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Baixo volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
 
@@ -361,10 +361,13 @@ export function initialDiscovery(): DiscoveryState {
     notifyNoData: false,
     renotifyInterval: 0,
     // queryWindow não é mais global aqui — cada ALERT_TYPES já tem seu próprio
-    // default ("cerca de 5x" o alertWindow do tipo por doc oficial, mas o
-    // valor real fica entre ~4x-6x conforme o tipo — Datadog só aceita um
-    // conjunto fechado de strings de janela, ver mesma nota em infra.ts),
-    // usado em planPreview via cfg.queryWindow || a.queryWindow.
+    // default, exatamente 5x o alertWindow do tipo ("Datadog recommends the
+    // query_window to be around five times the alert_window" —
+    // docs.datadoghq.com/monitors/types/anomaly/). Achado da auditoria: a
+    // nota anterior assumia que a Datadog só aceitava um conjunto fechado de
+    // janelas — não é verdade, a doc de configuração de monitor confirma um
+    // campo "custom" aceitando qualquer duração (ver mesma nota em infra.ts).
+    // Usado em planPreview via cfg.queryWindow || a.queryWindow.
   }
 }
 

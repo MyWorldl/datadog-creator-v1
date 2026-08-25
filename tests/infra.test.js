@@ -150,9 +150,9 @@ test('priority: definida na config, propaga pro payload de métrica E de service
   assert.equal(hostUp.payload.priority, 5)
 })
 
-test('queryWindow: default é last_1h (alinhado ao alertWindow de 15m, ~4x)', () => {
+test('queryWindow: default é last_75m (5x exato do alertWindow de 15m — recomendação oficial da doc de anomaly monitor)', () => {
   const d = initialInfraDiscovery()
-  assert.equal(d.metrics.cpu.queryWindow, 'last_1h')
+  assert.equal(d.metrics.cpu.queryWindow, 'last_75m')
 })
 
 test('recovery threshold: ausente por padrão (comportamento igual ao de sempre)', () => {
