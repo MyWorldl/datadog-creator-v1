@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import {
   datadogKeysSchema, createConnectionSchema, firstIssueMessage,
   hostFilterSchema, envQuerySchema, monthQuerySchema, connectionIdSchema,
-  parseDqlTokenList, planSchema, discoveryBodySchema,
+  renameConnectionSchema, parseDqlTokenList, planSchema, discoveryBodySchema,
   bulkRenameApplySchema,
 } from '../src/lib/schemas.ts'
 
@@ -84,6 +84,17 @@ test('connectionIdSchema: aceita uuid válido, rejeita string arbitrária (evita
   assert.equal(connectionIdSchema.parse('550e8400-e29b-41d4-a716-446655440000'), '550e8400-e29b-41d4-a716-446655440000')
   assert.equal(connectionIdSchema.safeParse('not-a-uuid').success, false)
   assert.equal(connectionIdSchema.safeParse('').success, false)
+})
+
+test('renameConnectionSchema: aceita nome válido (trim); rejeita vazio e nome absurdamente longo', () => {
+  const r = renameConnectionSchema.safeParse({ name: '  Produção  ' })
+  assert.equal(r.success, true)
+  assert.equal(r.data.name, 'Produção')
+
+  assert.equal(renameConnectionSchema.safeParse({ name: '' }).success, false)
+  assert.equal(renameConnectionSchema.safeParse({ name: '   ' }).success, false, 'só espaços deve ser rejeitado após trim')
+  assert.equal(renameConnectionSchema.safeParse({ name: 'x'.repeat(101) }).success, false)
+  assert.equal(renameConnectionSchema.safeParse({ name: 'x'.repeat(100) }).success, true)
 })
 
 test('parseDqlTokenList: "a,b,c" -> 3 itens válidos, espaço é cortado', () => {

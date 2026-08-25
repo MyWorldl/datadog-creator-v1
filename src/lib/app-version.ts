@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.40.0',
+    date: '2026-08-25',
+    title: 'Renomear conexões Datadog salvas',
+    notes: [
+      'Novo botão de editar (✎) ao lado do nome de cada org em Configurações — permite renomear uma conexão salva sem precisar recriá-la. Site e chaves ficam intactos, só o nome muda.',
+      'PATCH /api/connections/[id] passa a aceitar {name} no corpo pra renomear (o uso original, sem corpo, continua ativando a conexão como antes — mesmo endpoint, dois usos distinguidos pelo corpo, sem quebrar compatibilidade).',
+    ],
+  },
+  {
     version: '1.39.0',
     date: '2026-08-21',
     title: 'Mensagens de monitor passam a variar por estado (alerta, warning, recuperação, sem dados)',
