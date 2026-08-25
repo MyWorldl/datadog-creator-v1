@@ -90,6 +90,14 @@ export const monthQuerySchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mê
 // devolve 400 claro em vez de rodar a query à toa.
 export const connectionIdSchema = z.uuid('Id de conexão inválido.')
 
+// connections/[id]/route.ts (PATCH com {name}): renomear uma conexão salva.
+// Diferente do `name` de createConnectionSchema (opcional, cai pro site se
+// vazio), aqui é uma ação dedicada de renomear — vazio não faz sentido
+// (usuário limpou o campo por engano), por isso min(1) em vez de default.
+export const renameConnectionSchema = z.object({
+  name: z.string().trim().min(1, 'Nome não pode ficar vazio.').max(100, 'Nome muito longo.'),
+})
+
 // ── Criação de monitores (infra/apm/service-monitors) ──
 // Formato "plan já expandido" (AuditMonitors/service-monitors): cada item
 // precisa só do essencial que createPlanIdempotent/ddPost de fato usam —

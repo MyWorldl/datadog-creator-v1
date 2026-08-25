@@ -135,6 +135,23 @@ export async function activateConnection(userId: string, id: string): Promise<tr
   return true
 }
 
+// Renomeia uma conexão (só o nome — site/chaves ficam intactos).
+export async function renameConnection(userId: string, id: string, name: string): Promise<PublicConnection> {
+  const sb = supabaseAdmin()
+
+  const { data, error } = await sb
+    .from(TABLE)
+    .update({ name: name.trim() })
+    .eq('user_id', userId)
+    .eq('id', id)
+    .select('id, name, site, is_active, created_at')
+    .maybeSingle()
+
+  if (error) throw new Error(`Falha ao renomear conexão: ${error.message}`)
+  if (!data) throw new Error('Conexão não encontrada.')
+  return toPublic(data)
+}
+
 // Remove uma conexão. Se era a ativa, promove a mais antiga restante (se houver).
 export async function deleteConnection(userId: string, id: string): Promise<true> {
   const sb = supabaseAdmin()

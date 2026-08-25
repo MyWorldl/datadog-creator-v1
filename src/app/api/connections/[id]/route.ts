@@ -1,12 +1,13 @@
 // src/app/api/connections/[id]/route.ts
 //
-//   PATCH  -> marca esta conexão como ativa (troca de org)
+//   PATCH  -> corpo com {name}: renomeia esta conexão
+//             corpo vazio (compat): marca esta conexão como ativa (troca de org)
 //   DELETE -> remove esta conexão
 
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
-import { activateConnection, deleteConnection } from '@/lib/connections'
-import { connectionIdSchema, firstIssueMessage } from '@/lib/schemas'
+import { activateConnection, deleteConnection, renameConnection } from '@/lib/connections'
+import { connectionIdSchema, renameConnectionSchema, firstIssueMessage } from '@/lib/schemas'
 
 interface RouteContext {
   params: Promise<{ id: string }>
@@ -23,6 +24,30 @@ export async function PATCH(request: NextRequest, { params }: RouteContext): Pro
   if (!parsedId.success) {
     return Response.json({ error: firstIssueMessage(parsedId.error) }, { status: 400 })
   }
+
+  // Corpo com `name` -> renomear. Corpo ausente/vazio (chamada original de
+  // activateConnection no AppContext, sem body) -> comportamento de sempre:
+  // ativar. Mesmo endpoint, dois usos de PATCH, distinguidos pelo corpo.
+  let body: unknown = null
+  try { body = await request.json() } catch { /* sem corpo -> ativar */ }
+
+  if (body && typeof body === 'object' && 'name' in body) {
+    const parsed = renameConnectionSchema.safeParse(body)
+    if (!parsed.success) {
+      return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+    }
+    try {
+      const connection = await renameConnection(user.id, parsedId.data, parsed.data.name)
+      return Response.json({ connection })
+    } catch (e) {
+      if ((e as Error).message === 'Conexão não encontrada.') {
+        return Response.json({ error: (e as Error).message }, { status: 404 })
+      }
+      console.error('[connections] falha ao renomear:', e)
+      return Response.json({ error: 'Não foi possível renomear a conexão. Tente novamente.' }, { status: 500 })
+    }
+  }
+
   try {
     await activateConnection(user.id, parsedId.data)
     return Response.json({ ok: true })

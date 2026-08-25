@@ -35,24 +35,73 @@ const s: Record<string, CSSProperties> = {
   ok:     { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '8px 12px' },
   badge:  { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--success)', background: 'var(--success-bg)', borderRadius: 999, padding: '3px 10px' },
   row:    { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)' },
-  orgName:{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
+  orgName:{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
   orgSite:{ fontSize: 11.5, color: 'var(--text-muted)', margin: 0, fontFamily: 'var(--font-geist-mono), monospace' },
+  editBtn:{ fontSize: 12, color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, borderRadius: 4 },
+  nameInput:{ fontSize: 13, fontWeight: 600, padding: '5px 8px', border: '0.5px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', minWidth: 0, flex: 1 },
+  renameErr:{ fontSize: 11, color: 'var(--danger)', margin: '3px 0 0' },
 }
 
 interface OrgRowProps {
   conn: PublicConnection
   onActivate: (id: string) => void
   onRemove: (id: string) => void
+  onRename: (id: string, name: string) => Promise<void>
   busy: boolean
 }
 
-function OrgRow({ conn, onActivate, onRemove, busy }: OrgRowProps) {
+function OrgRow({ conn, onActivate, onRemove, onRename, busy }: OrgRowProps) {
   const [confirming, setConfirming] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [nameDraft, setNameDraft] = useState(conn.name)
+  const [renaming, setRenaming] = useState(false)
+  const [renameError, setRenameError] = useState('')
+
+  function startEditing() {
+    setNameDraft(conn.name); setRenameError(''); setEditing(true)
+  }
+  function cancelEditing() {
+    setEditing(false); setNameDraft(conn.name); setRenameError('')
+  }
+  async function saveRename() {
+    const trimmed = nameDraft.trim()
+    if (!trimmed) { setRenameError('Nome não pode ficar vazio.'); return }
+    if (trimmed === conn.name) { setEditing(false); return }
+    setRenaming(true); setRenameError('')
+    try {
+      await onRename(conn.id, trimmed)
+      setEditing(false)
+    } catch (e) {
+      setRenameError((e as Error).message)
+    } finally {
+      setRenaming(false)
+    }
+  }
+
   return (
     <div style={s.row}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={s.orgName}>{conn.name}</p>
+        {editing ? (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <input
+              style={s.nameInput}
+              value={nameDraft}
+              onChange={e => setNameDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') cancelEditing() }}
+              disabled={renaming}
+              autoFocus
+            />
+            <button style={s.btnGhost} onClick={saveRename} disabled={renaming}>{renaming ? '…' : 'Salvar'}</button>
+            <button style={s.btnGhost} onClick={cancelEditing} disabled={renaming}>Cancelar</button>
+          </div>
+        ) : (
+          <p style={s.orgName}>
+            {conn.name}
+            <button style={s.editBtn} onClick={startEditing} title="Renomear" aria-label="Renomear org">✎</button>
+          </p>
+        )}
         <p style={s.orgSite}>{conn.site}</p>
+        {renameError && <p style={s.renameErr}>{renameError}</p>}
       </div>
       {conn.isActive ? (
         <span style={s.badge}>● Ativa</span>
@@ -81,7 +130,7 @@ interface TestResult {
 }
 
 export default function ConnectKeysCard() {
-  const { connections, keysLoading, activateConnection, addConnection, removeConnection } = useApp()
+  const { connections, keysLoading, activateConnection, addConnection, removeConnection, renameConnection } = useApp()
 
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
@@ -167,6 +216,7 @@ export default function ConnectKeysCard() {
               conn={conn}
               onActivate={handleActivate}
               onRemove={handleRemove}
+              onRename={renameConnection}
               busy={busyId === conn.id}
             />
           ))}

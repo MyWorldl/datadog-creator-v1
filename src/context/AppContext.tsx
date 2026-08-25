@@ -34,6 +34,7 @@ export interface AppContextValue {
   activateConnection: (id: string) => Promise<void>
   addConnection: (input: AddConnectionInput) => Promise<PublicConnection | undefined>
   removeConnection: (id: string) => Promise<void>
+  renameConnection: (id: string, name: string) => Promise<void>
   setKeysConfigured: () => void
   features: FeatureFlagState
 }
@@ -150,6 +151,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return data.connection;
   }, [refreshConnections]);
 
+  // Renomeia uma org salva (site/chaves ficam intactos).
+  const renameConnection = useCallback(async (id: string, name: string) => {
+    const r = await fetch(`/api/connections/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Falha ao renomear a conexão.');
+    await refreshConnections();
+  }, [refreshConnections]);
+
   // Remove uma org salva.
   const removeConnection = useCallback(async (id: string) => {
     const r = await fetch(`/api/connections/${id}`, { method: 'DELETE' });
@@ -171,7 +184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       datadogSite,
       keysConfigured, keysLoading,
       connections, activeConnection,
-      refreshConnections, activateConnection, addConnection, removeConnection,
+      refreshConnections, activateConnection, addConnection, removeConnection, renameConnection,
       setKeysConfigured: clearLocalKeysState, // compat: só reseta estado local
       features,
     }}>
