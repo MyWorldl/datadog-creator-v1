@@ -132,12 +132,12 @@ test('pickPrimaryOperation: respeita a ordem de preferência e cai no primeiro i
   assert.equal(pickPrimaryOperation([]), DEFAULT_OPERATION)
 })
 
-test('queryWindow: escalado por tipo (~5x o alert_window) — errorRate usa last_30m, os demais last_1h', () => {
+test('queryWindow: escalado por tipo, exatamente 5x o alert_window (recomendação oficial da doc) — errorRate usa last_25m (5x de 5m), os demais last_75m (5x de 15m)', () => {
   const byKind = Object.fromEntries(fullPlan().map(m => [m.kind, m]))
-  assert.match(byKind.errorRate.query, /^avg\(last_30m\):/)
-  assert.match(byKind.latency.query, /^avg\(last_1h\):/)
-  assert.match(byKind.highVolume.query, /^avg\(last_1h\):/)
-  assert.match(byKind.lowVolume.query, /^avg\(last_1h\):/)
+  assert.match(byKind.errorRate.query, /^avg\(last_25m\):/)
+  assert.match(byKind.latency.query, /^avg\(last_75m\):/)
+  assert.match(byKind.highVolume.query, /^avg\(last_75m\):/)
+  assert.match(byKind.lowVolume.query, /^avg\(last_75m\):/)
 })
 
 test('evaluation_delay: presente em todo monitor, igual ao interval da query (60s)', () => {
