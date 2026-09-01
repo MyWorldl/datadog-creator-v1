@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.44.1',
+    date: '2026-09-01',
+    title: 'Corrige erro escondido no fluxo de recuperação de senha',
+    notes: [
+      'handleForgotSubmit (LoginPage) não checava o campo error da resposta de resetPasswordForEmail — só tratava exceção de rede. Como o Supabase devolve erros reais (URL de redirect fora da allowlist, limite de envio, SMTP mal configurado) em error sem lançar exceção, a tela sempre mostrava "e-mail enviado" mesmo quando o envio de fato falhava por um motivo real. Corrigido: erro genuíno agora aparece na tela; e-mail não cadastrado continua sem revelar nada (comportamento correto do Supabase, sem mudança).',
+    ],
+  },
+  {
     version: '1.44.0',
     date: '2026-09-01',
     title: 'Convites de usuário já caem direto na tela de definir senha',

@@ -122,12 +122,17 @@ export default function LoginPage() {
 
     setForgotLoading(true);
     try {
-      await supabaseBrowser().auth.resetPasswordForEmail(forgotEmail.trim(), {
+      const { error: resetErr } = await supabaseBrowser().auth.resetPasswordForEmail(forgotEmail.trim(), {
         redirectTo: `${window.location.origin}/redefinir-senha`,
       });
-      // A Supabase sempre responde "sucesso" aqui, exista ou não o e-mail —
-      // não revelamos se um endereço está cadastrado (mesmo padrão de
-      // qualquer fluxo de recuperação de senha).
+      // Achado real: resetPasswordForEmail não LANÇA erro pra "e-mail não
+      // cadastrado" (de propósito — não revela se um endereço existe, mesmo
+      // padrão de qualquer fluxo de recuperação de senha). Mas problemas de
+      // configuração de verdade (URL de redirect fora da allowlist do
+      // Supabase, limite de envio, SMTP mal configurado) VÊM em `error`, sem
+      // lançar exceção — ignorar esse campo (como o código fazia antes)
+      // escondia esses erros reais atrás da mesma tela de "sucesso".
+      if (resetErr) { setForgotError(resetErr.message); return; }
       setForgotSent(true);
     } catch (e) {
       setForgotError('Falha de rede: ' + (e as Error).message);
