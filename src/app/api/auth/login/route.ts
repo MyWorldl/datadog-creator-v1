@@ -61,7 +61,18 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   if (error) {
     await recordFailedLogin(ip)
-    return Response.json({ ok: false, code: 'invalid_credentials' }, { status: 401 })
+    // Loga o erro REAL do Supabase sempre (visível nos logs da Vercel) — o
+    // que o cliente recebe é deliberadamente mais restrito, pra não virar
+    // oráculo de "esse e-mail existe?" (mesma cautela do fluxo de esqueci
+    // minha senha). email_not_confirmed é a única exceção: não revela nada
+    // sobre a senha, só que a conta existe e falta confirmar o e-mail — e é
+    // de longe a causa mais comum de "senha certa mas não entra" logo após
+    // criar um usuário direto pelo painel (Create user sem marcar "Auto
+    // Confirm User"). Achado real desta sessão: a mensagem genérica de
+    // "credenciais inválidas" escondia justamente esse caso.
+    logError('api/auth/login', error, { code: error.code, status: error.status })
+    const code = error.code === 'email_not_confirmed' ? 'email_not_confirmed' : 'invalid_credentials'
+    return Response.json({ ok: false, code }, { status: 401 })
   }
 
   await resetLoginAttempts(ip)

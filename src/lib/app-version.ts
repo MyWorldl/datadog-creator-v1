@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.45.0',
+    date: '2026-09-01',
+    title: 'Login distingue e-mail não confirmado de senha errada',
+    notes: [
+      '/api/auth/login agora loga o código/status real do erro do Supabase (visível nos logs da Vercel) e devolve um código distinto pra email_not_confirmed — a mensagem genérica "Credenciais inválidas" escondia esse caso, a causa mais comum de "senha certa mas não entra" logo depois de criar um usuário direto pelo painel do Supabase sem marcar "Auto Confirm User". Demais erros continuam com a mensagem genérica de propósito (evita virar oráculo de "esse e-mail existe?").',
+    ],
+  },
+  {
     version: '1.44.1',
     date: '2026-09-01',
     title: 'Corrige erro escondido no fluxo de recuperação de senha',
