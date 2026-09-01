@@ -91,6 +91,8 @@ export default function LoginPage() {
     if (!res.ok || !data.ok) {
       if (data.code === 'rate_limited') {
         setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
+      } else if (data.code === 'email_not_confirmed') {
+        setError('Este e-mail ainda não foi confirmado. Confirme pelo link recebido, ou peça pra confirmar manualmente no painel do Supabase (Authentication → Users).');
       } else {
         setError('Credenciais inválidas. Verifique e-mail e senha.');
       }
