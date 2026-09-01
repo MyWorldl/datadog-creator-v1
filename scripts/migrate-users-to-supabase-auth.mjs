@@ -21,6 +21,9 @@
 //
 // Uso:
 //   node --env-file=.env.local scripts/migrate-users-to-supabase-auth.mjs [caminho-do-json]
+//
+// SITE_URL (opcional) — default https://datadog-creator.vercel.app; pra onde
+// o link de convite de cada usuário redireciona (.../redefinir-senha).
 
 import { createClient } from '@supabase/supabase-js'
 import { readFile } from 'node:fs/promises'
@@ -45,6 +48,11 @@ if (!url || !key) {
   process.exit(1)
 }
 
+// redirectTo aponta pra /redefinir-senha: sem isso, o link do convite loga a
+// pessoa mas não pede senha nenhuma — ela ficaria sem conseguir logar de novo
+// depois (login normal exige senha, que nunca foi definida).
+const siteUrl = (process.env.SITE_URL || 'https://datadog-creator.vercel.app').replace(/\/$/, '')
+
 const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 
 async function findExistingByEmail(email) {
@@ -68,6 +76,7 @@ async function ensureUser({ email, name }) {
 
   const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(normalizedEmail, {
     data: { name },
+    redirectTo: `${siteUrl}/redefinir-senha`,
   })
   if (!inviteErr) return { id: invited.user.id, created: true }
 

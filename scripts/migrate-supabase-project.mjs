@@ -32,6 +32,10 @@
 // Precisa no ambiente:
 //   OLD_SUPABASE_URL / OLD_SUPABASE_SERVICE_ROLE_KEY   -- projeto de ORIGEM (leitura)
 //   NEW_SUPABASE_URL / NEW_SUPABASE_SERVICE_ROLE_KEY   -- projeto de DESTINO (escrita)
+//   SITE_URL (opcional)  -- default https://datadog-creator.vercel.app; pra
+//                           onde o link de convite de cada usuário redireciona
+//                           (.../redefinir-senha) — troque se for migrar pra
+//                           um domínio diferente do de produção.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -53,6 +57,11 @@ if (oldUrl === newUrl) {
   console.error('OLD_SUPABASE_URL e NEW_SUPABASE_URL são iguais — nada a migrar.')
   process.exit(1)
 }
+
+// redirectTo aponta pra /redefinir-senha: sem isso, o link do convite loga a
+// pessoa mas não pede senha nenhuma — ela ficaria sem conseguir logar de novo
+// depois (login normal exige senha, que nunca foi definida).
+const siteUrl = (process.env.SITE_URL || 'https://datadog-creator.vercel.app').replace(/\/$/, '')
 
 const opts = { auth: { persistSession: false, autoRefreshToken: false } }
 const oldSb = createClient(oldUrl, oldKey, opts)
@@ -98,6 +107,7 @@ async function ensureUserInNew(oldUser) {
 
   const { data: invited, error: inviteErr } = await newSb.auth.admin.inviteUserByEmail(email, {
     data: oldUser.user_metadata || undefined,
+    redirectTo: `${siteUrl}/redefinir-senha`,
   })
   if (!inviteErr) return { id: invited.user.id, created: true }
 

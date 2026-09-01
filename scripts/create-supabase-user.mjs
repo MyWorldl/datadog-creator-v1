@@ -10,11 +10,18 @@
 // e-mail com link pra DEFINIR a própria senha. Ninguém (nem este script,
 // nem quem o executa) fica sabendo/imprimindo uma senha em texto puro.
 //
+// redirectTo aponta pra /redefinir-senha: sem isso, o link do convite loga a
+// pessoa (sessão temporária) mas não pede senha nenhuma — ela ficaria sem
+// conseguir logar de novo depois (login normal exige senha, que nunca foi
+// definida). Com o redirectTo, o convite já cai direto na tela de definir
+// senha (achado real: aconteceu na migração de projeto Supabase desta app).
+//
 // Uso:
 //   node --env-file=.env.local scripts/create-supabase-user.mjs "email@empresa.com" "Nome"
 //
 // Precisa de SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no ambiente (mesmas
-// usadas por src/lib/supabase-admin.js).
+// usadas por src/lib/supabase-admin.js). SITE_URL é opcional — default é a
+// URL de produção; troque se estiver convidando pra outro ambiente (preview, local).
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -32,18 +39,21 @@ if (!url || !key) {
   process.exit(1)
 }
 
+const siteUrl = (process.env.SITE_URL || 'https://datadog-creator.vercel.app').replace(/\/$/, '')
+
 const supabase = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
 
 const normalizedEmail = String(email).trim().toLowerCase()
 
 const { data: invited, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(normalizedEmail, {
   data: name ? { name } : undefined,
+  redirectTo: `${siteUrl}/redefinir-senha`,
 })
 
 if (!inviteErr) {
   console.log(`\nConvite enviado para: ${normalizedEmail}`)
   console.log(`UUID: ${invited.user.id}`)
-  console.log('\nA pessoa recebe um e-mail do Supabase com um link pra definir a própria senha.\n')
+  console.log(`\nA pessoa recebe um e-mail do Supabase com um link que já cai em ${siteUrl}/redefinir-senha pra definir a própria senha.\n`)
   process.exit(0)
 }
 
