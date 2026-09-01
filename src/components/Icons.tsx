@@ -50,3 +50,9 @@ export const IconMenu = ({ size = 20 }: IconProps) => (
 export const IconClose = ({ size = 20 }: IconProps) => (
   <svg {...base(size)}><path d="M18 6 6 18M6 6l12 12"/></svg>
 )
+export const IconEye = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+)
+export const IconEyeOff = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M2 12s3.5-7 10-7c1.6 0 3 .34 4.24.9M22 12s-3.5 7-10 7c-1.6 0-3-.34-4.24-.9"/><path d="M6.6 6.6C4.2 8.1 2 12 2 12M17.4 17.4C19.8 15.9 22 12 22 12"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>
+)

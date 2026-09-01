@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.42.0',
+    date: '2026-09-01',
+    title: 'Login: recuperação de senha e botão de mostrar/ocultar senha',
+    notes: [
+      'Novo fluxo "Esqueci minha senha" na tela de login — envia e-mail de recuperação via Supabase Auth (resetPasswordForEmail) sem revelar se o e-mail está cadastrado, e leva pra uma página nova (/redefinir-senha) onde a pessoa define a nova senha. Fecha uma pendência real: o changelog de uma versão antiga já dizia que esse recurso seria "nativo", mas nunca tinha sido implementado na tela.',
+      'Campo de senha (login e redefinição) ganhou botão de mostrar/ocultar (ícone de olho) — 2 ícones novos em Icons.tsx (IconEye/IconEyeOff), mesmo padrão visual dos demais ícones do app.',
+    ],
+  },
+  {
     version: '1.41.0',
     date: '2026-08-25',
     title: 'Query window dos monitores de anomaly detection ajustado pra 5x exato do alert window',
