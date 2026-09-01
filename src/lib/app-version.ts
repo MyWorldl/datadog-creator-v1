@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.43.0',
+    date: '2026-09-01',
+    title: 'Script de migração entre projetos Supabase',
+    notes: [
+      'Novo scripts/migrate-supabase-project.mjs — migra usuários (Supabase Auth) e conexões Datadog salvas (datadog_connections) de um projeto Supabase pra outro, preservando dados. Mesmo padrão de scripts/migrate-users-to-supabase-auth.mjs (a migração anterior, de AUTH_USERS pro Supabase Auth): usuários recriados via inviteUserByEmail (cada um define a própria senha nova, a antiga nunca é lida — GoTrue não expõe hash pela Admin API) e user_id remapeado nas conexões. Ciphertext das chaves Datadog (api_key_enc/app_key_enc) copiado como está, sem decifrar — só funciona se CONNECTIONS_ENCRYPTION_KEYS ficar igual no projeto novo. Idempotente (upsert por id) e com modo --dry-run.',
+    ],
+  },
+  {
     version: '1.42.0',
     date: '2026-09-01',
     title: 'Login: recuperação de senha e botão de mostrar/ocultar senha',
