@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.44.0',
+    date: '2026-09-01',
+    title: 'Convites de usuário já caem direto na tela de definir senha',
+    notes: [
+      'Os 3 scripts que convidam usuário via Supabase Auth (create-supabase-user.mjs, migrate-users-to-supabase-auth.mjs, migrate-supabase-project.mjs) agora passam redirectTo apontando pra /redefinir-senha. Achado real na migração de projeto Supabase desta app: sem isso, o link do convite loga a pessoa com uma sessão temporária mas não pede senha nenhuma — ela ficava sem conseguir logar de novo depois, precisando descobrir sozinha que tinha que navegar manualmente até /redefinir-senha.',
+      'SITE_URL (env var opcional, default a URL de produção) permite apontar o convite pra outro ambiente (preview, local) se necessário.',
+    ],
+  },
+  {
     version: '1.43.0',
     date: '2026-09-01',
     title: 'Script de migração entre projetos Supabase',
