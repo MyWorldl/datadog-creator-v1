@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.54.0',
+    date: '2026-09-02',
+    title: 'Ajuste de sensibilidade dos monitores de anomalia',
+    notes: [
+      'deviations default (largura da banda de \'anomalies()\', não uma contagem de anomalias — apesar do rótulo \'Anomalies\' na UI) subiu de 2 para 4 em Latência e de 2 para 3 em Alto/Baixo volume — 2 estava disparando com picos/quedas pontuais demais. Taxa de Erro ficou em 2 de propósito (maior custo de falso negativo).',
+    ],
+  },
+  {
     version: '1.53.0',
     date: '2026-09-02',
     title: 'Fase 7a (parte 2): Log Monitor — etapa no wizard',
