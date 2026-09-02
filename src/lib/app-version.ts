@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.52.0',
+    date: '2026-09-02',
+    title: 'Fase 7a (parte 1): Log Monitor — motor e API',
+    notes: [
+      'Novo catálogo src/lib/log-monitors.ts: monitores de type "log alert" (contagem de logs por filtro, janela e limite). Sintaxe de query confirmada via pesquisa: logs(query).index(index).rollup("count").last(window) > limite.',
+      'v1 cobre só rollup "count" (contagem) — sem measure (avg/cardinality) nem .by() (agrupamento por facet): as duas fontes que verifiquei divergem sobre quais funções valem com measure, e .by() só apareceu confirmado num exemplo de events(), não de logs(). Fica para uma rodada futura, já com a sintaxe re-confirmada.',
+      'Nova rota /api/datadog/log-monitors (mesmo padrão idempotente + retry em 429 de infra/apm-monitors), atrás da nova feature flag logMonitors (desligada por padrão).',
+      'Ainda sem UI no wizard MonitorsCreator — motor e API prontos e testados (13 testes novos), a etapa de configuração na UI fica pra continuação desta mesma fase.',
+    ],
+  },
+  {
     version: '1.51.0',
     date: '2026-09-02',
     title: 'Fase 6: navegação e nomenclatura',
