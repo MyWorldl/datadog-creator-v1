@@ -3,7 +3,7 @@
 
 import type { CSSProperties, ComponentType } from 'react'
 import { APP_VERSION, COMMIT_SHA, VERSION_HISTORY } from '@/lib/app-version'
-import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/components/Icons'
+import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops, IconRename } from '@/components/Icons'
 
 interface Feature {
   Icon: ComponentType<{ size?: number }>
@@ -16,6 +16,7 @@ const FEATURES: Feature[] = [
   { Icon: IconAnalytics, name: 'AuditMonitors', desc: 'Audita a cobertura de monitoramento (Infra + APM) e sugere os monitores que faltam.' },
   { Icon: IconScope, name: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente, de tags a error budget de SLO.' },
   { Icon: IconFinops, name: 'FinOps Insights', desc: 'Consumo por licenciamento, alarme de anomalia de consumo e custo estimado.' },
+  { Icon: IconRename, name: 'SwitchName', desc: 'Busca um trecho no nome de monitores existentes e substitui em todos de uma vez, com preview antes de aplicar.' },
 ]
 
 const s: Record<string, CSSProperties> = {

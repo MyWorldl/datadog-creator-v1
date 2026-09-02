@@ -132,7 +132,7 @@ export default function BulkRenamePage() {
 
   return (
     <div>
-      <h1 style={s.h1}>Renomear Monitores em Lote</h1>
+      <h1 style={s.h1}>SwitchName</h1>
       <p style={s.sub}>
         Carregue os monitores, selecione quais quer renomear e troque um trecho do nome em todos de uma vez · coleta no servidor via {datadogSite}.
       </p>
