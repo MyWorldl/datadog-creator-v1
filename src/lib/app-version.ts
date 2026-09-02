@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.47.0',
+    date: '2026-09-02',
+    title: 'Fase 2 do Raio-X: acessibilidade de formulários + bug visual + contraste',
+    notes: [
+      'Cor hardcoded corrigida: o box de sucesso do FinOps usava #e6f4ef fixo em vez de var(--success-bg), quebrando o contraste no tema escuro.',
+      'Contraste de --text-muted corrigido: #999999 (claro) e #666680 (escuro) davam ~2.85:1 e ~3.07:1 contra o fundo — abaixo do mínimo AA de 4.5:1 pra texto normal. Trocados por #707070 (4.95:1) e #8888A0 (4.93:1), mesma família de tom.',
+      'Acessibilidade de formulários: todo campo de texto/senha/select do app (login, redefinir senha, conexões Datadog, troca de senha, FinOps, Renomear em Lote, e os 3 wizards de criação de monitor) ganhou id+htmlFor ligando label ao input (useId() nos componentes reaproveitados mais de uma vez por página, id fixo/derivado da chave do item nos demais) e uma classe .focus-ring (globals.css) restaurando o indicador de foco visível que outline:\'none\' removia sem repor nada — violava WCAG 2.4.7.',
+      'Segunda de 6 fases do plano de ação do relatório "Raio-X da Aplicação".',
+    ],
+  },
+  {
     version: '1.46.0',
     date: '2026-09-02',
     title: 'Fase 1 do Raio-X: login e troca de senha não travam mais em falha de rede',

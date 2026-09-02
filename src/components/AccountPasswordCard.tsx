@@ -74,8 +74,10 @@ export default function AccountPasswordCard() {
       </p>
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 10 }}>
-          <label style={s.label}>Nova senha</label>
+          <label style={s.label} htmlFor="account-password-new">Nova senha</label>
           <input
+            id="account-password-new"
+            className="focus-ring"
             style={s.input}
             type="password"
             value={password}
@@ -85,8 +87,10 @@ export default function AccountPasswordCard() {
           />
         </div>
         <div>
-          <label style={s.label}>Confirmar senha</label>
+          <label style={s.label} htmlFor="account-password-confirm">Confirmar senha</label>
           <input
+            id="account-password-confirm"
+            className="focus-ring"
             style={s.input}
             type="password"
             value={confirm}

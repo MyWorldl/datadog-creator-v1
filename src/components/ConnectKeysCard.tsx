@@ -84,6 +84,8 @@ function OrgRow({ conn, onActivate, onRemove, onRename, busy }: OrgRowProps) {
         {editing ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <input
+              aria-label="Novo nome da org"
+              className="focus-ring"
               style={s.nameInput}
               value={nameDraft}
               onChange={e => setNameDraft(e.target.value)}
@@ -230,24 +232,24 @@ export default function ConnectKeysCard() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
               <div>
-                <label style={s.label}>Nome (pra você reconhecer, ex.: &quot;Produção&quot;, &quot;Cliente X&quot;)</label>
-                <input style={s.input} type="text" value={name} onChange={e => setName(e.target.value)}
+                <label style={s.label} htmlFor="conn-name">Nome (pra você reconhecer, ex.: &quot;Produção&quot;, &quot;Cliente X&quot;)</label>
+                <input id="conn-name" className="focus-ring" style={s.input} type="text" value={name} onChange={e => setName(e.target.value)}
                   placeholder="Opcional — usa o site se vazio" autoComplete="off" />
               </div>
               <div>
-                <label style={s.label}>Site do Datadog</label>
-                <select style={s.select} value={site} onChange={e => setSite(e.target.value)}>
+                <label style={s.label} htmlFor="conn-site">Site do Datadog</label>
+                <select id="conn-site" className="focus-ring" style={s.select} value={site} onChange={e => setSite(e.target.value)}>
                   {SITES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
-                <label style={s.label}>API Key</label>
-                <input style={s.input} type={show ? 'text' : 'password'} value={apiKey}
+                <label style={s.label} htmlFor="conn-api-key">API Key</label>
+                <input id="conn-api-key" className="focus-ring" style={s.input} type={show ? 'text' : 'password'} value={apiKey}
                   onChange={e => setApiKey(e.target.value)} placeholder="••••••••••••••••" autoComplete="off" />
               </div>
               <div>
-                <label style={s.label}>Application Key</label>
-                <input style={s.input} type={show ? 'text' : 'password'} value={appKey}
+                <label style={s.label} htmlFor="conn-app-key">Application Key</label>
+                <input id="conn-app-key" className="focus-ring" style={s.input} type={show ? 'text' : 'password'} value={appKey}
                   onChange={e => setAppKey(e.target.value)} placeholder="••••••••••••••••" autoComplete="off" />
               </div>
               <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', gap: 6, alignItems: 'center' }}>

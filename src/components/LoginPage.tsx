@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useId, useState, type CSSProperties, type FormEvent } from 'react';
 import { useSession } from '@/context/SupabaseAuthContext';
 import { supabaseBrowser } from '@/lib/supabase-browser';
 import { IconEye, IconEyeOff } from '@/components/Icons';
@@ -37,11 +37,17 @@ function Logo() {
 // campo, mesma UX, evita duplicar o botão de mostrar/ocultar).
 export function PasswordField({ label, value, onChange, autoComplete }: { label: string; value: string; onChange: (v: string) => void; autoComplete: string }) {
   const [show, setShow] = useState(false);
+  // useId() (não um id fixo) porque este componente é reaproveitado mais de
+  // uma vez na mesma página (ver redefinir-senha/page.tsx: "Nova senha" +
+  // "Confirmar nova senha") — um id fixo colidiria entre as duas instâncias.
+  const inputId = useId();
   return (
     <div>
-      <label style={s.label}>{label}</label>
+      <label style={s.label} htmlFor={inputId}>{label}</label>
       <div style={{ position: 'relative' }}>
         <input
+          id={inputId}
+          className="focus-ring"
           type={show ? 'text' : 'password'}
           value={value}
           onChange={e => onChange(e.target.value)}
@@ -177,8 +183,10 @@ export default function LoginPage() {
           ) : (
             <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
-                <label style={s.label}>E-mail</label>
+                <label style={s.label} htmlFor="login-forgot-email">E-mail</label>
                 <input
+                  id="login-forgot-email"
+                  className="focus-ring"
                   type="email"
                   value={forgotEmail}
                   onChange={e => setForgotEmail(e.target.value)}
@@ -212,8 +220,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
-            <label style={s.label}>E-mail</label>
+            <label style={s.label} htmlFor="login-email">E-mail</label>
             <input
+              id="login-email"
+              className="focus-ring"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
