@@ -4,10 +4,11 @@
 import { useState, type CSSProperties } from 'react'
 import { planPreview, type PlanItem, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraPlanItem, type InfraDiscoveryState } from '@/lib/infra'
+import { planLogPreview, type LogMonitorPlanItem, type LogMonitorsState } from '@/lib/log-monitors'
 import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
-type PlanEntry = PlanItem | InfraPlanItem
+type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem
 
 // Primeira linha da mensagem (o resto é o corpo longo — O que monitora/Causas/
 // Ação recomendada — que não cabe bem numa célula de planilha).
@@ -89,13 +90,13 @@ export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps
   // 1 fonte só, comportamento idêntico a antes.
   const sources = sourcesFor(config.resourceType).map(src => {
     const state = config[src.stateKey]
-    const isInfraSrc = src.dataKind === 'infra'
-    return {
-      state,
-      plan: (isInfraSrc ? planInfraPreview(state as InfraDiscoveryState) : planPreview(state as DiscoveryState)) as PlanEntry[],
-      endpoint: isInfraSrc ? '/api/datadog/infra-monitors' : '/api/datadog/service-monitors',
-      bodyKey: isInfraSrc ? 'infra' : 'discovery',
+    if (src.dataKind === 'infra') {
+      return { state, plan: planInfraPreview(state as InfraDiscoveryState) as PlanEntry[], endpoint: '/api/datadog/infra-monitors', bodyKey: 'infra' }
     }
+    if (src.dataKind === 'log') {
+      return { state, plan: planLogPreview(state as LogMonitorsState) as PlanEntry[], endpoint: '/api/datadog/log-monitors', bodyKey: 'logMonitors' }
+    }
+    return { state, plan: planPreview(state as DiscoveryState) as PlanEntry[], endpoint: '/api/datadog/service-monitors', bodyKey: 'discovery' }
   })
   const plan: PlanEntry[] = sources.flatMap(src => src.plan)
   const [creating, setCreating] = useState(false)

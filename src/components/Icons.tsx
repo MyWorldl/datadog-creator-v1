@@ -103,3 +103,8 @@ export const IconCluster = ({ size = 18 }: IconProps) => (
 export const IconDatabase = ({ size = 18 }: IconProps) => (
   <svg {...base(size)}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
 )
+// Log Monitor (aba Logs do MonitorsCreator, atrás da flag logMonitors) —
+// documento com linhas de texto, mesmo glifo universal de "log/registro".
+export const IconLogs = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
+)

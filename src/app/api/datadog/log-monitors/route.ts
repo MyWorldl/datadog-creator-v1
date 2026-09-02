@@ -1,10 +1,12 @@
 // src/app/api/datadog/log-monitors/route.ts
 //
 // Cria os Log Monitors planejados a partir das regras montadas na UI (ver
-// lib/log-monitors.ts). Sem os dois formatos de body de infra/apm-monitors
-// (não existe um "plano já expandido" vindo de outra tela hoje) — só
-// { rules: [...] }, expandido aqui via planLogPreview(). Idempotência +
-// retry em 429: mesmo createPlanIdempotent de infra/apm-monitors.
+// lib/log-monitors.ts). Aceita { logMonitors: <estado> } (padrão usado pelo
+// wizard, mesmo formato de { infra: ... }/{ discovery: ... } nas outras
+// rotas) OU o estado direto no corpo. Sem o formato "plano já expandido"
+// (não existe um consumidor externo tipo AuditMonitors pra Log Monitor
+// ainda). Idempotência + retry em 429: mesmo createPlanIdempotent de
+// infra/apm-monitors.
 //
 // Atrás da feature flag logMonitors (desligada por padrão — v1 cobre só
 // rollup "count", ver comentário no topo de lib/log-monitors.ts).
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'JSON inválido.' }, { status: 400 })
   }
 
-  const parsed = logMonitorsBodySchema.safeParse(body)
+  const parsed = logMonitorsBodySchema.safeParse(body?.logMonitors || body)
   if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
 
   // Cast igual ao usado em infra-monitors/service-monitors: o schema faz uma

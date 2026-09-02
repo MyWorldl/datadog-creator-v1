@@ -161,6 +161,14 @@ export function buildLogMonitorPayload({ label, queryFilter, index = DEFAULT_LOG
 export interface LogMonitorPlanItem {
   kind: 'log'
   label: string
+  // service/operation: mesmos nomes de campo genéricos que PlanItem/
+  // InfraPlanItem usam (DiscoveryCreate.tsx e monitor-create-server.ts
+  // exibem/repassam esses 2 campos sem saber se a origem é serviço, host ou
+  // regra de log) — aqui "service" é o nome da regra e "operation" é a
+  // janela avaliada, só pra manter essas telas genéricas funcionando sem
+  // precisar de um 3º branch condicional nelas.
+  service: string
+  operation: string
   name: string
   query: string
   message: string
@@ -211,7 +219,7 @@ export function planLogPreview(state: Partial<LogMonitorsState>): LogMonitorPlan
       priority: rule.priority,
       notifyTarget, notifyNoData, renotifyInterval,
     })
-    plan.push({ kind: 'log', label: rule.label, name: payload.name, query: payload.query, message: payload.message, priority: rule.priority ?? null, payload })
+    plan.push({ kind: 'log', label: rule.label, service: rule.label, operation: rule.window, name: payload.name, query: payload.query, message: payload.message, priority: rule.priority ?? null, payload })
   }
   return plan
 }

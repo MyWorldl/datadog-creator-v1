@@ -11,11 +11,12 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
+import { initialLogMonitors } from '@/lib/log-monitors'
 import { useApp } from '@/context/AppContext'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import type { ResourceType, WizardConfig } from '@/components/discovery/types'
-import { IconAnalytics, IconServer, IconCluster } from '@/components/Icons'
+import { IconAnalytics, IconServer, IconCluster, IconLogs } from '@/components/Icons'
 
 // Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
 // primeiro, por isso fica com import estático — os demais só entram no bundle
@@ -23,6 +24,7 @@ import { IconAnalytics, IconServer, IconCluster } from '@/components/Icons'
 const DiscoveryConfigure = dynamic(() => import('@/components/discovery/DiscoveryConfigure'))
 const DiscoveryConfigureInfra = dynamic(() => import('@/components/discovery/DiscoveryConfigureInfra'))
 const DiscoveryConfigureK8sDbm = dynamic(() => import('@/components/discovery/DiscoveryConfigureK8sDbm'))
+const DiscoveryConfigureLogs = dynamic(() => import('@/components/discovery/DiscoveryConfigureLogs'))
 const DiscoveryPersonalize = dynamic(() => import('@/components/discovery/DiscoveryPersonalize'))
 const DiscoveryReview = dynamic(() => import('@/components/discovery/DiscoveryReview'))
 const DiscoveryCreate = dynamic(() => import('@/components/discovery/DiscoveryCreate'))
@@ -50,12 +52,14 @@ const INITIAL_CONFIG: WizardConfig = {
   // O wizard opera somente no modo de descoberta.
   mode: 'discovery',
   // 'services' (APM, por serviço/operação), 'infra' (por host: CPU/Memória/
-  // Disco) ou 'k8sDbm' (Kubernetes/DBM, atrás da flag k8sDbmCoverage).
+  // Disco), 'k8sDbm' (Kubernetes/DBM, atrás de k8sDbmCoverage) ou 'logs'
+  // (Log Monitor, atrás de logMonitors).
   resourceType: 'services',
   discovery: initialDiscovery(),
   infra: initialInfraDiscovery(),
   k8sInfra: initialInfraDiscovery(),
   k8sDiscovery: initialK8sDiscovery(),
+  logMonitors: initialLogMonitors(),
 }
 
 export default function Home() {
@@ -128,6 +132,8 @@ export default function Home() {
                 // (mesmo padrão de "esconder por completo quando off" da
                 // seção K8s/DBM em ferramentas/audit/page.tsx).
                 ...(features.k8sDbmCoverage ? [{ key: 'k8sDbm', label: 'APM e Infraestrutura (K8s/DBM)', Icon: IconCluster }] : []),
+                // Aba Logs — mesmo padrão, atrás de logMonitors.
+                ...(features.logMonitors ? [{ key: 'logs', label: 'Logs', Icon: IconLogs }] : []),
               ] as { key: ResourceType; label: string; Icon: typeof IconServer }[]).map(opt => {
                 const on = config.resourceType === opt.key
                 return (
@@ -158,6 +164,13 @@ export default function Home() {
               />
             ) : config.resourceType === 'k8sDbm' ? (
               <DiscoveryConfigureK8sDbm
+                config={config}
+                setConfig={setConfig}
+                onNext={goNext}
+                onBack={goBack}
+              />
+            ) : config.resourceType === 'logs' ? (
+              <DiscoveryConfigureLogs
                 config={config}
                 setConfig={setConfig}
                 onNext={goNext}
