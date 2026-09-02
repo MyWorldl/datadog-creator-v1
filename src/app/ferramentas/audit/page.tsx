@@ -176,7 +176,12 @@ export default function AuditMonitorsPage() {
   const [createResult, setCreateResult] = useState<CreatePlanResult | null>(null)
 
   async function run() {
-    setError(''); setLoading(true); setData(null); setCreateResult(null); setPreviewKind(null)
+    // setData(null) removido de propósito (achado da auditoria): apagava o
+    // painel inteiro (anel, tabelas, cards) mesmo com dado válido já na tela,
+    // até a resposta nova chegar. Mantém o dado anterior visível durante o
+    // reload — o botão "Reauditar" já indica loading via texto, mesmo padrão
+    // que ferramentas/bulk-rename/page.tsx (loadMonitors) já usava.
+    setError(''); setLoading(true); setCreateResult(null); setPreviewKind(null)
     try {
       const r = await fetch('/api/datadog/audit-monitors')
       const json = await r.json()

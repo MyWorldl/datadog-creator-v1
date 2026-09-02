@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.48.0',
+    date: '2026-09-02',
+    title: 'Fase 3 do Raio-X: \'atualizar dados\' não apaga mais a tela em Audit/ScopeMaturity/FinOps',
+    notes: [
+      'AuditMonitors, ScopeMaturity e FinOps chamavam setData(null) antes do fetch de recarregar — o painel inteiro (anel de score, tabelas, cards) sumia mesmo com dado válido já na tela, até a resposta nova chegar. Renomear em Lote já fazia certo (mantinha a lista antiga visível com "Recarregando…" no botão) — as 3 ferramentas agora seguem o mesmo padrão.',
+      'Terceira de 6 fases do plano de ação do relatório "Raio-X da Aplicação".',
+    ],
+  },
+  {
     version: '1.47.0',
     date: '2026-09-02',
     title: 'Fase 2 do Raio-X: acessibilidade de formulários + bug visual + contraste',

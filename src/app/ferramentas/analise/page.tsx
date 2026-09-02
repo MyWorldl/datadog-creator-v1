@@ -102,7 +102,11 @@ export default function ScopeMaturityPage() {
   const [data, setData] = useState<ScopeMaturityData | null>(null)
 
   async function run() {
-    setError(''); setLoading(true); setData(null)
+    // setData(null) removido de propósito (achado da auditoria): apagava o
+    // painel inteiro mesmo com dado válido já na tela, até a resposta nova
+    // chegar. Mantém o dado anterior visível durante o reload — o botão já
+    // indica loading via texto, mesmo padrão de ferramentas/audit/page.tsx.
+    setError(''); setLoading(true)
     try {
       const r = await fetch('/api/datadog/scope-maturity')
       const json = await r.json()
