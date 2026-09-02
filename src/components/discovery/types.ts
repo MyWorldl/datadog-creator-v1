@@ -8,8 +8,9 @@
 import type { Dispatch, SetStateAction } from 'react'
 import type { DiscoveryState } from '@/lib/discovery'
 import type { InfraDiscoveryState } from '@/lib/infra'
+import type { LogMonitorsState } from '@/lib/log-monitors'
 
-export type ResourceType = 'services' | 'infra' | 'k8sDbm'
+export type ResourceType = 'services' | 'infra' | 'k8sDbm' | 'logs'
 
 export interface WizardConfig {
   mode: 'discovery'
@@ -23,6 +24,11 @@ export interface WizardConfig {
   // rotas infra-monitors/service-monitors sem duplicar lógica de criação.
   k8sInfra: InfraDiscoveryState
   k8sDiscovery: DiscoveryState
+  // Aba "Logs" (atrás da flag logMonitors) — shape PRÓPRIO (não reaproveita
+  // discovery/infra): não existe "entidade descoberta" aqui, cada regra já
+  // é o monitor inteiro (filtro + índice + janela + limite). Ver
+  // lib/log-monitors.ts.
+  logMonitors: LogMonitorsState
 }
 
 export type SetWizardConfig = Dispatch<SetStateAction<WizardConfig>>
@@ -41,8 +47,8 @@ export interface DiscoveryStepProps {
 // like) que entram juntas no plano/criação, cada uma com sua própria seção
 // de personalização.
 export interface PersonalizeSource {
-  stateKey: 'discovery' | 'infra' | 'k8sInfra' | 'k8sDiscovery'
-  dataKind: 'infra' | 'discovery'
+  stateKey: 'discovery' | 'infra' | 'k8sInfra' | 'k8sDiscovery' | 'logMonitors'
+  dataKind: 'infra' | 'discovery' | 'log'
   heading?: string
 }
 
@@ -52,5 +58,6 @@ export function sourcesFor(resourceType: ResourceType): PersonalizeSource[] {
     { stateKey: 'k8sInfra', dataKind: 'infra', heading: 'Host — Node Ready / Banco de Dados' },
     { stateKey: 'k8sDiscovery', dataKind: 'discovery', heading: 'Namespace / Global — Pod Restarts / Pod Pending' },
   ]
+  if (resourceType === 'logs') return [{ stateKey: 'logMonitors', dataKind: 'log' }]
   return [{ stateKey: 'discovery', dataKind: 'discovery' }]
 }

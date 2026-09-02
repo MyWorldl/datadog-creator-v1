@@ -4,6 +4,7 @@
 import type { CSSProperties } from 'react'
 import { planPreview, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraDiscoveryState } from '@/lib/infra'
+import { planLogPreview, type LogMonitorsState } from '@/lib/log-monitors'
 import MonitorPlanList from './MonitorPlanList'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
@@ -23,9 +24,11 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
   // resourceType 'k8sDbm' tem 2 fontes (host-like + namespace/global-like) —
   // o plano final e o resumo de entidades juntam as duas, sem duplicar a
   // lógica de planInfraPreview/planPreview que já existe.
-  const plan = sources.flatMap(src => src.dataKind === 'infra'
-    ? planInfraPreview(config[src.stateKey] as InfraDiscoveryState)
-    : planPreview(config[src.stateKey] as DiscoveryState))
+  const plan = sources.flatMap(src => {
+    if (src.dataKind === 'infra') return planInfraPreview(config[src.stateKey] as InfraDiscoveryState)
+    if (src.dataKind === 'log') return planLogPreview(config[src.stateKey] as LogMonitorsState)
+    return planPreview(config[src.stateKey] as DiscoveryState)
+  })
 
   const entityParts = sources
     .map(src => {
@@ -33,6 +36,10 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
       if (src.dataKind === 'infra') {
         const count = Object.values((state as InfraDiscoveryState).selected).filter(Boolean).length
         return count > 0 ? `${count} host(s)` : null
+      }
+      if (src.dataKind === 'log') {
+        const count = (state as LogMonitorsState).rules.length
+        return count > 0 ? `${count} regra(s)` : null
       }
       const disc = state as DiscoveryState
       const count = Object.keys(disc.selected).length

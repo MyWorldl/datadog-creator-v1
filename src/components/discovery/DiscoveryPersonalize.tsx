@@ -4,6 +4,7 @@
 import { useId, useState, type CSSProperties } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY, POD_RESTARTS_TYPE, POD_PENDING_TYPE, type DiscoveryState } from '@/lib/discovery'
 import { INFRA_TYPES, INFRA_BY_KEY, type InfraDiscoveryState } from '@/lib/infra'
+import type { LogMonitorsState } from '@/lib/log-monitors'
 import { sourcesFor, type DiscoveryStepProps, type PersonalizeSource } from './types'
 
 const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_namespace', 'http.status_code']
@@ -276,13 +277,109 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
   )
 }
 
+// Seção dedicada pra fonte 'logMonitors' — NÃO reaproveita PersonalizeSection
+// acima: aquela assume um catálogo FIXO de tipos togláveis (TYPES/BY_KEY +
+// enabled/priority por chave conhecida de antemão), mas cada regra de log já
+// é o monitor inteiro (a "lista de tipos" é dinâmica — 1 por regra criada na
+// Etapa 2). Reaproveita só o estilo visual, não a lógica de catalogFor/
+// enabledKeySetFor.
+interface LogPersonalizeProps {
+  config: DiscoveryStepProps['config']
+  setConfig: DiscoveryStepProps['setConfig']
+}
+
+function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
+  const d = config.logMonitors
+  const setLog = (patch: Partial<LogMonitorsState>) => setConfig(c => ({ ...c, logMonitors: { ...c.logMonitors, ...patch } }))
+  const [tagInput, setTagInput] = useState('')
+  const uid = useId()
+
+  function addTag() {
+    const v = tagInput.trim()
+    if (!v) return
+    if (d.tags.includes(v)) { setTagInput(''); return }
+    setLog({ tags: [...d.tags, v] })
+    setTagInput('')
+  }
+  function removeTag(t: string) { setLog({ tags: d.tags.filter(x => x !== t) }) }
+  function setMessage(ruleId: string, value: string) { setLog({ messages: { ...d.messages, [ruleId]: value } }) }
+  function resetMessage(ruleId: string) {
+    const { [ruleId]: _omit, ...rest } = d.messages
+    void _omit
+    setLog({ messages: rest })
+  }
+
+  return (
+    <div style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
+      <div>
+        <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
+        <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setLog({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
+        <p style={s.hint}>Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;nome da regra&gt;</strong>.</p>
+      </div>
+
+      <div>
+        <label style={s.label} htmlFor={`${uid}-tag`}>Tags (aplicadas a todos os monitores desta seção)</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input id={`${uid}-tag`} className="focus-ring" style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} placeholder="team:payments" />
+          <button style={s.addBtn} onClick={addTag}>+ Adicionar</button>
+        </div>
+        {d.tags.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            {d.tags.map(t => <span key={t} style={s.tag}>{t}<button style={s.tagX} onClick={() => removeTag(t)}>×</button></span>)}
+          </div>
+        )}
+        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator e monitor_kind:log.</p>
+      </div>
+
+      <div>
+        <label style={s.label} htmlFor={`${uid}-notify`}>Notificação padrão (opcional)</label>
+        <input id={`${uid}-notify`} className="focus-ring" style={s.input} value={d.notifyTarget || ''} onChange={e => setLog({ notifyTarget: e.target.value })} placeholder="@equipe-ops" />
+        <p style={s.hint}>Substitui @equipe-ops em TODAS as mensagens desta seção (mesmo nas já personalizadas abaixo). Em branco, mantém o padrão de cada regra.</p>
+      </div>
+
+      <div>
+        <label style={s.label}>Alertas sem dado / renotificação (aplicado a todas as regras desta seção)</label>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+            <input type="checkbox" checked={!!d.notifyNoData} onChange={e => setLog({ notifyNoData: e.target.checked })} />
+            Notificar quando parar de reportar dado
+          </label>
+          <div>
+            <label style={s.hint} htmlFor={`${uid}-renotify`}>Reforçar notificação a cada (min, 0 = nunca)</label>
+            <input id={`${uid}-renotify`} className="focus-ring" style={{ ...s.input, width: 100 }} type="number" min="0" step="5" value={d.renotifyInterval ?? 0} onChange={e => setLog({ renotifyInterval: Number(e.target.value) || 0 })} />
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label style={s.label}>Mensagens dos monitores</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {d.rules.map(r => (
+            <div key={r.id}>
+              <div style={s.msgHead}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{r.label || 'Regra sem nome'}</span>
+                {d.messages[r.id] != null && <button style={s.reset} onClick={() => resetMessage(r.id)}>restaurar padrão</button>}
+              </div>
+              <textarea className="focus-ring" style={s.textarea} value={d.messages[r.id] ?? ''} onChange={e => setMessage(r.id, e.target.value)} placeholder="Deixe em branco para usar a mensagem padrão." aria-label={`Mensagem do monitor de ${r.label || 'regra sem nome'}`} />
+            </div>
+          ))}
+          {d.rules.length === 0 && <p style={s.hint}>Nenhuma regra criada na etapa anterior.</p>}
+        </div>
+        <p style={s.hint}>Variáveis: {'{{value}}'}, {'{{threshold}}'}. Use @ para notificar (ex.: @slack-canal).</p>
+      </div>
+    </div>
+  )
+}
+
 export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const sources = sourcesFor(config.resourceType)
 
   return (
     <div style={s.card}>
       {sources.map((src, i) => (
-        <PersonalizeSection key={src.stateKey} src={src} config={config} setConfig={setConfig} last={i === sources.length - 1} />
+        src.dataKind === 'log'
+          ? <LogPersonalizeSection key={src.stateKey} config={config} setConfig={setConfig} />
+          : <PersonalizeSection key={src.stateKey} src={src} config={config} setConfig={setConfig} last={i === sources.length - 1} />
       ))}
 
       <div style={s.actions}>

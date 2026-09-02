@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.53.0',
+    date: '2026-09-02',
+    title: 'Fase 7a (parte 2): Log Monitor — etapa no wizard',
+    notes: [
+      'Nova etapa Logs no MonitorsCreator (atrás da flag logMonitors): DiscoveryConfigureLogs.tsx gerencia uma lista de regras (nome, filtro, índice, janela, limite critical/warning, amostra de logs), cada uma virando 1 monitor.',
+      'Personalizar/Revisar/Criar passam a reconhecer a fonte \'logMonitors\' — Personalizar ganhou uma seção dedicada (prefixo, tags, notificação, mensagem por regra), já que o modelo de catálogo fixo usado por serviços/infra não se aplica a uma lista dinâmica de regras.',
+      'Novo ícone IconLogs (documento com linhas) na aba do wizard.',
+    ],
+  },
+  {
     version: '1.52.0',
     date: '2026-09-02',
     title: 'Fase 7a (parte 1): Log Monitor — motor e API',
