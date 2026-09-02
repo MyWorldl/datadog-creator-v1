@@ -49,9 +49,19 @@ export interface AlertType {
   message: string
 }
 
+// `def` (por tipo) é o `deviations` default — vira o parâmetro "bounds" de
+// anomalies() em buildAnomalyQuery(), a LARGURA (em desvios-padrão) da banda
+// considerada normal. Quanto MENOR, mais estreita a banda e mais sensível o
+// monitor (mais pontos viram anomalia) — o rótulo "Anomalies" na UI
+// (DiscoveryConfigure.tsx) é enganoso nesse sentido, não é uma contagem de
+// quantas anomalias disparam o alerta (isso é o `>= 1` fixo no fim da query:
+// 1 único ponto anômalo na alert_window já dispara). Latência subiu de 2
+// para 4 e Alto/Baixo volume de 2 para 3 (pedido do usuário: 2 estava
+// disparando com picos/quedas pontuais demais) — Taxa de Erro ficou em 2 de
+// propósito (é o tipo com maior custo de falso negativo, mantido sensível).
 export const ALERT_TYPES: AlertType[] = [
   {
-    key: 'latency', label: 'Latência (p95)', direction: 'above', def: 2,
+    key: 'latency', label: 'Latência (p95)', direction: 'above', def: 4,
     algorithm: 'robust', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia na latência p95 (desvio do padrão histórico).',
     message: `{{#is_alert}}🔴 [Anomalia · Latência] {{service.name}} — p95 fora do padrão histórico (atual: {{value}}).{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Latência] {{service.name}} — p95 voltou ao padrão histórico (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Latência] {{service.name}} — sem dados recentes.{{/is_no_data}}
@@ -93,7 +103,7 @@ export const ALERT_TYPES: AlertType[] = [
 @equipe-ops`,
   },
   {
-    key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 2,
+    key: 'highVolume', label: 'Alto volume de requisições', direction: 'above', def: 3,
     algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia de pico: requisições acima do padrão histórico.',
     message: `{{#is_alert}}⚠️ [Anomalia · Alto volume] {{service.name}} — requisições acima do padrão (atual: {{value}}). Possível pico.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Alto volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Alto volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
@@ -114,7 +124,7 @@ export const ALERT_TYPES: AlertType[] = [
 @equipe-ops`,
   },
   {
-    key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 2,
+    key: 'lowVolume', label: 'Baixo volume de requisições', direction: 'below', def: 3,
     algorithm: 'agile', seasonality: 'weekly', alertWindow: 'last_15m', queryWindow: 'last_75m',
     hint: 'Anomalia de queda: requisições abaixo do padrão histórico.',
     message: `{{#is_alert}}⚠️ [Anomalia · Baixo volume] {{service.name}} — requisições abaixo do padrão (atual: {{value}}). Possível queda/serviço mudo.{{/is_alert}}{{#is_alert_recovery}}✅ [Anomalia · Baixo volume] {{service.name}} — volume de requisições voltou ao padrão (atual: {{value}}).{{/is_alert_recovery}}{{#is_no_data}}⚪ [Anomalia · Baixo volume] {{service.name}} — sem dados recentes.{{/is_no_data}}
