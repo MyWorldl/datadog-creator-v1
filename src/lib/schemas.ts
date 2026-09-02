@@ -133,6 +133,34 @@ export const discoveryBodySchema = z.object({
 }).passthrough()
 export type DiscoveryBody = z.infer<typeof discoveryBodySchema>
 
+// Log Monitor (lib/log-monitors.ts): sem "entidade descoberta" — cada regra
+// já é o monitor inteiro, por isso um schema próprio (não reaproveita
+// discoveryBodySchema, que exige `selected`). label é o único campo
+// obrigatório de verdade: planLogPreview já pula regra sem label (mesmo
+// espírito de "campo ausente vira plano vazio" dos outros dois formatos).
+export const logMonitorRuleSchema = z.object({
+  id: z.string().trim().min(1),
+  label: z.string().trim().optional().default(''),
+  queryFilter: z.string().trim().optional().default(''),
+  index: z.string().trim().optional().default('*'),
+  window: z.string().trim().min(1, 'Regra de log sem janela.'),
+  threshold: z.number(),
+  warningThreshold: z.number().nullable().optional(),
+  priority: z.number().int().min(1).max(5).nullable().optional(),
+  enableLogsSample: z.boolean().optional(),
+}).passthrough()
+
+export const logMonitorsBodySchema = z.object({
+  rules: z.array(logMonitorRuleSchema).optional().default([]),
+  tags: z.array(z.string()).optional(),
+  namePrefix: z.string().optional(),
+  notifyTarget: z.string().optional(),
+  notifyNoData: z.boolean().optional(),
+  renotifyInterval: z.number().optional(),
+  messages: z.record(z.string(), z.string()).optional(),
+}).passthrough()
+export type LogMonitorsBody = z.infer<typeof logMonitorsBodySchema>
+
 // ── Renomeação em lote (bulk-rename-monitors/route.ts) ──
 // A rota GET não recebe mais search/replace (a página carrega todos os
 // monitores e filtra/calcula o preview no cliente, via computeRenames em
