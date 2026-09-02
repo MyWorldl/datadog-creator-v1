@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useApp } from '@/context/AppContext'
 import CollapsibleCard, { type CardStatus } from '@/components/CollapsibleCard'
 import Sparkline from '@/components/Sparkline'
+import { IconLayers, IconBell, IconPulse, IconChecklist, IconShieldCheck, IconWarning } from '@/components/Icons'
 
 interface ScoreRingProps {
   value: number
@@ -69,20 +70,16 @@ const STATUS_TINT: Record<CardStatus, { c: string; bg: string }> = {
   nd: { c: 'var(--text-muted)', bg: 'var(--bg-surface-2)' },
 }
 
-// Ícones temáticos por pilar (linha, estilo lucide — sinérgicos com o tema
-// escuro): cada pilar ganha um glyph de identidade em vez da forma de status.
-const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': 'true' as const }
+// Ícones temáticos por pilar — de Icons.tsx (achado da auditoria: viviam
+// inline aqui, fonte única agora). Cada pilar ganha um glyph de identidade
+// em vez da forma de status (ver CollapsibleCard, que já cuida do aria-hidden
+// no wrapper que consome esses ícones).
 const PILLAR_ICON: Record<string, ReactNode> = {
-  // Cobertura → camadas (infra/apps/cloud empilhadas)
-  cobertura: <svg {...ICON_PROPS}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></svg>,
-  // Qualidade dos Monitores → sino (alertas)
-  qualidade: <svg {...ICON_PROPS}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>,
-  // Observabilidade → pulso (sinais/telemetria)
-  observabilidade: <svg {...ICON_PROPS}><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>,
-  // Processos → checklist/prancheta (operação, runbooks, SLO)
-  processos: <svg {...ICON_PROPS}><rect width="8" height="4" x="8" y="2" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="m9 14 2 2 4-4" /></svg>,
-  // Governança → escudo com check (padrões, RBAC, ownership)
-  governanca: <svg {...ICON_PROPS}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z" /><path d="m9 12 2 2 4-4" /></svg>,
+  cobertura: <IconLayers size={18} />,        // camadas (infra/apps/cloud empilhadas)
+  qualidade: <IconBell size={18} />,          // sino (alertas)
+  observabilidade: <IconPulse size={18} />,   // pulso (sinais/telemetria)
+  processos: <IconChecklist size={18} />,     // checklist/prancheta (operação, runbooks, SLO)
+  governanca: <IconShieldCheck size={18} />,  // escudo com check (padrões, RBAC, ownership)
 }
 
 const s: Record<string, CSSProperties> = {
@@ -148,7 +145,7 @@ export default function ScopeMaturityPage() {
               )}
               {data && data.levelNote && (
                 <p style={{ fontSize: 11.5, color: 'var(--warning)', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}><path d="M12 3 21 19H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
+                  <span aria-hidden="true" style={{ display: 'inline-flex', flexShrink: 0 }}><IconWarning size={13} /></span>
                   {data.levelNote}
                 </p>
               )}

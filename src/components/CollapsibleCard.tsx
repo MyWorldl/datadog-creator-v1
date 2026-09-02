@@ -18,6 +18,7 @@
 'use client'
 
 import { useId, useState, type ReactNode } from 'react'
+import { IconCheck, IconWarning, IconError, IconNeutral } from '@/components/Icons'
 
 export type CardStatus = 'good' | 'warn' | 'bad' | 'nd'
 
@@ -29,15 +30,13 @@ const STATUS: Record<CardStatus, { color: string; tint: string | null }> = {
   nd: { color: 'var(--text-muted)', tint: null },
 }
 
+// Ícones de Icons.tsx (achado da auditoria: viviam inline aqui, duplicados
+// com o triângulo de aviso de ferramentas/analise/page.tsx — fonte única agora).
 function StatusIcon({ status }: { status: CardStatus }) {
-  const p = {
-    width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
-    strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': 'true' as const,
-  }
-  if (status === 'good') return <svg {...p}><path d="M20 6 9 17l-5-5" /></svg>
-  if (status === 'warn') return <svg {...p}><path d="M12 3 21 19H3z" /><path d="M12 10v4" /><path d="M12 17h.01" /></svg>
-  if (status === 'bad') return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>
-  return <svg {...p}><path d="M5 12h14" /></svg>
+  if (status === 'good') return <IconCheck size={18} />
+  if (status === 'warn') return <IconWarning size={18} />
+  if (status === 'bad') return <IconError size={18} />
+  return <IconNeutral size={18} />
 }
 
 const STATUS_LABEL: Record<CardStatus, string> = { good: 'saudável', warn: 'atenção', bad: 'crítico', nd: 'não avaliado' }
@@ -78,6 +77,7 @@ export default function CollapsibleCard({ title, score, status = 'nd', icon = nu
       >
         <span className="flex min-w-0 items-center gap-3">
           <span
+            aria-hidden="true"
             className="flex shrink-0 items-center justify-center rounded-[11px]"
             style={{ width: 38, height: 38, background: iconBg, color: st.color }}
           >
