@@ -362,7 +362,7 @@ export default function AuditMonitorsPage() {
                     monitor com a métrica-chave, em qualquer escopo.
                   </p>
                   {features.k8sDbmCoverage && envItems.some(c => !c.covered) && (
-                    <Link href="/monitor?tab=k8sDbm" style={{ ...s.btn2, display: 'inline-block', textDecoration: 'none', marginTop: 4 }}>
+                    <Link href="/ferramentas/monitor?tab=k8sDbm" style={{ ...s.btn2, display: 'inline-block', textDecoration: 'none', marginTop: 4 }}>
                       Criar monitores de K8s/DBM no MonitorsCreator →
                     </Link>
                   )}

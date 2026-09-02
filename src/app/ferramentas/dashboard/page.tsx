@@ -24,7 +24,7 @@ const sections: { title: string; items: ToolItem[] }[] = [
   {
     title: 'Observabilidade',
     items: [
-      { href: '/monitor', Icon: IconMonitorsCreator, title: 'MonitorsCreator', desc: 'Descubra serviços e crie monitores de anomalia no Datadog.', cta: 'Abrir wizard' },
+      { href: '/ferramentas/monitor', Icon: IconMonitorsCreator, title: 'MonitorsCreator', desc: 'Descubra serviços e crie monitores de anomalia no Datadog.', cta: 'Abrir wizard' },
       { href: '/ferramentas/audit', Icon: IconAnalytics, title: 'AuditMonitors', desc: 'Cobertura de monitoramento (Infra + APM) e sugestão de lacunas.', cta: 'Auditar' },
       { href: '/ferramentas/analise', Icon: IconScope, title: 'ScopeMaturity', desc: 'Score de governança e cobertura do ambiente.', cta: 'Ver score' },
     ],

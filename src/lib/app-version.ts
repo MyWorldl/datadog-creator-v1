@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.51.0',
+    date: '2026-09-02',
+    title: 'Fase 6: navegação e nomenclatura',
+    notes: [
+      'Renomear em Lote virou SwitchName (nome de produto CamelCase, alinhado com MonitorsCreator/AuditMonitors/ScopeMaturity/FinOps Insights) — Sidebar, título da página e nova entrada na lista de recursos em Sobre.',
+      'MonitorsCreator mudou de rota: /monitor -> /ferramentas/monitor (era a única ferramenta fora de /ferramentas/*). /monitor virou um redirect (preserva ?tab=k8sDbm), mesmo padrão da raiz do app.',
+      'Removido o toggle \'Escopo do filtro\' do wizard de descoberta por serviço, que só tinha 1 opção habilitada (Por Serviço) desde que Namespace saiu da UI — virou texto simples; scopeType/SCOPE_CONFIG.namespace continuam intactos no código.',
+    ],
+  },
+  {
     version: '1.50.0',
     date: '2026-09-02',
     title: 'Fase 5: deduplicação de código',

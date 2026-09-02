@@ -46,10 +46,10 @@ const categories: NavCategory[] = [
     label: 'Observabilidade',
     Icon: IconAnalytics,
     items: [
-      { href: '/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
+      { href: '/ferramentas/monitor', label: 'MonitorsCreator', Icon: IconMonitorsCreator },
       { href: '/ferramentas/audit', label: 'AuditMonitors', Icon: IconAnalytics },
       { href: '/ferramentas/analise', label: 'ScopeMaturity', Icon: IconScope },
-      { href: '/ferramentas/bulk-rename', label: 'Renomear em Lote', Icon: IconRename },
+      { href: '/ferramentas/bulk-rename', label: 'SwitchName', Icon: IconRename },
     ],
   },
   {

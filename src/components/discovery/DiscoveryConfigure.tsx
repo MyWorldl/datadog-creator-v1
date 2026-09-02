@@ -79,7 +79,6 @@ const s: Record<string, CSSProperties> = {
   // Sub-navegação (Entidades/Operações/Alertas)
   subNav: { display: 'flex', gap: 18, marginBottom: 2 },
   // Serviços/Namespaces
-  scopeToggle: { display: 'flex', gap: 6, marginBottom: 10 },
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
@@ -95,7 +94,6 @@ const s: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
-const scopeBtnStyle = (on: boolean): CSSProperties => ({ fontSize: 12.5, fontWeight: 600, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)' })
 const opChipStyle = (on: boolean): CSSProperties => ({ fontSize: 11.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace' })
 
 export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
@@ -122,15 +120,10 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   const scopeTypeRef = useRef(scopeType)
   useEffect(() => { scopeTypeRef.current = scopeType }, [scopeType])
 
-  function setScopeType(type: ScopeType) {
-    if (type === scopeType) return
-    // Reseta seleção ao trocar de modo: entradas de um modo não fazem sentido no outro
-    // (scopeType é global no planPreview, não por entrada de `selected`).
-    setDisc({ scopeType: type, selected: {}, services: [] })
-    setSearch('')
-    setError('')
-    setSubStep(0)
-  }
+  // setScopeType (trocava entre 'service'/'namespace' via toggle na UI) foi
+  // removida junto do toggle — o único modo exposto na UI hoje é 'service'.
+  // O código de troca de modo era só wiring de UI: fácil de recriar quando o
+  // toggle Namespace voltar (SCOPE_CONFIG.namespace, abaixo, continua intacto).
 
   // Busca aceita VÁRIOS termos separados por vírgula (OU lógico):
   // "a, b, c" casa entradas que contenham qualquer um dos termos.
@@ -292,10 +285,11 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
             <label style={s.label}>Escopo do filtro</label>
             {/* Namespace removido da UI (agora vive na aba "APM e Infraestrutura",
                 junto de Pod Restarts) — scopeType/SCOPE_CONFIG.namespace continuam
-                no código pra facilitar reativar isso aqui no futuro, se necessário. */}
-            <div style={s.scopeToggle}>
-              <button style={scopeBtnStyle(scopeType !== 'namespace')} onClick={() => setScopeType('service')}>Por Serviço</button>
-            </div>
+                no código pra facilitar reativar isso aqui no futuro, se necessário.
+                Achado da auditoria: com só 1 opção restante, o toggle virava um
+                botão sempre pré-selecionado e não-clicável — texto simples é mais
+                direto pro mesmo resultado. */}
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Por Serviço</p>
             <p style={s.hint}>Um monitor por serviço, escopado por service:.</p>
           </div>
 
