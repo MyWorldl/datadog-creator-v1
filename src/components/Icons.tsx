@@ -56,3 +56,50 @@ export const IconEye = ({ size = 18 }: IconProps) => (
 export const IconEyeOff = ({ size = 18 }: IconProps) => (
   <svg {...base(size)}><path d="M2 12s3.5-7 10-7c1.6 0 3 .34 4.24.9M22 12s-3.5 7-10 7c-1.6 0-3-.34-4.24-.9"/><path d="M6.6 6.6C4.2 8.1 2 12 2 12M17.4 17.4C19.8 15.9 22 12 22 12"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M2 2l20 20"/></svg>
 )
+
+// ── Ícones de status (achado da auditoria: StatusIcon em CollapsibleCard.tsx
+// e o triângulo de aviso em ferramentas/analise/page.tsx eram inline/
+// duplicados — path idêntico em 2 lugares. Fonte única aqui. ──
+export const IconCheck = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M20 6 9 17l-5-5"/></svg>
+)
+export const IconWarning = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M12 3 21 19H3z"/><path d="M12 10v4"/><path d="M12 17h.01"/></svg>
+)
+export const IconError = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+)
+export const IconNeutral = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M5 12h14"/></svg>
+)
+
+// ── Ícones temáticos dos pilares do ScopeMaturity (movidos de
+// ferramentas/analise/page.tsx, mesmo motivo — fonte única). ──
+export const IconLayers = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+)
+export const IconBell = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+)
+export const IconPulse = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+)
+export const IconChecklist = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>
+)
+export const IconShieldCheck = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1Z"/><path d="m9 12 2 2 4-4"/></svg>
+)
+
+// ── Ícones de domínio Infra/K8s/DBM (achado da auditoria: essas seções eram
+// só texto, sem glifo, diferente do resto do catálogo — cobertura de
+// produto/finanças/sistema/serviço já tinha ícone próprio). ──
+export const IconServer = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01"/><path d="M6 17h.01"/></svg>
+)
+export const IconCluster = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+)
+export const IconDatabase = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/></svg>
+)

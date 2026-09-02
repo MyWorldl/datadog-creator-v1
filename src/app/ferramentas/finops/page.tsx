@@ -4,6 +4,13 @@
 import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { EST_METRICS, computeCost, fmtMoney, fmtNum } from '@/lib/finops-pricing'
+import { IconWarning } from '@/components/Icons'
+
+// Achado da auditoria: emoji ⚠️ misturado com SVG/unicode em outros lugares
+// pra transmitir o mesmo "aviso" — trocado por IconWarning (Icons.tsx) nos
+// avisos abaixo. Emoji decorativo (📊 no botão de exportar, se houver) não
+// entra nessa troca, só o que carrega semântica de status/aviso.
+const Warn = () => <span aria-hidden="true" style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 5 }}><IconWarning size={13} /></span>
 
 const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
@@ -183,7 +190,7 @@ export default function FinOpsPage() {
             )}
           </div>
           {error && <div style={s.err}>{error}</div>}
-          {data?.warning && <div style={s.warn}>⚠️ {data.warning}</div>}
+          {data?.warning && <div style={s.warn}><Warn />{data.warning}</div>}
           {data && (
             <>
               <div style={{ overflowX: 'auto' }}>
@@ -205,7 +212,7 @@ export default function FinOpsPage() {
               {data.products.length === 0 && <p style={{ ...s.note, marginTop: 12 }}>Nenhum campo de consumo reconhecido no retorno (org sem uso ou App key sem escopo).</p>}
               {logsIndexedGap && (
                 <div style={{ ...s.warn, borderColor: 'var(--danger)', color: 'var(--danger)', marginTop: 12 }}>
-                  ⚠️ <strong>Logs — Indexados (15d) não entra no total</strong>: seu ambiente ingere logs ({fmtNum(logsIngestValue / 1e9)} GB no período), então quase certamente há custo de indexação/retenção também — normalmente a maior parcela do gasto com logs. Não existe métrica de uso estimado que a Datadog exponha para esse produto em Sub-Org, então ele fica de fora do consumo e do custo estimado abaixo até você conferir o valor real no Datadog (Plan &amp; Usage → Logs).
+                  <Warn /><strong>Logs — Indexados (15d) não entra no total</strong>: seu ambiente ingere logs ({fmtNum(logsIngestValue / 1e9)} GB no período), então quase certamente há custo de indexação/retenção também — normalmente a maior parcela do gasto com logs. Não existe métrica de uso estimado que a Datadog exponha para esse produto em Sub-Org, então ele fica de fora do consumo e do custo estimado abaixo até você conferir o valor real no Datadog (Plan &amp; Usage → Logs).
                 </div>
               )}
               {missingExceptLogsIndexed.length > 0 && <p style={{ ...s.note, marginTop: 10 }}>Sem dados para: {missingExceptLogsIndexed.join(', ')} (produto não usado ou campo ausente no seu plano).</p>}
@@ -245,7 +252,7 @@ export default function FinOpsPage() {
       {tab === 'alarme' && (
         <div style={s.card}>
           <div style={{ ...s.warn, marginBottom: 14 }}>
-            ⚠️ <strong>Isto não é um alarme de gasto em dólares</strong> — não usa os preços da aba Custo nem tem
+            <Warn /><strong>Isto não é um alarme de gasto em dólares</strong> — não usa os preços da aba Custo nem tem
             threshold em US$. Cria um monitor de <strong>anomaly detection</strong> sobre o <strong>volume bruto</strong> de
             uso (hosts, GB, eventos…) da métrica de licenciamento escolhida, com direção <strong>ambos</strong> —
             alarma quando esse volume sai do padrão histórico, seja aumento ou queda. Útil para pegar um pico de
@@ -295,11 +302,11 @@ export default function FinOpsPage() {
       {tab === 'custo' && (
         <div style={s.card}>
           <div style={s.warn}>
-            ⚠️ Estimativa por <strong>preço de lista</strong> (anual), <strong>linear</strong> (mesmo $/unidade em qualquer volume). O preço real contratado varia com committed use, descontos e blocos degressivos por volume (mais visível em Custom Metrics) — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
+            <Warn />Estimativa por <strong>preço de lista</strong> (anual), <strong>linear</strong> (mesmo $/unidade em qualquer volume). O preço real contratado varia com committed use, descontos e blocos degressivos por volume (mais visível em Custom Metrics) — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
           </div>
           {logsIndexedGap && (
             <div style={{ ...s.warn, borderColor: 'var(--danger)', color: 'var(--danger)' }}>
-              ⚠️ <strong>Total incompleto</strong>: não inclui Logs — Indexados (15d) — sem dado disponível nesta org, mas há ingestão de log real ({fmtNum(logsIngestValue / 1e9)} GB), então o custo real de logs é maior que o mostrado abaixo.
+              <Warn /><strong>Total incompleto</strong>: não inclui Logs — Indexados (15d) — sem dado disponível nesta org, mas há ingestão de log real ({fmtNum(logsIngestValue / 1e9)} GB), então o custo real de logs é maior que o mostrado abaixo.
             </div>
           )}
           {!data ? (

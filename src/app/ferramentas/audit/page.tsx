@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
 import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
+import { IconCluster } from '@/components/Icons'
 import {
   coveragePercent, percentBand, type PercentBand, type CoverageItem,
   type HostCoverageRow, type ServiceCoverageRow, type SuggestedInfraResult, type SuggestedApmResult,
@@ -343,7 +344,8 @@ export default function AuditMonitorsPage() {
 
               {envItems.length > 0 && (
                 <>
-                  <p style={s.groupTitle}>
+                  <p style={{ ...s.groupTitle, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <IconCluster size={14} />
                     Kubernetes &amp; Database Monitoring ({envItems.filter(c => c.covered).length}/{envItems.length})
                     {features.k8sDbmCoverage && <span style={previewBadgeStyle}>Preview</span>}
                   </p>

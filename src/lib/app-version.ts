@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.49.0',
+    date: '2026-09-02',
+    title: 'Fase 4 do Raio-X: ícones unificados e novos',
+    notes: [
+      'StatusIcon (CollapsibleCard) e os 5 ícones de pilar do ScopeMaturity + o triângulo de aviso duplicado (mesmo path do \'warn\' do CollapsibleCard) viviam inline, em 2 arquivos separados — movidos pra Icons.tsx como fonte única (IconCheck/IconWarning/IconError/IconNeutral, IconLayers/IconBell/IconPulse/IconChecklist/IconShieldCheck).',
+      'Emoji ⚠️ usado como indicador de aviso no FinOps (5 ocorrências) trocado pelo IconWarning novo — consistente com o resto do app, que já usa SVG de linha pra status. Emoji decorativo (botões de tema, exportar Excel) não muda.',
+      '3 ícones novos de domínio — IconServer, IconCluster, IconDatabase — usados nas abas do wizard MonitorsCreator (APM/Infraestrutura/K8s-DBM) e no cabeçalho "Kubernetes & Database Monitoring" do AuditMonitors, que antes eram só texto.',
+      'Quarta de 6 fases do plano de ação do relatório "Raio-X da Aplicação".',
+    ],
+  },
+  {
     version: '1.48.0',
     date: '2026-09-02',
     title: 'Fase 3 do Raio-X: \'atualizar dados\' não apaga mais a tela em Audit/ScopeMaturity/FinOps',

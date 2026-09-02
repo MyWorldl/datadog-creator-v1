@@ -15,6 +15,7 @@ import { useApp } from '@/context/AppContext'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import type { ResourceType, WizardConfig } from '@/components/discovery/types'
+import { IconAnalytics, IconServer, IconCluster } from '@/components/Icons'
 
 // Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
 // primeiro, por isso fica com import estático — os demais só entram no bundle
@@ -121,25 +122,27 @@ export default function Home() {
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {([
-                { key: 'services', label: 'APM' },
-                { key: 'infra', label: 'Infraestrutura (Hosts)' },
+                { key: 'services', label: 'APM', Icon: IconAnalytics },
+                { key: 'infra', label: 'Infraestrutura (Hosts)', Icon: IconServer },
                 // Aba dedicada a Kubernetes/DBM — só aparece com a flag ligada
                 // (mesmo padrão de "esconder por completo quando off" da
                 // seção K8s/DBM em ferramentas/audit/page.tsx).
-                ...(features.k8sDbmCoverage ? [{ key: 'k8sDbm', label: 'APM e Infraestrutura (K8s/DBM)' }] : []),
-              ] as { key: ResourceType; label: string }[]).map(opt => {
+                ...(features.k8sDbmCoverage ? [{ key: 'k8sDbm', label: 'APM e Infraestrutura (K8s/DBM)', Icon: IconCluster }] : []),
+              ] as { key: ResourceType; label: string; Icon: typeof IconServer }[]).map(opt => {
                 const on = config.resourceType === opt.key
                 return (
                   <button
                     key={opt.key}
                     onClick={() => setConfig(c => ({ ...c, resourceType: opt.key }))}
                     style={{
-                      flex: 1, fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 8, cursor: 'pointer',
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 8, cursor: 'pointer',
                       border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
                       background: on ? 'var(--accent-light)' : 'var(--bg-surface)',
                       color: on ? 'var(--accent)' : 'var(--text-secondary)',
                     }}
                   >
+                    <opt.Icon size={15} />
                     {opt.label}
                   </button>
                 )
