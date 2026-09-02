@@ -27,6 +27,17 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.50.0',
+    date: '2026-09-02',
+    title: 'Fase 5: deduplicação de código',
+    notes: [
+      'Anel de score (ScoreRing) e scoreColor() extraídos pra src/components/ScoreRing.tsx e src/lib/score.ts, migrando audit/dashboard/analise — audit mantém sua própria cor por banda (percentBand), de propósito diferente da escala de maturidade.',
+      'Helpers de estilo do wizard de descoberta (accStyle, chevStyle, winShort, subNavItemStyle, subNavDotStyle) unificados em src/components/discovery/styles.ts, eliminando 3 cópias idênticas entre DiscoveryConfigure/DiscoveryConfigureInfra/DiscoveryConfigureK8sDbm.',
+      'Removidos os exports mortos logWarn (src/lib/logger.ts) e supabaseServer() (src/lib/supabase-server.ts), sem nenhum uso no código.',
+      'Borda de card padronizada para 0.5px em audit, redefinir-senha e LoginPage, alinhando com o restante do app.',
+    ],
+  },
+  {
     version: '1.49.0',
     date: '2026-09-02',
     title: 'Fase 4 do Raio-X: ícones unificados e novos',

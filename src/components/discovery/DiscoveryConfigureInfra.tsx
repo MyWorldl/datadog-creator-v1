@@ -6,6 +6,7 @@ import { INFRA_TYPES, type InfraMetricConfig, type InfraCheckConfig, type Outlie
 import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 import { useApp } from '@/context/AppContext'
 import type { DiscoveryStepProps } from './types'
+import { type SubStepState, subNavItemStyle, subNavDotStyle, accStyle, chevStyle } from './styles'
 
 const OUTLIER_ALGORITHMS: OutlierAlgorithm[] = ['DBSCAN', 'MAD', 'scaledDBSCAN', 'scaledMAD']
 
@@ -17,8 +18,6 @@ const SUB_STEPS = [
   { key: 'hosts', label: 'Hosts' },
   { key: 'metrics', label: 'Métricas' },
 ]
-
-type SubStepState = 'done' | 'active' | 'pending'
 
 const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
@@ -45,18 +44,7 @@ const s: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
-const subNavItemStyle = (state: SubStepState): CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
-  fontWeight: state === 'active' ? 700 : 500,
-  color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
-})
-const subNavDotStyle = (state: SubStepState): CSSProperties => ({
-  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-  background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
-})
 const statusTagStyle = (up: boolean): CSSProperties => ({ fontSize: 10, fontWeight: 700, color: up ? 'var(--success)' : 'var(--danger)', background: up ? 'var(--success-bg)' : 'var(--danger-bg)', borderRadius: 5, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.03em' })
-const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
-const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
 // Selo de "recurso em desenvolvimento" pro modo outlier (atrás da feature
 // flag) — não dá pra estilizar um <option> nativo, então o aviso visual
 // vive aqui, no cabeçalho do acordeon, junto do nome da métrica.

@@ -21,6 +21,7 @@ import { useState, type CSSProperties } from 'react'
 import { INFRA_TYPES, type InfraMetricConfig, type InfraMetricType } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS, POD_RESTARTS_TYPE, POD_PENDING_TYPE } from '@/lib/discovery'
 import type { DiscoveryStepProps } from './types'
+import { accStyle, chevStyle, winShort } from './styles'
 
 const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 20 },
@@ -47,10 +48,6 @@ const s: Record<string, CSSProperties> = {
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
-
-const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
-const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
-const winShort = (w: string): string => (w || '').replace('last_', '')
 
 const K8S_INFRA_TYPES = INFRA_TYPES.filter(t => t.flag === 'k8sDbmCoverage') as InfraMetricType[]
 

@@ -4,27 +4,9 @@ import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useApp } from '@/context/AppContext'
 import CollapsibleCard, { type CardStatus } from '@/components/CollapsibleCard'
 import Sparkline from '@/components/Sparkline'
+import ScoreRing from '@/components/ScoreRing'
+import { scoreColor } from '@/lib/score'
 import { IconLayers, IconBell, IconPulse, IconChecklist, IconShieldCheck, IconWarning } from '@/components/Icons'
-
-interface ScoreRingProps {
-  value: number
-  color: string
-  size?: number
-  stroke?: number
-}
-
-function ScoreRing({ value, color, size = 120, stroke = 10 }: ScoreRingProps) {
-  const r = (size / 2) - stroke
-  const circ = 2 * Math.PI * r
-  const dash = (value / 100) * circ
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
-        strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-    </svg>
-  )
-}
 
 interface DimensionView {
   key: string
@@ -59,7 +41,6 @@ interface ScopeMaturityData {
   delta: number | null
 }
 
-const scoreColor = (v: number | null | undefined): string => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
 // status da dimensão para o card (Modelo E): good | warn | bad | nd
 const smStatus = (dim: { measured: boolean; score: number | null }): CardStatus => !dim.measured || dim.score == null ? 'nd' : dim.score >= 80 ? 'good' : dim.score >= 50 ? 'warn' : 'bad'
 // cor + tint por status, para o badge numérico do KPI
