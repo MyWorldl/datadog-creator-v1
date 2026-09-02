@@ -168,7 +168,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         <p style={s.sectionSub}>Selecione os hosts e habilite as métricas que fazem sentido para cada um.</p>
 
         <div style={s.toolbar}>
-          <input style={s.search} placeholder="Filtrar hosts (vírgula = vários termos)" value={hostSearch} onChange={e => setHostSearch(e.target.value)} />
+          <input aria-label="Filtrar hosts" className="focus-ring" style={s.search} placeholder="Filtrar hosts (vírgula = vários termos)" value={hostSearch} onChange={e => setHostSearch(e.target.value)} />
           <button style={s.btnGhost} onClick={discoverHosts} disabled={loadingHosts}>{loadingHosts ? 'Descobrindo…' : 'Descobrir hosts'}</button>
         </div>
 
@@ -209,20 +209,20 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
                   <div style={s.accBody}>
                     {t.requiresEngine && (
                       <div>
-                        <label style={s.miniLabel}>Engine do banco</label>
-                        <select style={s.select} value={cfg.dbEngine || 'postgres'} disabled={!on} onChange={e => setMetricParam(t.key, 'dbEngine', e.target.value)}>
+                        <label style={s.miniLabel} htmlFor={`${t.key}-engine`}>Engine do banco</label>
+                        <select id={`${t.key}-engine`} className="focus-ring" style={s.select} value={cfg.dbEngine || 'postgres'} disabled={!on} onChange={e => setMetricParam(t.key, 'dbEngine', e.target.value)}>
                           <option value="postgres">Postgres</option>
                           <option value="mysql">MySQL</option>
                         </select>
                       </div>
                     )}
                     <div>
-                      <label style={s.miniLabel}>Critical ({t.unit})</label>
-                      <input style={s.select} type="number" value={cfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
+                      <label style={s.miniLabel} htmlFor={`${t.key}-thr-critical`}>Critical ({t.unit})</label>
+                      <input id={`${t.key}-thr-critical`} className="focus-ring" style={s.select} type="number" value={cfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
                     </div>
                     <div>
-                      <label style={s.miniLabel}>Warning ({t.unit})</label>
-                      <input style={s.select} type="number" value={cfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
+                      <label style={s.miniLabel} htmlFor={`${t.key}-thr-warning`}>Warning ({t.unit})</label>
+                      <input id={`${t.key}-thr-warning`} className="focus-ring" style={s.select} type="number" value={cfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
                     </div>
                   </div>
                 )}
@@ -240,7 +240,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         <p style={s.sectionSub}>{POD_RESTARTS_TYPE.hint}</p>
 
         <div style={s.toolbar}>
-          <input style={s.search} placeholder="Filtrar namespaces (vírgula = vários termos)" value={nsSearch} onChange={e => setNsSearch(e.target.value)} />
+          <input aria-label="Filtrar namespaces" className="focus-ring" style={s.search} placeholder="Filtrar namespaces (vírgula = vários termos)" value={nsSearch} onChange={e => setNsSearch(e.target.value)} />
           <button style={s.btnGhost} onClick={discoverNamespaces} disabled={loadingNs}>{loadingNs ? 'Descobrindo…' : 'Descobrir namespaces'}</button>
         </div>
 
@@ -262,7 +262,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         )}
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <input style={s.search} value={manualNs} onChange={e => setManualNs(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualNs() } }} placeholder="Adicionar namespace manualmente… ex.: payments" />
+          <input aria-label="Adicionar namespace manualmente" className="focus-ring" style={s.search} value={manualNs} onChange={e => setManualNs(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManualNs() } }} placeholder="Adicionar namespace manualmente… ex.: payments" />
           <button style={s.smallBtn} onClick={addManualNs}>+ Adicionar</button>
         </div>
 
@@ -278,12 +278,12 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
           </div>
           <div style={s.accBody}>
             <div>
-              <label style={s.miniLabel}>Limite (restarts na janela)</label>
-              <input style={s.select} type="number" min="1" max="1000" value={disc.podRestarts.threshold} disabled={!disc.podRestarts.enabled} onChange={e => setPodRestartsParam('threshold', Number(e.target.value))} />
+              <label style={s.miniLabel} htmlFor="pod-restarts-threshold">Limite (restarts na janela)</label>
+              <input id="pod-restarts-threshold" className="focus-ring" style={s.select} type="number" min="1" max="1000" value={disc.podRestarts.threshold} disabled={!disc.podRestarts.enabled} onChange={e => setPodRestartsParam('threshold', Number(e.target.value))} />
             </div>
             <div>
-              <label style={s.miniLabel}>Janela (change window)</label>
-              <select style={s.select} value={disc.podRestarts.changeWindow} disabled={!disc.podRestarts.enabled} onChange={e => setPodRestartsParam('changeWindow', e.target.value)}>
+              <label style={s.miniLabel} htmlFor="pod-restarts-window">Janela (change window)</label>
+              <select id="pod-restarts-window" className="focus-ring" style={s.select} value={disc.podRestarts.changeWindow} disabled={!disc.podRestarts.enabled} onChange={e => setPodRestartsParam('changeWindow', e.target.value)}>
                 {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>
@@ -309,12 +309,12 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
           </div>
           <div style={s.accBody}>
             <div>
-              <label style={s.miniLabel}>Limite (pods pendentes)</label>
-              <input style={s.select} type="number" min="0" max="1000" value={disc.podPending.threshold} disabled={!disc.podPending.enabled} onChange={e => setPodPendingParam('threshold', Number(e.target.value))} />
+              <label style={s.miniLabel} htmlFor="pod-pending-threshold">Limite (pods pendentes)</label>
+              <input id="pod-pending-threshold" className="focus-ring" style={s.select} type="number" min="0" max="1000" value={disc.podPending.threshold} disabled={!disc.podPending.enabled} onChange={e => setPodPendingParam('threshold', Number(e.target.value))} />
             </div>
             <div>
-              <label style={s.miniLabel}>Janela</label>
-              <select style={s.select} value={disc.podPending.window} disabled={!disc.podPending.enabled} onChange={e => setPodPendingParam('window', e.target.value)}>
+              <label style={s.miniLabel} htmlFor="pod-pending-window">Janela</label>
+              <select id="pod-pending-window" className="focus-ring" style={s.select} value={disc.podPending.window} disabled={!disc.podPending.enabled} onChange={e => setPodPendingParam('window', e.target.value)}>
                 {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </div>

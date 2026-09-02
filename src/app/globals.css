@@ -14,7 +14,11 @@
   --sidebar-accent: #632CA6;
   --text-primary: #111111;
   --text-secondary: #555555;
-  --text-muted: #999999;
+  /* #707070 (não #999999) — achado da auditoria: #999999 sobre --bg-surface
+     (#FFFFFF) dá ~2.85:1, abaixo do mínimo AA de 4.5:1 pra texto normal
+     (usado em conteúdo com significado real: subtítulos, dicas, contadores,
+     não só decoração). #707070 dá ~4.95:1, mesma família de tom. */
+  --text-muted: #707070;
   --border: #E2E0DA;
   --accent: #534AB7;
   --accent-hover: #6A60D8;
@@ -41,7 +45,10 @@
   --sidebar-accent: #7B35CC;
   --text-primary: #E8E8F0;
   --text-secondary: #AAAABB;
-  --text-muted: #666680;
+  /* #8888A0 (não #666680) — mesmo achado do tema claro: #666680 sobre
+     --bg-surface (#1A1A2E) dá ~3.07:1, abaixo do mínimo AA de 4.5:1.
+     #8888A0 dá ~4.93:1, mesma família de tom (leve viés violeta). */
+  --text-muted: #8888A0;
   --border: #2A2A45;
   --accent: #9B59D6;
   --accent-hover: #B070E8;
@@ -71,6 +78,15 @@ body {
   color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   transition: background 0.2s, color 0.2s;
+}
+
+/* ── Foco de teclado (achado da auditoria) ──
+   Inputs/selects do app usam outline:'none' inline (CSSProperties não suporta
+   pseudo-classe), removendo o indicador padrão do navegador sem repor nada —
+   viola WCAG 2.4.7 (foco visível). Classe utilitária pra recolocar um
+   indicador, aplicada via className nos campos que já têm outline:'none'. */
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-light), 0 0 0 3px var(--accent);
 }
 
 /* ── Scrollbar ── */

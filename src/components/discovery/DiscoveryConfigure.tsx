@@ -315,7 +315,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
           <div>
             <label style={s.label}>{cfg.listLabel}</label>
             <div style={s.toolbar}>
-              <input style={s.search} value={search} onChange={e => setSearch(e.target.value)} placeholder={cfg.searchPlaceholder} />
+              <input aria-label={cfg.searchPlaceholder} className="focus-ring" style={s.search} value={search} onChange={e => setSearch(e.target.value)} placeholder={cfg.searchPlaceholder} />
               <button style={s.btnGhost} onClick={discover} disabled={loading}>
                 {loading ? 'Descobrindo…' : cfg.discoverLabel}
               </button>
@@ -352,6 +352,8 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
             {cfg.allowManualEntry && (
               <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                 <input
+                  aria-label={cfg.manualPlaceholder}
+                  className="focus-ring"
                   style={s.search}
                   value={manualInput}
                   onChange={e => setManualInput(e.target.value)}
@@ -438,32 +440,32 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                   {open && (
                     <div style={s.accBody}>
                       <div>
-                        <label style={s.miniLabel}>Algoritmo</label>
-                        <select style={s.select} value={cfgAlert.algorithm} disabled={!on} onChange={e => setAlertParam(a.key, 'algorithm', e.target.value)}>
+                        <label style={s.miniLabel} htmlFor={`${a.key}-algo`}>Algoritmo</label>
+                        <select id={`${a.key}-algo`} className="focus-ring" style={s.select} value={cfgAlert.algorithm} disabled={!on} onChange={e => setAlertParam(a.key, 'algorithm', e.target.value)}>
                           <option value="basic">basic</option><option value="agile">agile</option><option value="robust">robust</option>
                         </select>
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Sazonalidade</label>
-                        <select style={s.select} value={cfgAlert.seasonality} disabled={!on || cfgAlert.algorithm === 'basic'} onChange={e => setAlertParam(a.key, 'seasonality', e.target.value)}>
+                        <label style={s.miniLabel} htmlFor={`${a.key}-seasonality`}>Sazonalidade</label>
+                        <select id={`${a.key}-seasonality`} className="focus-ring" style={s.select} value={cfgAlert.seasonality} disabled={!on || cfgAlert.algorithm === 'basic'} onChange={e => setAlertParam(a.key, 'seasonality', e.target.value)}>
                           <option value="hourly">hourly</option><option value="daily">daily</option><option value="weekly">weekly</option>
                         </select>
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Alert window</label>
-                        <select style={s.select} value={cfgAlert.alertWindow} disabled={!on} onChange={e => setAlertParam(a.key, 'alertWindow', e.target.value)}>
+                        <label style={s.miniLabel} htmlFor={`${a.key}-window`}>Alert window</label>
+                        <select id={`${a.key}-window`} className="focus-ring" style={s.select} value={cfgAlert.alertWindow} disabled={!on} onChange={e => setAlertParam(a.key, 'alertWindow', e.target.value)}>
                           {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Direção</label>
-                        <select style={s.select} value={cfgAlert.direction || 'above'} disabled={!on} onChange={e => setAlertParam(a.key, 'direction', e.target.value)}>
+                        <label style={s.miniLabel} htmlFor={`${a.key}-direction`}>Direção</label>
+                        <select id={`${a.key}-direction`} className="focus-ring" style={s.select} value={cfgAlert.direction || 'above'} disabled={!on} onChange={e => setAlertParam(a.key, 'direction', e.target.value)}>
                           <option value="above">acima</option><option value="below">abaixo</option><option value="both">ambos</option>
                         </select>
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Anomalies</label>
-                        <input style={s.select} type="number" min="1" max="10" value={cfgAlert.deviations} disabled={!on} onChange={e => setAlertParam(a.key, 'deviations', e.target.value)} />
+                        <label style={s.miniLabel} htmlFor={`${a.key}-deviations`}>Anomalies</label>
+                        <input id={`${a.key}-deviations`} className="focus-ring" style={s.select} type="number" min="1" max="10" value={cfgAlert.deviations} disabled={!on} onChange={e => setAlertParam(a.key, 'deviations', e.target.value)} />
                       </div>
                     </div>
                   )}

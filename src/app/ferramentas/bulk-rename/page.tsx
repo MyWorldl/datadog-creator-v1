@@ -156,6 +156,8 @@ export default function BulkRenamePage() {
             <div style={s.card}>
               <div style={s.toolbar}>
                 <input
+                  aria-label="Filtrar monitores por trecho do nome"
+                  className="focus-ring"
                   style={{ ...s.input, flex: 1, minWidth: 200 }}
                   value={filterText}
                   onChange={e => setFilterText(e.target.value)}
@@ -205,12 +207,12 @@ export default function BulkRenamePage() {
             <div style={s.card}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={s.label}>Buscar no nome</label>
-                  <input style={s.input} value={renameSearch} onChange={e => setRenameSearch(e.target.value)} placeholder="ex.: [MonitorsCreator]" />
+                  <label style={s.label} htmlFor="bulk-rename-search">Buscar no nome</label>
+                  <input id="bulk-rename-search" className="focus-ring" style={s.input} value={renameSearch} onChange={e => setRenameSearch(e.target.value)} placeholder="ex.: [MonitorsCreator]" />
                 </div>
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={s.label}>Substituir por</label>
-                  <input style={s.input} value={renameReplace} onChange={e => setRenameReplace(e.target.value)} placeholder="ex.: [Monitors]" />
+                  <label style={s.label} htmlFor="bulk-rename-replace">Substituir por</label>
+                  <input id="bulk-rename-replace" className="focus-ring" style={s.input} value={renameReplace} onChange={e => setRenameReplace(e.target.value)} placeholder="ex.: [Monitors]" />
                 </div>
                 <button style={s.btn} onClick={apply} disabled={applying || candidates.length === 0}>
                   {applying ? 'Renomeando…' : `Renomear ${candidates.length} monitor(es)`}

@@ -1,7 +1,7 @@
 // src/components/discovery/DiscoveryPersonalize.tsx
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useId, useState, type CSSProperties } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY, POD_RESTARTS_TYPE, POD_PENDING_TYPE, type DiscoveryState } from '@/lib/discovery'
 import { INFRA_TYPES, INFRA_BY_KEY, type InfraDiscoveryState } from '@/lib/infra'
 import { sourcesFor, type DiscoveryStepProps, type PersonalizeSource } from './types'
@@ -97,6 +97,10 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
   const d = config[src.stateKey] as unknown as PersonalizeCommon
   const setDisc = (patch: Partial<PersonalizeCommon>) => setConfig(c => ({ ...c, [src.stateKey]: { ...(c[src.stateKey] as object), ...patch } } as typeof c))
   const [tagInput, setTagInput] = useState('')
+  // useId() (não id fixo): este componente renderiza mais de uma vez na mesma
+  // página quando resourceType tem múltiplas fontes (ex.: k8sInfra +
+  // k8sDiscovery em K8s/DBM) — um id fixo colidiria entre as seções.
+  const uid = useId()
 
   const { TYPES, BY_KEY, groupByOptions, entityLabel, entityTag, showGroupBy } = catalogFor(src)
   const enabledKeySet = enabledKeySetFor(src, config[src.stateKey] as InfraDiscoveryState | DiscoveryState)
@@ -136,8 +140,8 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
 
       {/* Nome do monitor */}
       <div>
-        <label style={s.label}>Nome do monitor (prefixo)</label>
-        <input style={s.input} value={d.namePrefix} onChange={e => setDisc({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
+        <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
+        <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setDisc({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
         <p style={s.hint}>
           Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;{entityLabel}&gt; · &lt;tipo&gt;</strong> (Pod Pending é global, sem entidade no nome).
         </p>
@@ -145,9 +149,11 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
 
       {/* Tags */}
       <div>
-        <label style={s.label}>Tags (aplicadas a todos os monitores desta seção)</label>
+        <label style={s.label} htmlFor={`${uid}-tag`}>Tags (aplicadas a todos os monitores desta seção)</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input
+            id={`${uid}-tag`}
+            className="focus-ring"
             style={s.input}
             value={tagInput}
             onChange={e => setTagInput(e.target.value)}
@@ -168,8 +174,10 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
 
       {/* Notificação */}
       <div>
-        <label style={s.label}>Notificação padrão (opcional)</label>
+        <label style={s.label} htmlFor={`${uid}-notify`}>Notificação padrão (opcional)</label>
         <input
+          id={`${uid}-notify`}
+          className="focus-ring"
           style={s.input}
           value={d.notifyTarget || ''}
           onChange={e => setDisc({ notifyTarget: e.target.value })}
@@ -191,8 +199,10 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
               Notificar quando parar de reportar dado
             </label>
             <div>
-              <label style={s.hint}>Reforçar notificação a cada (min, 0 = nunca)</label>
+              <label style={s.hint} htmlFor={`${uid}-renotify`}>Reforçar notificação a cada (min, 0 = nunca)</label>
               <input
+                id={`${uid}-renotify`}
+                className="focus-ring"
                 style={{ ...s.input, width: 100 }}
                 type="number" min="0" step="5"
                 value={d.renotifyInterval ?? 0}
@@ -230,10 +240,12 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
                 <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <select
+                    className="focus-ring"
                     style={s.prioritySelect}
                     value={enabledKeySet[t.key]?.priority ?? ''}
                     onChange={e => setPriority(t.key, e.target.value)}
                     title="Prioridade do monitor no Datadog"
+                    aria-label={`Prioridade do monitor de ${t.label}`}
                   >
                     <option value="">Sem prioridade</option>
                     <option value="1">P1</option>
@@ -245,7 +257,13 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
                   <button style={s.reset} onClick={() => resetMessage(t.key)}>restaurar padrão</button>
                 </div>
               </div>
-              <textarea style={s.textarea} value={d.messages[t.key] ?? ''} onChange={e => setMessage(t.key, e.target.value)} />
+              <textarea
+                className="focus-ring"
+                style={s.textarea}
+                value={d.messages[t.key] ?? ''}
+                onChange={e => setMessage(t.key, e.target.value)}
+                aria-label={`Mensagem do monitor de ${t.label}`}
+              />
             </div>
           ))}
           {enabled.length === 0 && <p style={s.hint}>Nenhum tipo habilitado nesta seção.</p>}

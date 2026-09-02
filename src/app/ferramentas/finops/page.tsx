@@ -24,7 +24,7 @@ const s: Record<string, CSSProperties> = {
   label: { display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   select: { width: '100%', fontSize: 13, padding: '9px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' },
   totalRow: { fontWeight: 800, fontSize: 15 },
-  okBox: { fontSize: 12.5, color: 'var(--success)', background: '#e6f4ef', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12, lineHeight: 1.5 },
+  okBox: { fontSize: 12.5, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12, lineHeight: 1.5 },
 }
 
 const tabStyle = (on: boolean): CSSProperties => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' })
@@ -249,19 +249,19 @@ export default function FinOpsPage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label style={s.label}>Métrica de licenciamento (uso estimado)</label>
-              <input list="est-metrics" style={s.select} value={metric} onChange={e => setMetric(e.target.value)} placeholder="datadog.estimated_usage.hosts" />
+              <label style={s.label} htmlFor="finops-metric">Métrica de licenciamento (uso estimado)</label>
+              <input id="finops-metric" list="est-metrics" style={s.select} value={metric} onChange={e => setMetric(e.target.value)} placeholder="datadog.estimated_usage.hosts" />
               <datalist id="est-metrics">
                 {EST_METRICS.map(m => <option key={m.metric} value={m.metric}>{m.label}</option>)}
               </datalist>
             </div>
             <div>
-              <label style={s.label}>Desvios (bounds)</label>
-              <input type="number" min="1" max="10" style={s.select} value={dev} onChange={e => setDev(Number(e.target.value))} />
+              <label style={s.label} htmlFor="finops-dev">Desvios (bounds)</label>
+              <input id="finops-dev" type="number" min="1" max="10" style={s.select} value={dev} onChange={e => setDev(Number(e.target.value))} />
             </div>
             <div>
-              <label style={s.label}>Alert window</label>
-              <select style={s.select} value={win} onChange={e => setWin(e.target.value)}>
+              <label style={s.label} htmlFor="finops-window">Alert window</label>
+              <select id="finops-window" style={s.select} value={win} onChange={e => setWin(e.target.value)}>
                 <option value="last_15m">last_15m</option>
                 <option value="last_30m">last_30m</option>
                 <option value="last_1h">last_1h</option>

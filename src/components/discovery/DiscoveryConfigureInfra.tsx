@@ -190,6 +190,8 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
           <label style={s.label}>Hosts</label>
           <div style={s.toolbar}>
             <input
+              aria-label="Filtrar hosts"
+              className="focus-ring"
               style={s.search}
               placeholder="Filtrar hosts (aceita vários termos separados por vírgula)"
               value={hostSearch}
@@ -275,24 +277,24 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                   {open && isCheck && (
                     <div style={s.accBody}>
                       <div>
-                        <label style={s.miniLabel}>Janela (últimos N reportes)</label>
-                        <input style={s.select} type="number" min="1" max="20" value={checkCfg.window} disabled={!on} onChange={e => setMetricParam(t.key, 'window', Number(e.target.value))} />
+                        <label style={s.miniLabel} htmlFor={`${t.key}-window`}>Janela (últimos N reportes)</label>
+                        <input id={`${t.key}-window`} className="focus-ring" style={s.select} type="number" min="1" max="20" value={checkCfg.window} disabled={!on} onChange={e => setMetricParam(t.key, 'window', Number(e.target.value))} />
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Critical (nº &quot;down&quot;)</label>
-                        <input style={s.select} type="number" min="1" max="20" value={checkCfg.counts.critical} disabled={!on} onChange={e => setMetricCount(t.key, 'critical', e.target.value)} />
+                        <label style={s.miniLabel} htmlFor={`${t.key}-count-critical`}>Critical (nº &quot;down&quot;)</label>
+                        <input id={`${t.key}-count-critical`} className="focus-ring" style={s.select} type="number" min="1" max="20" value={checkCfg.counts.critical} disabled={!on} onChange={e => setMetricCount(t.key, 'critical', e.target.value)} />
                       </div>
                       <div>
-                        <label style={s.miniLabel}>Warning (nº &quot;down&quot;)</label>
-                        <input style={s.select} type="number" min="0" max="20" value={checkCfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
+                        <label style={s.miniLabel} htmlFor={`${t.key}-count-warning`}>Warning (nº &quot;down&quot;)</label>
+                        <input id={`${t.key}-count-warning`} className="focus-ring" style={s.select} type="number" min="0" max="20" value={checkCfg.counts.warning} disabled={!on} onChange={e => setMetricCount(t.key, 'warning', e.target.value)} />
                       </div>
                     </div>
                   )}
                   {open && !isCheck && (
                     <div style={s.accBody}>
                       <div>
-                        <label style={s.miniLabel}>Modo</label>
-                        <select style={s.select} value={metricCfg.mode} disabled={!on} onChange={e => setMetricMode(t.key, e.target.value as 'threshold' | 'anomaly' | 'outlier')}>
+                        <label style={s.miniLabel} htmlFor={`${t.key}-mode`}>Modo</label>
+                        <select id={`${t.key}-mode`} className="focus-ring" style={s.select} value={metricCfg.mode} disabled={!on} onChange={e => setMetricMode(t.key, e.target.value as 'threshold' | 'anomaly' | 'outlier')}>
                           <option value="threshold">threshold</option>
                           <option value="anomaly">anomaly</option>
                           {features.outlierDetection && <option value="outlier">outlier</option>}
@@ -302,43 +304,43 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                       {isThreshold ? (
                         <>
                           <div>
-                            <label style={s.miniLabel}>Critical ({t.unit})</label>
-                            <input style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-thr-critical`}>Critical ({t.unit})</label>
+                            <input id={`${t.key}-thr-critical`} className="focus-ring" style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.critical} disabled={!on} onChange={e => setMetricThreshold(t.key, 'critical', e.target.value)} />
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Warning ({t.unit})</label>
-                            <input style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-thr-warning`}>Warning ({t.unit})</label>
+                            <input id={`${t.key}-thr-warning`} className="focus-ring" style={s.select} type="number" min="1" max="100" value={metricCfg.thresholds.warning} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warning', e.target.value)} />
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Recovery critical ({t.unit}, opcional)</label>
-                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.criticalRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'criticalRecovery', e.target.value)} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-thr-crit-recovery`}>Recovery critical ({t.unit}, opcional)</label>
+                            <input id={`${t.key}-thr-crit-recovery`} className="focus-ring" style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.criticalRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'criticalRecovery', e.target.value)} />
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Recovery warning ({t.unit}, opcional)</label>
-                            <input style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-thr-warn-recovery`}>Recovery warning ({t.unit}, opcional)</label>
+                            <input id={`${t.key}-thr-warn-recovery`} className="focus-ring" style={s.select} type="number" min="0" max="100" placeholder="sem recovery" value={metricCfg.thresholds.warningRecovery ?? ''} disabled={!on} onChange={e => setMetricThreshold(t.key, 'warningRecovery', e.target.value)} />
                           </div>
                         </>
                       ) : isOutlier ? (
                         <>
                           <div>
-                            <label style={s.miniLabel}>Algoritmo</label>
-                            <select style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
+                            <label style={s.miniLabel} htmlFor={`${t.key}-outlier-algo`}>Algoritmo</label>
+                            <select id={`${t.key}-outlier-algo`} className="focus-ring" style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
                               {OUTLIER_ALGORITHMS.map(a => <option key={a} value={a}>{a}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Tolerância</label>
-                            <input style={s.select} type="number" min="0.1" step="0.1" value={metricCfg.tolerance ?? 3} disabled={!on} onChange={e => setMetricParam(t.key, 'tolerance', Number(e.target.value))} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-tolerance`}>Tolerância</label>
+                            <input id={`${t.key}-tolerance`} className="focus-ring" style={s.select} type="number" min="0.1" step="0.1" value={metricCfg.tolerance ?? 3} disabled={!on} onChange={e => setMetricParam(t.key, 'tolerance', Number(e.target.value))} />
                           </div>
                           {(metricCfg.algorithm === 'MAD' || metricCfg.algorithm === 'scaledMAD') && (
                             <div>
-                              <label style={s.miniLabel}>Percentual (%)</label>
-                              <input style={s.select} type="number" min="1" max="100" placeholder="ex.: 20" value={metricCfg.percentage ?? ''} disabled={!on} onChange={e => setMetricParam(t.key, 'percentage', e.target.value === '' ? undefined : Number(e.target.value))} />
+                              <label style={s.miniLabel} htmlFor={`${t.key}-percentage`}>Percentual (%)</label>
+                              <input id={`${t.key}-percentage`} className="focus-ring" style={s.select} type="number" min="1" max="100" placeholder="ex.: 20" value={metricCfg.percentage ?? ''} disabled={!on} onChange={e => setMetricParam(t.key, 'percentage', e.target.value === '' ? undefined : Number(e.target.value))} />
                             </div>
                           )}
                           <div>
-                            <label style={s.miniLabel}>Time window</label>
-                            <select style={s.select} value={metricCfg.queryWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'queryWindow', e.target.value)}>
+                            <label style={s.miniLabel} htmlFor={`${t.key}-outlier-window`}>Time window</label>
+                            <select id={`${t.key}-outlier-window`} className="focus-ring" style={s.select} value={metricCfg.queryWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'queryWindow', e.target.value)}>
                               {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           </div>
@@ -346,26 +348,26 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                       ) : (
                         <>
                           <div>
-                            <label style={s.miniLabel}>Algoritmo</label>
-                            <select style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
+                            <label style={s.miniLabel} htmlFor={`${t.key}-anomaly-algo`}>Algoritmo</label>
+                            <select id={`${t.key}-anomaly-algo`} className="focus-ring" style={s.select} value={metricCfg.algorithm} disabled={!on} onChange={e => setMetricParam(t.key, 'algorithm', e.target.value)}>
                               <option value="basic">basic</option><option value="agile">agile</option><option value="robust">robust</option>
                             </select>
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Sazonalidade</label>
-                            <select style={s.select} value={metricCfg.seasonality} disabled={!on || metricCfg.algorithm === 'basic'} onChange={e => setMetricParam(t.key, 'seasonality', e.target.value)}>
+                            <label style={s.miniLabel} htmlFor={`${t.key}-seasonality`}>Sazonalidade</label>
+                            <select id={`${t.key}-seasonality`} className="focus-ring" style={s.select} value={metricCfg.seasonality} disabled={!on || metricCfg.algorithm === 'basic'} onChange={e => setMetricParam(t.key, 'seasonality', e.target.value)}>
                               <option value="hourly">hourly</option><option value="daily">daily</option><option value="weekly">weekly</option>
                             </select>
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Alert window</label>
-                            <select style={s.select} value={metricCfg.alertWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'alertWindow', e.target.value)}>
+                            <label style={s.miniLabel} htmlFor={`${t.key}-anomaly-window`}>Alert window</label>
+                            <select id={`${t.key}-anomaly-window`} className="focus-ring" style={s.select} value={metricCfg.alertWindow} disabled={!on} onChange={e => setMetricParam(t.key, 'alertWindow', e.target.value)}>
                               {ALERT_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           </div>
                           <div>
-                            <label style={s.miniLabel}>Anomalies</label>
-                            <input style={s.select} type="number" min="1" max="10" value={metricCfg.deviations} disabled={!on} onChange={e => setMetricParam(t.key, 'deviations', Number(e.target.value))} />
+                            <label style={s.miniLabel} htmlFor={`${t.key}-deviations`}>Anomalies</label>
+                            <input id={`${t.key}-deviations`} className="focus-ring" style={s.select} type="number" min="1" max="10" value={metricCfg.deviations} disabled={!on} onChange={e => setMetricParam(t.key, 'deviations', Number(e.target.value))} />
                           </div>
                         </>
                       )}
