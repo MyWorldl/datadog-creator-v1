@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.46.0',
+    date: '2026-09-02',
+    title: 'Fase 1 do Raio-X: login e troca de senha não travam mais em falha de rede',
+    notes: [
+      'LoginPage (handleSubmit) e AccountPasswordCard faziam a chamada de rede fora de try/catch — uma falha de rede (offline, DNS) deixava o botão travado em "Entrando..."/"Salvando..." pra sempre, sem nenhuma mensagem de erro, porque a promise rejeitada nunca chegava no setLoading(false). Corrigido com o mesmo padrão try/catch/finally que já existia ao lado nos dois arquivos (handleForgotSubmit e redefinir-senha/page.tsx). Primeira de 6 fases do plano de ação do relatório "Raio-X da Aplicação".',
+    ],
+  },
+  {
     version: '1.45.0',
     date: '2026-09-01',
     title: 'Login distingue e-mail não confirmado de senha errada',

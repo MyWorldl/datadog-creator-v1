@@ -44,16 +44,26 @@ export default function AccountPasswordCard() {
     setLoading(true)
     // updateUser roda direto no browser client — a senha nunca passa por
     // nenhuma rota nossa nem fica em log algum, só trafega pro Supabase.
-    const { error: updateErr } = await supabaseBrowser().auth.updateUser({ password })
-    setLoading(false)
-
-    if (updateErr) {
-      setError(updateErr.message || 'Falha ao definir a senha.')
-      return
+    //
+    // Achado da auditoria: essa chamada rodava fora de try/catch — uma falha
+    // de rede rejeitava a promise sem handler, e setLoading(false) nunca
+    // rodava (botão travado em "Salvando..." pra sempre, sem mensagem). Mesmo
+    // padrão de try/catch/finally já usado em app/redefinir-senha/page.tsx,
+    // que faz exatamente essa mesma chamada.
+    try {
+      const { error: updateErr } = await supabaseBrowser().auth.updateUser({ password })
+      if (updateErr) {
+        setError(updateErr.message || 'Falha ao definir a senha.')
+        return
+      }
+      setOk(true)
+      setPassword('')
+      setConfirm('')
+    } catch (e) {
+      setError('Falha de rede: ' + (e as Error).message)
+    } finally {
+      setLoading(false)
     }
-    setOk(true)
-    setPassword('')
-    setConfirm('')
   }
 
   return (

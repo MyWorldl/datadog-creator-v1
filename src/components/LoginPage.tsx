@@ -80,29 +80,40 @@ export default function LoginPage() {
     // Login roda no servidor (/api/auth/login) pra passar pelo rate-limit por
     // IP antes de chamar o Supabase Auth. redirect:false-equivalente => o
     // erro é tratado aqui, sem navegação.
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setLoading(false);
+    //
+    // Achado da auditoria: o fetch rodava fora de try/catch — uma falha de
+    // rede (offline, DNS) rejeitava a promise sem handler, e setLoading(false)
+    // nunca rodava (botão travado em "Entrando..." pra sempre, sem nenhuma
+    // mensagem). Mesmo padrão de try/catch/finally já usado logo abaixo em
+    // handleForgotSubmit.
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    if (!res.ok || !data.ok) {
-      if (data.code === 'rate_limited') {
-        setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
-      } else if (data.code === 'email_not_confirmed') {
-        setError('Este e-mail ainda não foi confirmado. Confirme pelo link recebido, ou peça pra confirmar manualmente no painel do Supabase (Authentication → Users).');
-      } else {
-        setError('Credenciais inválidas. Verifique e-mail e senha.');
+      if (!res.ok || !data.ok) {
+        if (data.code === 'rate_limited') {
+          setError('Muitas tentativas de login. Aguarde alguns minutos antes de tentar novamente.');
+        } else if (data.code === 'email_not_confirmed') {
+          setError('Este e-mail ainda não foi confirmado. Confirme pelo link recebido, ou peça pra confirmar manualmente no painel do Supabase (Authentication → Users).');
+        } else {
+          setError('Credenciais inválidas. Verifique e-mail e senha.');
+        }
+        return;
       }
-      return;
-    }
 
-    // Sucesso: o cookie de sessão já foi setado pelo servidor. O browser
-    // client ainda não sabe disso sozinho (onAuthStateChange não dispara
-    // pra login feito fora dele) — refresh() força a reavaliação.
-    await refresh();
+      // Sucesso: o cookie de sessão já foi setado pelo servidor. O browser
+      // client ainda não sabe disso sozinho (onAuthStateChange não dispara
+      // pra login feito fora dele) — refresh() força a reavaliação.
+      await refresh();
+    } catch (e) {
+      setError('Falha de rede: ' + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ── Esqueci minha senha ──
