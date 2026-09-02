@@ -6,6 +6,8 @@ import { useEffect, useState, type CSSProperties, type ComponentType } from 'rea
 import { useSession } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import { coveragePercent, type HostCoverageRow, type ServiceCoverageRow } from '@/lib/audit'
+import { scoreColor } from '@/lib/score'
+import ScoreRing from '@/components/ScoreRing'
 import { IconMonitorsCreator, IconAnalytics, IconScope, IconFinops } from '@/components/Icons'
 
 interface ToolItem {
@@ -35,8 +37,6 @@ const sections: { title: string; items: ToolItem[] }[] = [
   },
 ]
 
-const scoreColor = (v: number | null | undefined): string => v == null ? 'var(--text-muted)' : v >= 80 ? 'var(--success)' : v >= 50 ? 'var(--warning)' : 'var(--danger)'
-
 // Rótulo curto de cada pilar do ScopeMaturity para as mini-barras do card.
 const PILLAR_SHORT: Record<string, string> = { cobertura: 'Cob', qualidade: 'Qual', observabilidade: 'Obs', processos: 'Proc', governanca: 'Gov' }
 
@@ -52,15 +52,6 @@ function avgGroupPct(rows: (HostCoverageRow | ServiceCoverageRow)[], metrics: Me
   return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
 }
 
-function Ring({ value, size = 66, stroke = 8 }: { value: number | null; size?: number; stroke?: number }) {
-  const r = (size / 2) - stroke, circ = 2 * Math.PI * r, dash = ((value ?? 0) / 100) * circ
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={scoreColor(value)} strokeWidth={stroke} strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-    </svg>
-  )
-}
 
 const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
@@ -197,7 +188,7 @@ export default function DashboardPage() {
             <Link href="/ferramentas/analise" style={s.hero}>
               <div style={s.heroTop}>
                 <div style={ringWrapStyle(66)}>
-                  <Ring value={sm?.score ?? null} />
+                  <ScoreRing value={sm?.score ?? null} color={scoreColor(sm?.score ?? null)} size={66} stroke={8} />
                   <span style={ringNumStyle(scoreColor(sm?.score ?? null), 66)}>{loading && !sm ? '…' : (sm?.score ?? '—')}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -218,7 +209,7 @@ export default function DashboardPage() {
             <Link href="/ferramentas/audit" style={s.hero}>
               <div style={s.heroTop}>
                 <div style={ringWrapStyle(66)}>
-                  <Ring value={ma?.score ?? null} />
+                  <ScoreRing value={ma?.score ?? null} color={scoreColor(ma?.score ?? null)} size={66} stroke={8} />
                   <span style={ringNumStyle(scoreColor(ma?.score ?? null), 66)}>{loading && !ma ? '…' : (ma?.score ?? '—')}</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>

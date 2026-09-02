@@ -18,7 +18,9 @@ import { PasswordField } from '@/components/LoginPage'
 
 const s: Record<string, CSSProperties> = {
   wrap: { minHeight: 'calc(100vh - 4rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },
-  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
+  // 0.5px (não 1px) — achado da auditoria: alinhado ao padrão de borda de
+  // card usado nos outros ~13 arquivos do app.
+  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
   title: { fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px', textAlign: 'center' },
   sub: { color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', margin: '0 0 24px' },
   err: { background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--danger)', fontSize: '0.875rem' },

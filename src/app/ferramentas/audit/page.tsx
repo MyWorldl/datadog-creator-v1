@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useApp } from '@/context/AppContext'
 import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
+import ScoreRing from '@/components/ScoreRing'
 import { IconCluster } from '@/components/Icons'
 import {
   coveragePercent, percentBand, type PercentBand, type CoverageItem,
@@ -40,20 +41,12 @@ const bandColor = (band: PercentBand): string => band === 'red' ? 'var(--danger)
 const scoreColor = (v: number | null | undefined): string => bandColor(percentBand(v ?? null))
 const bandBg = (band: PercentBand): string => band === 'red' ? 'var(--danger-bg)' : band === 'yellow' ? 'var(--warning-bg)' : band === 'green' ? 'var(--success-bg)' : 'var(--bg-surface-2)'
 
-function Ring({ value, size = 120, stroke = 10 }: { value: number | null; size?: number; stroke?: number }) {
-  const r = (size / 2) - stroke, circ = 2 * Math.PI * r, dash = ((value ?? 0) / 100) * circ
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={scoreColor(value)} strokeWidth={stroke} strokeDasharray={`${dash} ${circ}`} strokeLinecap="round" />
-    </svg>
-  )
-}
-
 const s: Record<string, CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
   sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
-  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
+  // 0.5px (não 1px) — achado da auditoria: era o único de 3 arquivos com
+  // borda de card diferente do resto do app (13 arquivos usam 0.5px).
+  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   btn2: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
@@ -230,7 +223,7 @@ export default function AuditMonitorsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             {data ? (
               <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
-                <Ring value={data.score} />
+                <ScoreRing value={data.score} color={scoreColor(data.score)} />
                 <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: scoreColor(data.score) }}>
                   <span style={{ fontSize: 28, fontWeight: 800 }}>{data.score}%</span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>cobertura</span>

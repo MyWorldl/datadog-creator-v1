@@ -5,8 +5,8 @@ import { useState, useRef, useEffect, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { ALERT_TYPES, ALERT_WINDOW_OPTIONS, type ScopeType } from '@/lib/discovery'
 import type { DiscoveryStepProps } from './types'
+import { type SubStepState, subNavItemStyle, subNavDotStyle, accStyle, chevStyle, winShort } from './styles'
 
-const winShort = (w: string): string => (w || '').replace('last_', '')
 const dirLabel = (d: string): string => (d === 'below' ? 'abaixo' : d === 'both' ? 'ambos' : 'acima')
 
 interface ScopeConfigEntry {
@@ -65,8 +65,6 @@ const SUB_STEPS = [
   { key: 'alerts', label: 'Alertas' },
 ]
 
-type SubStepState = 'done' | 'active' | 'pending'
-
 const s: Record<string, CSSProperties> = {
   card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
@@ -97,19 +95,8 @@ const s: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
-const subNavItemStyle = (state: SubStepState): CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5,
-  fontWeight: state === 'active' ? 700 : 500,
-  color: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--text-muted)',
-})
-const subNavDotStyle = (state: SubStepState): CSSProperties => ({
-  width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
-  background: state === 'active' ? 'var(--accent)' : state === 'done' ? 'var(--success)' : 'var(--border)',
-})
 const scopeBtnStyle = (on: boolean): CSSProperties => ({ fontSize: 12.5, fontWeight: 600, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)' })
 const opChipStyle = (on: boolean): CSSProperties => ({ fontSize: 11.5, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface)', color: on ? 'var(--accent)' : 'var(--text-secondary)', fontFamily: 'var(--font-geist-mono), monospace' })
-const accStyle = (on: boolean): CSSProperties => ({ border: '0.5px solid var(--border)', borderRadius: 10, background: 'var(--bg-surface-2)', overflow: 'hidden', opacity: on ? 1 : 0.7 })
-const chevStyle = (open: boolean): CSSProperties => ({ fontSize: 11, color: 'var(--text-muted)', transition: 'transform .15s', transform: open ? 'rotate(90deg)' : 'none' })
 
 export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const { keysConfigured, datadogSite } = useApp()

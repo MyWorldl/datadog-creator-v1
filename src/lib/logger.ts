@@ -42,4 +42,3 @@ function emit(level: LogLevel, scope: string, error: unknown, extra: LogExtra): 
 }
 
 export function logError(scope: string, error: unknown, extra?: LogExtra): void { emit('error', scope, error, extra) }
-export function logWarn(scope: string, error: unknown, extra?: LogExtra): void { emit('warn', scope, error, extra) }

@@ -7,7 +7,9 @@ import { IconEye, IconEyeOff } from '@/components/Icons';
 
 const s: Record<string, CSSProperties> = {
   wrap: { minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },
-  card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
+  // 0.5px (não 1px) — achado da auditoria: alinhado ao padrão de borda de
+  // card usado nos outros ~13 arquivos do app.
+  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
   label: { display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 },
   input: { width: '100%', padding: '0.65rem 0.875rem', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9375rem', outline: 'none', boxSizing: 'border-box' },
   err: { background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--danger)', fontSize: '0.875rem' },

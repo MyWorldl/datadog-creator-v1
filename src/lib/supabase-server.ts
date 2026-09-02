@@ -44,10 +44,6 @@ async function buildClient(): Promise<ReturnType<typeof createServerClient>> {
   })
 }
 
-export async function supabaseServer(): Promise<ReturnType<typeof createServerClient>> {
-  return buildClient()
-}
-
 export interface ServerUser {
   id: string
   email: string | undefined
