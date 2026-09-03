@@ -12,6 +12,7 @@ import {
   coveragePercent, percentBand, type PercentBand, type CoverageItem,
   type HostCoverageRow, type ServiceCoverageRow, type SuggestedInfraResult, type SuggestedApmResult,
 } from '@/lib/audit'
+import { downloadPlanExcel } from '@/lib/monitor-excel'
 import type { CreatePlanResult } from '@/lib/monitor-create-server'
 
 interface MetricRef {
@@ -49,6 +50,7 @@ const s: Record<string, CSSProperties> = {
   card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   btn2: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
+  btnExport: { fontSize: 12.5, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   ok: { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   statLbl: { fontSize: 11, color: 'var(--text-muted)' },
@@ -72,6 +74,8 @@ interface SuggestionCardProps {
   sug: SuggestedInfraResult | SuggestedApmResult | undefined
   entityLabel: string
   endpoint: string
+  // Usado só pro nome do arquivo do Excel (ex.: monitores-sugeridos-infra-2026-09-02.xlsx).
+  fileLabel: string
   operationNote?: string
   open: boolean
   onOpen: () => void
@@ -83,8 +87,19 @@ interface SuggestionCardProps {
 // Card de resumo + preview/confirmação pra uma leva de monitores sugeridos
 // (Infra ou APM). Mesmo componente serve pros dois grupos — só muda o texto,
 // o endpoint de criação e (pra APM) a nota de operation padrão.
-function SuggestionCard({ title, sug, entityLabel, endpoint, operationNote, open, onOpen, onClose, onConfirm, confirming }: SuggestionCardProps) {
+function SuggestionCard({ title, sug, entityLabel, endpoint, fileLabel, operationNote, open, onOpen, onClose, onConfirm, confirming }: SuggestionCardProps) {
+  const [exporting, setExporting] = useState(false)
   if (!sug || sug.monitorCount === 0) return null
+
+  async function exportExcel() {
+    setExporting(true)
+    try {
+      await downloadPlanExcel(sug!.plan, `monitores-sugeridos-${fileLabel}-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div style={s.suggestCard}>
       <div style={s.suggestHead}>
@@ -101,11 +116,16 @@ function SuggestionCard({ title, sug, entityLabel, endpoint, operationNote, open
         <div style={{ marginTop: 14 }}>
           {operationNote && <div style={s.note}>{operationNote}</div>}
           <MonitorPlanList plan={sug.plan} maxHeight={360} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, flexWrap: 'wrap', gap: 10 }}>
             <button style={s.btn2} onClick={onClose} disabled={confirming}>Cancelar</button>
-            <button style={s.btn} onClick={() => onConfirm(endpoint)} disabled={confirming}>
-              {confirming ? 'Criando…' : `Confirmar criação de ${sug.monitorCount} monitor(es)`}
-            </button>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button style={s.btnExport} onClick={exportExcel} disabled={exporting || confirming}>
+                {exporting ? 'Gerando…' : `📊 Baixar Excel (${sug.monitorCount})`}
+              </button>
+              <button style={s.btn} onClick={() => onConfirm(endpoint)} disabled={confirming}>
+                {confirming ? 'Criando…' : `Confirmar criação de ${sug.monitorCount} monitor(es)`}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -260,6 +280,7 @@ export default function AuditMonitorsPage() {
                 sug={data.suggestedInfra}
                 entityLabel={`${data.suggestedInfra.hostCount} host(s) em lacuna`}
                 endpoint="/api/datadog/infra-monitors"
+                fileLabel="infra"
                 open={previewKind === 'infra'}
                 onOpen={() => setPreviewKind('infra')}
                 onClose={() => setPreviewKind(null)}
@@ -271,6 +292,7 @@ export default function AuditMonitorsPage() {
                 sug={data.suggestedApm}
                 entityLabel={`${data.suggestedApm.serviceCount} serviço(s) em lacuna`}
                 endpoint="/api/datadog/apm-monitors"
+                fileLabel="apm"
                 operationNote={data.suggestedApm.operationNote}
                 open={previewKind === 'apm'}
                 onOpen={() => setPreviewKind('apm')}

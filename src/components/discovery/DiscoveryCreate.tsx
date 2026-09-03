@@ -5,69 +5,19 @@ import { useState, type CSSProperties } from 'react'
 import { planPreview, type PlanItem, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraPlanItem, type InfraDiscoveryState } from '@/lib/infra'
 import { planLogPreview, type LogMonitorPlanItem, type LogMonitorsState } from '@/lib/log-monitors'
+import { downloadResultsExcel as downloadResultsExcelShared } from '@/lib/monitor-excel'
 import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
 type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem
 
-// Primeira linha da mensagem (o resto é o corpo longo — O que monitora/Causas/
-// Ação recomendada — que não cabe bem numa célula de planilha).
-function firstLine(message: string): string {
-  return (message || '').split('\n')[0].trim()
-}
-
-function priorityLabel(priority: number | null): string {
-  return priority ? `P${priority}` : 'Sem prioridade'
-}
-
 // Monta e baixa o Excel (só monitores CRIADOS agora — não os que já existiam
-// e foram pulados, já que esses não têm id novo). plan[i] e results[i] estão
-// sempre alinhados 1:1: a rota processa o mesmo plano, na mesma ordem, que o
-// cliente já calculou aqui (mesma função pura, mesmo input).
+// e foram pulados, já que esses não têm id novo). Builder compartilhado com
+// AuditMonitors em lib/monitor-excel.ts (mesma lógica, extraída de propósito
+// pra não duplicar o boilerplate do ExcelJS — ver comentário sobre a
+// vulnerabilidade MODERADA transitiva mantida de propósito lá).
 async function downloadResultsExcel(plan: PlanEntry[], resultsList: PlanResultItem[]) {
-  const rows = plan
-    .map((p, i) => ({ p, r: resultsList[i] }))
-    .filter(({ r }) => r?.ok && !r?.skipped)
-    .map(({ p, r }) => ({
-      id: r.id,
-      nome: p.name,
-      prioridade: priorityLabel(p.priority),
-      servico: p.service,
-      descricao: firstLine(p.message),
-    }))
-
-  if (rows.length === 0) return
-
-  // exceljs@4.x traz uma vulnerabilidade MODERADA transitiva (uuid <11.1.1 —
-  // "missing buffer bounds check", só afeta geração interna de UUID, nunca
-  // recebe input do usuário aqui). Investigado e mantido de propósito: o
-  // único fix (`npm audit fix --force`) baixa pra exceljs@3.4.0, que troca
-  // essa moderada por uma cadeia PIOR (fast-csv/tmp — vulnerabilidade ALTA de
-  // path traversal via symlink). Decisão: manter 4.x — ver npm audit e
-  // https://github.com/advisories/GHSA-w5hq-g745-h8pq.
-  const ExcelJS = (await import('exceljs')).default
-  const wb = new ExcelJS.Workbook()
-  const sheet = wb.addWorksheet('Monitores')
-  sheet.columns = [
-    { header: 'ID', key: 'id', width: 14 },
-    { header: 'Nome do Monitor', key: 'nome', width: 48 },
-    { header: 'Prioridade', key: 'prioridade', width: 16 },
-    { header: 'Nome do host/serviço', key: 'servico', width: 28 },
-    { header: 'Descrição da mensagem', key: 'descricao', width: 64 },
-  ]
-  sheet.getRow(1).font = { bold: true }
-  sheet.addRows(rows)
-
-  const buffer = await wb.xlsx.writeBuffer()
-  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `monitores-datadog-${new Date().toISOString().slice(0, 10)}.xlsx`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  await downloadResultsExcelShared(plan, resultsList, `monitores-datadog-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
 const s: Record<string, CSSProperties> = {

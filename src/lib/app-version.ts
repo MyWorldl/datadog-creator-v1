@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.55.0',
+    date: '2026-09-03',
+    title: 'Excel do plano antes de criar (AuditMonitors)',
+    notes: [
+      'Botão "Baixar Excel" na prévia de cada leva sugerida (Infra e APM) do AuditMonitors — baixa o plano completo ANTES de confirmar a criação, com tipo, nome, prioridade, serviço/host, operação, tipo de monitor no Datadog, tags, query e mensagem.',
+      'Exportação de Excel extraída para src/lib/monitor-excel.ts, compartilhada entre AuditMonitors (plano, pré-criação) e o wizard MonitorsCreator (resultados, pós-criação) — antes só existia no DiscoveryCreate.tsx, duplicaria o mesmo boilerplate de ExcelJS.',
+    ],
+  },
+  {
     version: '1.54.0',
     date: '2026-09-02',
     title: 'Ajuste de sensibilidade dos monitores de anomalia',
