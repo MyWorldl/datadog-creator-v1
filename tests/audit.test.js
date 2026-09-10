@@ -5,6 +5,7 @@ import {
   analyzeCoverage, coverageScore, coverageScoreWeighted, buildSuggestedInfra, buildSuggestedApm,
   analyzeHostCoverage, analyzeServiceCoverage, coveragePercent, percentBand,
   AUDIT_CATALOG, K8S_CATALOG, DBM_CATALOG,
+  ddTagValue, tagsFromDefinition, notifyTargetFromDefinition,
 } from '../src/lib/audit.ts'
 
 const monitorsSample = [
@@ -235,6 +236,63 @@ test('buildSuggestedApm: 2 serviços com gaps diferentes geram a contagem certa 
   assert.equal(sug.serviceCount, 2)
   assert.equal(sug.monitorCount, sug.plan.length)
   assert.match(sug.operationNote, /http\.request/)
+  assert.equal(sug.enrichedServiceCount, 0, 'sem defsByName -> nada enriquecido')
+})
+
+// ── Enriquecimento via Service Definition (opção 4) ──
+
+test('ddTagValue: minúsculo, sem acento, espaço/símbolo vira hífen', () => {
+  assert.equal(ddTagValue('E-Commerce'), 'e-commerce')
+  assert.equal(ddTagValue('Time de Pagamentos'), 'time-de-pagamentos')
+  assert.equal(ddTagValue('Núcleo & Infra'), 'nucleo-infra')
+  assert.equal(ddTagValue('  trailing-  '), 'trailing')
+})
+
+test('notifyTargetFromDefinition: e-mail tem prioridade; senão @team-<slug>; senão undefined', () => {
+  assert.equal(notifyTargetFromDefinition(undefined), undefined)
+  assert.equal(notifyTargetFromDefinition({ name: 'x', team: 'E-Commerce' }), '@team-e-commerce')
+  assert.equal(
+    notifyTargetFromDefinition({ name: 'x', team: 'E-Commerce', contacts: [{ type: 'email', contact: 'ecom@acme.com' }] }),
+    '@ecom@acme.com',
+  )
+  // Slack/URL não vira handle — cai pro team.
+  assert.equal(
+    notifyTargetFromDefinition({ name: 'x', team: 'E-Commerce', contacts: [{ type: 'slack', contact: 'https://acme.slack.com/archives/C123' }] }),
+    '@team-e-commerce',
+  )
+  assert.equal(notifyTargetFromDefinition({ name: 'x' }), undefined)
+})
+
+test('tagsFromDefinition: team:<slug> + tags declaradas (com teto), dedupe fica pro buildMonitorPayload', () => {
+  assert.deepEqual(tagsFromDefinition(undefined), [])
+  assert.deepEqual(tagsFromDefinition({ name: 'x', team: 'Payments' }), ['team:payments'])
+  assert.deepEqual(
+    tagsFromDefinition({ name: 'x', team: 'Payments', tags: ['business-unit:retail', 'tier:1'] }),
+    ['team:payments', 'business-unit:retail', 'tier:1'],
+  )
+})
+
+test('buildSuggestedApm: com defsByName, o monitor sai com tag team: e notificação do dono', () => {
+  const serviceCoverage = [
+    { service: 'checkout', metrics: { apmLatency: true, apmErrors: false, apmHits: true }, gapCount: 1 },
+    { service: 'cart', metrics: { apmLatency: false, apmErrors: true, apmHits: false }, gapCount: 2 },
+  ]
+  const defsByName = {
+    checkout: { name: 'checkout', team: 'E-Commerce', contacts: [{ type: 'email', contact: 'ecom@acme.com' }], tags: ['tier:1'] },
+    // cart sem definição -> não enriquece
+  }
+  const sug = buildSuggestedApm(serviceCoverage, defsByName)
+
+  assert.equal(sug.enrichedServiceCount, 1)
+  const checkoutItem = sug.plan.find(m => m.service === 'checkout')
+  assert.ok(checkoutItem.payload.tags.includes('team:e-commerce'))
+  assert.ok(checkoutItem.payload.tags.includes('tier:1'))
+  assert.ok(checkoutItem.payload.message.includes('@ecom@acme.com'))
+  assert.ok(!checkoutItem.payload.message.includes('@equipe-ops'))
+
+  const cartItem = sug.plan.find(m => m.service === 'cart')
+  assert.ok(!cartItem.payload.tags.some(t => t.startsWith('team:')))
+  assert.ok(cartItem.payload.message.includes('@equipe-ops'), 'sem definição mantém o alvo do template')
 })
 
 // ── K8s / DBM (atrás da feature flag k8sDbmCoverage) ──

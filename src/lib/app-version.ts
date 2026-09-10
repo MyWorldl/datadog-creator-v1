@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.56.0',
+    date: '2026-09-10',
+    title: 'AuditMonitors: Service Definitions (catálogo + enriquecimento)',
+    notes: [
+      'Novo bloco \'no catálogo\' na barra de status do AuditMonitors: mostra serviços com APM ativo vs. total no Software Catalog (união APM ∪ Service Definitions) e quantos estão sem APM. Só aparece se a App key tiver escopo pra ler /api/v2/services/definitions.',
+      'Monitores de APM sugeridos agora herdam metadados da Service Definition do serviço, quando existe: tag team:<slug> (+ tags declaradas pelo dono) e a notificação vai pro dono (contato de e-mail, senão @team-<slug>) no lugar do @equipe-ops genérico do template.',
+      'Novo helper listServiceDefinitions() em datadog-server.ts (paginado, tolera falha de escopo sem quebrar a auditoria).',
+    ],
+  },
+  {
     version: '1.55.0',
     date: '2026-09-03',
     title: 'Excel do plano antes de criar (AuditMonitors)',

@@ -23,7 +23,15 @@ interface MetricRef {
 interface AuditData {
   score: number
   gapCount: number
-  environment: { hostCount: number; serviceCount: number; monitorCount: number }
+  environment: {
+    hostCount: number
+    serviceCount: number
+    monitorCount: number
+    definitionsAvailable?: boolean
+    catalogServiceCount?: number
+    definedServiceCount?: number
+    servicesWithoutApmCount?: number
+  }
   coverage: CoverageItem[]
   hostCoverage: HostCoverageRow[]
   serviceCoverage: ServiceCoverageRow[]
@@ -108,6 +116,11 @@ function SuggestionCard({ title, sug, entityLabel, endpoint, fileLabel, operatio
           <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>
             {sug.monitorCount} monitor(es) em {entityLabel}. Idempotente: pula os que já existirem.
           </div>
+          {'enrichedServiceCount' in sug && sug.enrichedServiceCount > 0 && (
+            <div style={{ fontSize: 11.5, color: 'var(--accent)', marginTop: 3 }}>
+              {sug.enrichedServiceCount} serviço(s) com Service Definition — monitor sai com tag team:&lt;time&gt; e notificação do dono no lugar de @equipe-ops.
+            </div>
+          )}
         </div>
         {!open && <button style={s.btn} onClick={onOpen}>Ver monitores sugeridos ({sug.monitorCount})</button>}
       </div>
@@ -254,7 +267,19 @@ export default function AuditMonitorsPage() {
               {data && (
                 <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 10 }}>
                   <div><div style={statStyle()}>{data.environment.hostCount}</div><div style={s.statLbl}>hosts</div></div>
-                  <div><div style={statStyle()}>{data.environment.serviceCount}</div><div style={s.statLbl}>serviços APM</div></div>
+                  <div>
+                    <div style={statStyle()}>{data.environment.serviceCount}</div>
+                    <div style={s.statLbl}>serviços APM</div>
+                  </div>
+                  {data.environment.definitionsAvailable && data.environment.catalogServiceCount != null && (
+                    <div title="União de serviços com APM ativo e serviços com Service Definition no Software Catalog (não inclui inferred services).">
+                      <div style={statStyle()}>{data.environment.catalogServiceCount}</div>
+                      <div style={s.statLbl}>
+                        no catálogo
+                        {data.environment.servicesWithoutApmCount ? ` · ${data.environment.servicesWithoutApmCount} sem APM` : ''}
+                      </div>
+                    </div>
+                  )}
                   <div><div style={statStyle()}>{data.environment.monitorCount}</div><div style={s.statLbl}>monitores</div></div>
                   <div><div style={statStyle(scoreColor(100 - (data.gapCount / (data.coverage.length || 1)) * 100))}>{data.gapCount}</div><div style={s.statLbl}>lacunas</div></div>
                 </div>

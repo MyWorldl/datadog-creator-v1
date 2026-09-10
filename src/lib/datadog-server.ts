@@ -112,6 +112,69 @@ export async function listHosts(ctx: DatadogCtx, filter = '', pageSize = 1000, m
   return { ok: true, json: all }
 }
 
+// ── Service Definitions (metadados do Software Catalog) ──
+// GET /api/v2/services/definitions (paginado por page[size]/page[number]).
+// Diferente de /api/v2/apm/services (que só devolve serviços com trace ativo
+// numa janela recente), aqui vêm os serviços com metadado CADASTRADO — dono,
+// time, contatos, tags — inclusive serviços sem tráfego nenhum agora. Usado
+// pra (1) mostrar quantos serviços do catálogo não têm APM e (2) enriquecer
+// os monitores sugeridos do AuditMonitors com team/notificação do dono.
+// Schema v2.x: campos com hífen (`dd-service`, `schema-version`); v3 usa
+// endpoints separados (Software Catalog API) e não vem por aqui.
+// Doc: https://docs.datadoghq.com/api/latest/service-definition/
+export interface ServiceDefinitionMeta {
+  name: string                                       // dd-service
+  team?: string
+  contacts?: { type?: string; contact?: string }[]
+  tags?: string[]                                    // já no formato key:value
+}
+
+interface ServiceDefinitionRaw {
+  attributes?: {
+    schema?: Record<string, unknown> & {
+      'dd-service'?: string
+      name?: string
+      team?: string
+      contacts?: unknown
+      tags?: unknown
+      metadata?: { name?: string; owner?: string }  // shape v3, tolerado por segurança
+    }
+  }
+}
+
+function parseServiceDefinition(raw: ServiceDefinitionRaw): ServiceDefinitionMeta | null {
+  const schema = raw?.attributes?.schema
+  if (!schema) return null
+  const name = (schema['dd-service'] || schema.name || schema.metadata?.name) as string | undefined
+  if (!name || typeof name !== 'string') return null
+  const team = typeof schema.team === 'string' ? schema.team : (typeof schema.metadata?.owner === 'string' ? schema.metadata.owner : undefined)
+  const contacts = Array.isArray(schema.contacts)
+    ? (schema.contacts as { type?: string; contact?: string }[]).filter(c => c && typeof c.contact === 'string')
+    : undefined
+  const tags = Array.isArray(schema.tags)
+    ? (schema.tags as unknown[]).filter((t): t is string => typeof t === 'string' && t.includes(':'))
+    : undefined
+  return { name, team, contacts, tags }
+}
+
+export async function listServiceDefinitions(ctx: DatadogCtx, pageSize = 100, maxPages = 50): Promise<DdResult<ServiceDefinitionMeta[]>> {
+  const all: ServiceDefinitionMeta[] = []
+  for (let page = 0; page < maxPages; page++) {
+    const r = await ddGet<{ data?: ServiceDefinitionRaw[] }>(ctx, `/api/v2/services/definitions?page%5Bsize%5D=${pageSize}&page%5Bnumber%5D=${page}`)
+    if (!r.ok) {
+      if (all.length > 0) return { ok: true, json: all, partial: true }
+      return { ok: false, status: r.status, error: r.error, detail: r.detail }
+    }
+    const batch = Array.isArray(r.json?.data) ? r.json.data : []
+    for (const d of batch) {
+      const meta = parseServiceDefinition(d)
+      if (meta) all.push(meta)
+    }
+    if (batch.length < pageSize) break // último bloco
+  }
+  return { ok: true, json: all }
+}
+
 export async function ddPost<T = unknown>(ctx: DatadogCtx, path: string, body: unknown): Promise<DdResult<T>> {
   try {
     const r = await fetch(`https://api.${ctx.site}${path}`, {
