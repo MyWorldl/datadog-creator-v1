@@ -34,6 +34,7 @@
 
 import { initialInfraDiscovery, planInfraPreview, type InfraPlanItem } from './infra.ts'
 import { buildMonitorPayload, DEFAULT_OPERATION, ALERT_BY_KEY, DEFAULT_GROUP_BY, type PlanItem } from './discovery.ts'
+import type { ServiceDefinitionMeta } from './datadog-server.ts'
 
 const any = (q: string, ...subs: string[]): boolean => subs.some(s => q.includes(s))
 
@@ -327,7 +328,50 @@ export interface SuggestedApmResult {
   plan: PlanItem[]
   serviceCount: number
   monitorCount: number
+  // Quantos dos `serviceCount` serviços em lacuna tinham Service Definition e
+  // saíram com team/notificação do dono no lugar do @equipe-ops genérico.
+  enrichedServiceCount: number
   operationNote: string
+}
+
+// ── Enriquecimento via Service Definition (opção 4) ──
+// Datadog tag value: minúsculo, sem espaço/acento, só [a-z0-9_-:./]. Não é
+// slug de URL — é o que a API de monitor aceita como valor de tag.
+export function ddTagValue(raw: string): string {
+  return raw
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // tira acentos (combining diacritical marks)
+    .toLowerCase()
+    .replace(/[^a-z0-9_./:-]+/g, '-')                   // resto vira hífen
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 200)
+}
+
+// Alvo de notificação a partir da definição do serviço. Ordem de preferência:
+//  1. contato de e-mail  -> @<email>  (o Datadog resolve @e-mail nativamente,
+//     sempre funciona)
+//  2. time               -> @team-<slug>  (só resolve se existir um Datadog
+//     Team com esse handle — daí ser o 2º)
+// Slack/MS Teams ficam de fora: o campo `contact` costuma ser uma URL de
+// canal (com ID, não nome), que não vira um @slack-<canal> confiável.
+// Retorna undefined quando não dá pra derivar nada -> mantém o @equipe-ops
+// do template.
+export function notifyTargetFromDefinition(def: ServiceDefinitionMeta | undefined): string | undefined {
+  if (!def) return undefined
+  const email = def.contacts?.find(c => c.type === 'email' && /.+@.+\..+/.test(c.contact || ''))?.contact
+  if (email) return `@${email.trim()}`
+  if (def.team && def.team.trim()) return `@team-${ddTagValue(def.team)}`
+  return undefined
+}
+
+// Tags extras a herdar da definição: team:<slug> + as tags key:value que o
+// dono já declarou na definição (limitadas a um teto pra não inflar o
+// monitor). buildMonitorPayload já faz dedupe contra as baseTags.
+export function tagsFromDefinition(def: ServiceDefinitionMeta | undefined): string[] {
+  if (!def) return []
+  const out: string[] = []
+  if (def.team && def.team.trim()) out.push(`team:${ddTagValue(def.team)}`)
+  for (const t of (def.tags || []).slice(0, 10)) out.push(t)
+  return out
 }
 
 // Monta a lista de monitores de APM sugeridos pras lacunas, serviço por
@@ -338,13 +382,23 @@ export interface SuggestedApmResult {
 // nisso); chama buildMonitorPayload diretamente por (serviço × tipo-em-gap).
 // Usa DEFAULT_OPERATION (sem descoberta real de operations — custaria 1
 // chamada extra por serviço em gap) — ver operationNote pra avisar na UI.
-export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[]): SuggestedApmResult {
+//
+// `defsByName` (opcional): mapa serviço -> Service Definition. Quando o
+// serviço tem definição, o monitor sugerido herda team:<slug> (+ tags
+// declaradas) e a notificação vai pro dono (e-mail ou @team-<slug>) em vez
+// do @equipe-ops genérico do template.
+export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[], defsByName?: Record<string, ServiceDefinitionMeta>): SuggestedApmResult {
   const plan: PlanItem[] = []
   let serviceCount = 0
+  let enrichedCount = 0
   for (const sc of (serviceCoverage || [])) {
     const gapTypes = APM_CATALOG.filter(c => c.apm && !sc.metrics[c.key]).map(c => c.apm as string)
     if (!gapTypes.length) continue
     serviceCount++
+    const def = defsByName?.[sc.service]
+    const extraTags = tagsFromDefinition(def)
+    const notifyTarget = notifyTargetFromDefinition(def)
+    if (def && (extraTags.length || notifyTarget)) enrichedCount++
     for (const kind of gapTypes) {
       // buildMonitorPayload não tem defaults por TIPO (isso normalmente vem de
       // planPreview, via cfg.algorithm || a.algorithm etc.) — como aqui não
@@ -357,6 +411,8 @@ export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[]): Sugges
         deviations: a.def, direction: a.direction, algorithm: a.algorithm,
         seasonality: a.seasonality, alertWindow: a.alertWindow, queryWindow: a.queryWindow,
         priority: 3, // mesmo default P3 usado em initialDiscovery()
+        tags: extraTags.length ? extraTags : undefined,
+        notifyTarget,
       })
       plan.push({ kind, label: a.label, service: sc.service, operation: DEFAULT_OPERATION, name: payload.name, query: payload.query, message: payload.message, priority: 3, payload })
     }
@@ -365,6 +421,7 @@ export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[]): Sugges
     plan,
     serviceCount,
     monitorCount: plan.length,
+    enrichedServiceCount: enrichedCount,
     operationNote: `Operation usada: ${DEFAULT_OPERATION} (padrão) — para escolher outra, use o MonitorsCreator.`,
   }
 }
