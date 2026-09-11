@@ -11,7 +11,7 @@
 
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, queryMetric } from '@/lib/datadog-server'
+import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, listHosts, queryMetric, type SloRaw } from '@/lib/datadog-server'
 import { analyzeHostCoverage, INFRA_CATALOG, type DatadogMonitor } from '@/lib/audit'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
@@ -63,11 +63,16 @@ export async function GET(): Promise<Response> {
   // Coletas (em paralelo)
   const [monitorsR, hostsR, totalsR, apmR, dashR, sloR, awsR, gcpR, azureR] = await Promise.all([
     listMonitors(ctx),
-    ddGet<{ host_list?: HostRaw[] }>(ctx, '/api/v1/hosts?count=1000'),
+    // listHosts (paginado) — não mais um /api/v1/hosts?count=1000 direto, que
+    // truncava silenciosamente em 1000 hosts (count é o tamanho da PÁGINA, não
+    // um teto configurável). Mesmo helper já usado por hosts/route.ts e
+    // audit-monitors/route.ts — achado da revisão: era a única rota do app
+    // consultando /hosts sem paginar (achado da revisão de APIs).
+    listHosts(ctx),
     ddGet<{ total_active?: number; total_up?: number }>(ctx, '/api/v1/hosts/totals'),
     ddGet<ApmServicesResponse>(ctx, '/api/v2/apm/services?filter[env]=*'),
     ddGet<{ dashboards?: unknown[] }>(ctx, '/api/v1/dashboard'),
-    ddGet<{ data?: unknown[] }>(ctx, '/api/v1/slo?limit=1000'),
+    ddGet<{ data?: SloRaw[] }>(ctx, '/api/v1/slo?limit=1000'),
     ddGet<unknown[]>(ctx, '/api/v1/integration/aws'),
     ddGet<unknown[]>(ctx, '/api/v1/integration/gcp'),
     ddGet<unknown[]>(ctx, '/api/v1/integration/azure'),
@@ -82,7 +87,7 @@ export async function GET(): Promise<Response> {
   }
 
   const monitors = (Array.isArray(monitorsR.json) ? monitorsR.json : []) as DatadogMonitor[]
-  const hosts = hostsR.json?.host_list || []
+  const hosts = ((hostsR.ok ? hostsR.json : []) as HostRaw[]) || []
   const hostNames = hosts.map(h => h.host_name || h.name).filter(Boolean) as string[]
   const totals = totalsR.json || {}
   const apmServices = (() => {
@@ -109,7 +114,9 @@ export async function GET(): Promise<Response> {
     logsCount(ctx, '*', fromMs, toMs),
     logsCount(ctx, '@dd.trace_id:*', fromMs, toMs),
     logsCount(ctx, 'service:*', fromMs, toMs),
-    sloBudget(ctx),
+    // Reaproveita `slos` (já buscado acima pra dimensão "Serviços com SLO")
+    // em vez de sloBudget refazer o mesmo GET /slo internamente.
+    sloBudget(ctx, slos),
     alertEvents(ctx, 7),
   ])
 

@@ -239,12 +239,20 @@ export interface SloBudgetResult {
   detail?: string
 }
 
+export interface SloRaw {
+  id: string
+  thresholds?: { target?: number }[]
+}
+
 // ── SLO: % de SLOs cumprindo o target (via history) ──
 // Limita a N SLOs para não estourar chamadas.
-export async function sloBudget(ctx: DatadogCtx, maxSlos = 15): Promise<SloBudgetResult> {
-  const list = await ddGet<{ data?: { id: string; thresholds?: { target?: number }[] }[] }>(ctx, '/api/v1/slo?limit=1000')
-  if (!list.ok) return { measured: false, detail: 'Sem acesso à API de SLO.' }
-  const slos = Array.isArray(list.json?.data) ? list.json.data : []
+//
+// Recebe a lista de SLOs já buscada pelo chamador (não faz o GET /slo aqui
+// dentro) — scope-maturity/route.ts, único chamador hoje, já busca essa
+// mesma lista pra outra dimensão ("Serviços com SLO"); antes disso, essa
+// função repetia a MESMA chamada `/api/v1/slo?limit=1000` internamente,
+// dobrando à toa uma das ~14 chamadas da rota (achado da revisão de APIs).
+export async function sloBudget(ctx: DatadogCtx, slos: SloRaw[], maxSlos = 15): Promise<SloBudgetResult> {
   // measured:false (não pct:0) quando não há SLO nenhum: "error budget
   // respeitado" mede COMPLIANCE de SLOs existentes — sem nenhum SLO, não há o
   // que medir, então N/D é o sinal correto (excluído da média do pilar). Sem
@@ -397,7 +405,16 @@ export interface TraceOperationsResult {
 // pré-agregadas e NÃO amostradas — enumeram operations de forma confiável,
 // idêntica ao que a UI do Trace Explorer mostra. É a MESMA estratégia já
 // usada (e comprovada) para descobrir operations por serviço.
-export async function traceOperations(ctx: DatadogCtx, scopeTag: string, windowSeconds = 86400): Promise<TraceOperationsResult> {
+//
+// Default de janela: 30 dias (era 24h até a revisão de APIs deste app —
+// achado: namespace-operations/route.ts já passava 30d explícito, com o
+// comentário "baixo volume pode não ter tráfego em janela curta"; a mesma
+// razão vale pra serviços com tráfego esporádico/batch, que com 24h podiam
+// voltar 0 operations em operations/route.ts — o caminho mais usado do app
+// (Etapa 2 do MonitorsCreator, "Identificar operações"). Janela maior só
+// ACRESCENTA operations encontradas, nunca esconde uma que a janela curta
+// já achava — troca sem risco de regressão pros ambientes já cobertos.
+export async function traceOperations(ctx: DatadogCtx, scopeTag: string, windowSeconds = 30 * 86400): Promise<TraceOperationsResult> {
   const r = await ddGet<{ data?: { id?: string }[] }>(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
   if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
   const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter((id): id is string => Boolean(id)) : []

@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.57.0',
+    date: '2026-09-11',
+    title: 'Revisão das APIs Datadog: hosts truncados, SLO duplicado, janela de operations',
+    notes: [
+      'ScopeMaturity buscava hosts via /api/v1/hosts?count=1000 sem paginar — truncava silenciosamente em orgs com mais de 1000 hosts, diferente de hosts/route.ts e AuditMonitors, que já usavam o helper listHosts() paginado. Corrigido pra usar o mesmo helper.',
+      'sloBudget() refazia o GET /api/v1/slo internamente, duplicando uma chamada que scope-maturity/route.ts já tinha feito pra outra dimensão (Serviços com SLO) — agora reaproveita a lista já buscada.',
+      'Descoberta de operations por SERVIÇO (Etapa 2 do MonitorsCreator, a mais usada do app) olhava só 24h, enquanto a descoberta por NAMESPACE já usava 30 dias (com o motivo documentado: baixo volume pode não ter tráfego em janela curta). Padronizado em 30 dias pros dois — só amplia o que é encontrado, nunca esconde algo que 24h já achava.',
+    ],
+  },
+  {
     version: '1.56.0',
     date: '2026-09-10',
     title: 'AuditMonitors: Service Definitions (catálogo + enriquecimento)',
