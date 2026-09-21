@@ -51,6 +51,15 @@ const s: Record<string, CSSProperties> = {
 
 const K8S_INFRA_TYPES = INFRA_TYPES.filter(t => t.flag === 'k8sDbmCoverage') as InfraMetricType[]
 
+// Selo "em desenvolvimento" — cinza de propósito, diferente do selo "Preview"
+// (accent color) da Outlier Detection em DiscoveryConfigureInfra.tsx, que É
+// usável atrás de uma feature flag. Aqui o campo abaixo do selo é só visual:
+// fica sempre desabilitado, pra ninguém (nem quem tem acesso a variável de
+// ambiente) conseguir ligar antes da detecção de hospedagem existir de
+// verdade — existe só pra registrar que o recurso está a caminho.
+const devBadgeStyle: CSSProperties = { fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 6 }
+const devSelectStyle: CSSProperties = { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-muted)', outline: 'none', boxSizing: 'border-box', cursor: 'not-allowed' }
+
 export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const infra = config.k8sInfra
   const disc = config.k8sDiscovery
@@ -211,6 +220,22 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
                           <option value="postgres">Postgres</option>
                           <option value="mysql">MySQL</option>
                         </select>
+                      </div>
+                    )}
+                    {t.requiresEngine && (
+                      <div>
+                        <label style={s.miniLabel} htmlFor={`${t.key}-hosting`}>
+                          Tipo de hospedagem<span style={devBadgeStyle}>Em desenvolvimento</span>
+                        </label>
+                        {/* Placeholder visual — sem estado, sem onChange, sempre disabled.
+                            Vai detectar RDS/Cloud SQL/self-managed sondando a API de
+                            Métricas (ex.: presença de aws.rds.* pra confirmar RDS) e
+                            taguear o monitor — ver combinado no chat. Nada funcional
+                            ainda: só registra que o campo está vindo. */}
+                        <select id={`${t.key}-hosting`} style={devSelectStyle} disabled value="">
+                          <option value="">Detecção automática (em breve)</option>
+                        </select>
+                        <p style={s.hint}>Vai detectar se o banco é RDS, Cloud SQL ou self-managed e usar isso pra taguear o monitor. Ainda não está disponível.</p>
                       </div>
                     )}
                     <div>

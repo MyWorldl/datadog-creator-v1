@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.58.0',
+    date: '2026-09-21',
+    title: 'Log Monitor: tags automáticas de source/status; placeholder de hospedagem em DBM',
+    notes: [
+      'Log Monitor: source:<valor> e status:<valor> do filtro da regra (quando não negados/wildcard/OR) viram tag automática do monitor — dá pra filtrar em Manage Monitors sem abrir cada regra. Casos ambíguos (-status:x, source:ng*, source:(a OR b)) ficam de fora de propósito, pra não taguear errado.',
+      'DBM (aba K8s/DBM): novo campo "Tipo de hospedagem" nos tipos com engine (Conexões/Replicação/Query Health) — só visual por enquanto, sempre desabilitado (nem via env var dá pra ligar), com selo "Em desenvolvimento". Vai detectar RDS/Cloud SQL/self-managed sondando a API de Métricas quando implementado.',
+      'Novo script scripts/dd-search-monitors.mjs — consulta direta a GET /api/v1/monitor/search (mesma sintaxe tag:X da tela Manage Monitors) usando credenciais de um .env.datadog.local local (gitignorado), pra levantar ID+nome de monitores sem depender do app ou do browser.',
+    ],
+  },
+  {
     version: '1.57.0',
     date: '2026-09-11',
     title: 'Revisão das APIs Datadog: hosts truncados, SLO duplicado, janela de operations',

@@ -105,6 +105,7 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={s.miniLabel} htmlFor={`${rule.id}-filter`}>Filtro (Log Search Syntax)</label>
                     <input id={`${rule.id}-filter`} className="focus-ring" style={s.input} value={rule.queryFilter} onChange={e => patchRule(rule.id, { queryFilter: e.target.value })} placeholder='ex.: service:checkout status:error' />
+                    <p style={s.hint}>source:&lt;valor&gt; e status:&lt;valor&gt; (quando não negados/wildcard/OR) viram tag do monitor automaticamente — dá pra filtrar em Manage Monitors sem abrir a regra.</p>
                   </div>
                   <div>
                     <label style={s.miniLabel} htmlFor={`${rule.id}-index`}>Índice</label>
