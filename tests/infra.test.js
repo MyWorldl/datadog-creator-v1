@@ -1,7 +1,7 @@
 // tests/infra.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialInfraDiscovery, planInfraPreview, buildInfraQuery, buildInfraMonitorPayload, INFRA_TYPES } from '../src/lib/infra.ts'
+import { initialInfraDiscovery, planInfraPreview, buildInfraQuery, buildInfraMonitorPayload, INFRA_TYPES, inheritedHostTags } from '../src/lib/infra.ts'
 
 test('threshold: query traz aritmética, group-by e o valor de critical', () => {
   const q = buildInfraQuery({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
@@ -361,4 +361,82 @@ test('planInfraPreview: dbEngine escolhido pelo usuário chega até a query gera
   const plan = planInfraPreview(d)
   const item = plan.find(m => m.kind === 'dbConnections')
   assert.match(item.query, /mysql\.performance\.threads_connected/)
+})
+
+// ── Tags herdadas do host (cloud_provider/aws_account/kube_namespace) e db_engine ──
+
+test('inheritedHostTags: só replica as 3 chaves conhecidas, ignora o resto', () => {
+  assert.deepEqual(
+    inheritedHostTags(['cloud_provider:aws', 'aws_account:123456', 'kube_namespace:default', 'team:payments', 'env:prod']),
+    ['cloud_provider:aws', 'aws_account:123456', 'kube_namespace:default'],
+  )
+})
+
+test('inheritedHostTags: host sem tags (on-prem, sem integração) devolve vazio, sem erro', () => {
+  assert.deepEqual(inheritedHostTags(undefined), [])
+  assert.deepEqual(inheritedHostTags([]), [])
+  assert.deepEqual(inheritedHostTags(['team:payments']), [])
+})
+
+test('inheritedHostTags: case-insensitive na CHAVE, mas preserva a tag original', () => {
+  assert.deepEqual(inheritedHostTags(['Cloud_Provider:AWS']), ['Cloud_Provider:AWS'])
+})
+
+test('planInfraPreview: monitor por host herda as tags daquele host específico (best-effort)', () => {
+  const d = initialInfraDiscovery()
+  d.hosts = [
+    { name: 'web-1', up: true, tags: ['cloud_provider:aws', 'aws_account:111'] },
+    { name: 'web-2', up: true, tags: ['cloud_provider:gcp'] }, // sem aws_account
+  ]
+  d.selected = { 'web-1': true, 'web-2': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  const plan = planInfraPreview(d)
+  const web1 = plan.find(m => m.kind === 'cpu' && m.service === 'web-1')
+  const web2 = plan.find(m => m.kind === 'cpu' && m.service === 'web-2')
+  assert.ok(web1.payload.tags.includes('cloud_provider:aws'))
+  assert.ok(web1.payload.tags.includes('aws_account:111'))
+  assert.ok(web2.payload.tags.includes('cloud_provider:gcp'))
+  assert.ok(!web2.payload.tags.some(t => t.startsWith('aws_account:')), 'web-2 não tem aws_account no host — não deve inventar')
+})
+
+test('planInfraPreview: modo outlier (1 monitor pro grupo) une as tags herdadas de TODOS os hosts, sem duplicar', () => {
+  const d = initialInfraDiscovery()
+  d.hosts = [
+    { name: 'web-1', up: true, tags: ['cloud_provider:aws'] },
+    { name: 'web-2', up: true, tags: ['cloud_provider:aws'] },
+  ]
+  d.selected = { 'web-1': true, 'web-2': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  d.metrics.cpu.mode = 'outlier'
+  const plan = planInfraPreview(d)
+  const cpu = plan.find(m => m.kind === 'cpu')
+  assert.equal(cpu.payload.tags.filter(t => t === 'cloud_provider:aws').length, 1)
+})
+
+test('planInfraPreview: host sem entrada em d.hosts (nome digitado sem descoberta) não quebra — sem tags herdadas', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'ghost-host': true } // não está em d.hosts
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.cpu.enabled = true
+  const plan = planInfraPreview(d)
+  const item = plan.find(m => m.kind === 'cpu')
+  assert.ok(item.payload.tags.includes('host:ghost-host'))
+})
+
+test('db_engine: entra como tag só nos tipos com engine configurável, com o valor escolhido', () => {
+  const d = initialInfraDiscovery()
+  d.selected = { 'db-1': true }
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.dbConnections.enabled = true
+  d.metrics.dbConnections.dbEngine = 'mysql'
+  const plan = planInfraPreview(d)
+  const item = plan.find(m => m.kind === 'dbConnections')
+  assert.ok(item.payload.tags.includes('db_engine:mysql'))
+})
+
+test('db_engine: NÃO entra em tipos sem engine (ex.: cpu)', () => {
+  const q = buildInfraMonitorPayload({ kind: 'cpu', host: 'web-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  assert.ok(!q.tags.some(t => t.startsWith('db_engine:')))
 })

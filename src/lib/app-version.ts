@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.59.0',
+    date: '2026-09-21',
+    title: 'Infra/DBM: tags cloud_provider/aws_account/kube_namespace e db_engine',
+    notes: [
+      'Monitores de Infra (CPU/memória/disco/etc, incluindo os do tab K8s/DBM) agora herdam cloud_provider/aws_account/kube_namespace do HOST descoberto, quando essas tags existirem — best-effort: relay de uma tag que já está no host (via GET /api/datadog/hosts), nunca inventa o valor. Host on-prem/sem integração cloud/sem essa tag simplesmente não recebe a tag correspondente.',
+      'Monitores de dbConnections/dbReplication/dbQueryHealth (aba K8s/DBM) agora saem com a tag db_engine:postgres ou db_engine:mysql, refletindo o engine já escolhido no seletor — antes só entrava na query, não virava tag.',
+      'operation: (APM) mantido como está, sem duplicar em operation_name: — decisão do usuário.',
+    ],
+  },
+  {
     version: '1.58.0',
     date: '2026-09-21',
     title: 'Log Monitor: tags automáticas de source/status; placeholder de hospedagem em DBM',
