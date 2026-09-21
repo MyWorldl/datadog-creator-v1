@@ -506,6 +506,30 @@ export interface DiscoveredHost {
   tags?: string[]
 }
 
+// Chaves de tag do HOST que replicamos pro monitor, quando existirem —
+// pedido do usuário. Best-effort de propósito: não inventamos o valor, só
+// relayamos uma tag que já existe no host (DiscoveredHost.tags já vem
+// agregado de tags_by_source via GET /api/datadog/hosts). Se o host for
+// on-prem, sem a integração cloud habilitada, ou não for um node K8s, a
+// tag correspondente simplesmente não existe e não entra — sem erro.
+//
+// Ressalva sobre kube_namespace especificamente: essa tag descreve um POD/
+// container, não o NODE inteiro (um node hospeda pods de VÁRIOS namespaces
+// ao mesmo tempo) — então só entra aqui se o próprio host já carregar essa
+// tag por algum motivo (ex.: um node dedicado a 1 namespace só). Não é o
+// mesmo uso "1 monitor por namespace" que Pod Restarts já faz em
+// discovery.ts (esse continua a fonte confiável pra isso).
+const INHERITED_HOST_TAG_KEYS = ['cloud_provider', 'aws_account', 'kube_namespace']
+
+export function inheritedHostTags(hostTags: string[] | undefined): string[] {
+  const out: string[] = []
+  for (const t of (hostTags || [])) {
+    const key = t.split(':')[0]?.toLowerCase()
+    if (key && INHERITED_HOST_TAG_KEYS.includes(key) && !out.includes(t)) out.push(t)
+  }
+  return out
+}
+
 export interface InfraDiscoveryState {
   hosts: DiscoveredHost[]
   selected: Record<string, boolean>
@@ -678,6 +702,9 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
 
   const baseTags = ['created_by:monitorscreator', `infra_metric:${kind}`]
   for (const h of (Array.isArray(host) ? host : [host])) baseTags.push(`host:${h}`)
+  // db_engine só entra pros tipos com engine configurável (dbConnections/
+  // dbReplication/dbQueryHealth) — `engine` vem undefined pros demais.
+  if (engine) baseTags.push(`db_engine:${engine}`)
   for (const tg of (tags || [])) if (tg && !baseTags.includes(tg)) baseTags.push(tg)
 
   let resolvedMessage = message || t.message
@@ -811,8 +838,11 @@ export interface InfraPlanItem {
 // por host normal e é tratado à parte, antes dele.
 export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): InfraPlanItem[] {
   const d = infraDiscovery || {}
-  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '' } = d
+  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '', hosts: discoveredHosts = [] } = d
   const hosts = Object.keys(selected).filter(h => selected[h])
+  // Lookup pras tags do host descoberto (cloud_provider/aws_account/
+  // kube_namespace, quando existirem — ver inheritedHostTags).
+  const hostTagsByName: Record<string, string[] | undefined> = Object.fromEntries(discoveredHosts.map(h => [h.name, h.tags]))
 
   const plan: InfraPlanItem[] = []
 
@@ -822,8 +852,10 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
     for (const t of INFRA_TYPES) {
       const cfg = metrics[t.key]
       if (!cfg?.enabled || cfg.mode !== 'outlier') continue
+      // União das tags herdadas de TODOS os hosts do grupo (1 monitor só).
+      const groupHostTags = [...new Set(hosts.flatMap(h => inheritedHostTags(hostTagsByName[h])))]
       const payload = buildInfraMonitorPayload({
-        kind: t.key, host: hosts, groupBy, tags, namePrefix, message: messages[t.key], notifyTarget,
+        kind: t.key, host: hosts, groupBy, tags: [...tags, ...groupHostTags], namePrefix, message: messages[t.key], notifyTarget,
         mode: 'outlier',
         thresholds: (t as InfraMetricType).defThresholds,
         algorithm: cfg.algorithm || 'DBSCAN',
@@ -839,19 +871,20 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
   }
 
   for (const host of hosts) {
+    const hostTags = [...tags, ...inheritedHostTags(hostTagsByName[host])]
     for (const t of INFRA_TYPES) {
       const cfg = metrics[t.key]
       if (!cfg?.enabled || cfg.mode === 'outlier') continue // outlier já tratado acima, em grupo
 
       const payload = cfg.mode === 'check'
         ? buildInfraMonitorPayload({
-            kind: t.key, host, tags, namePrefix, message: messages[t.key], notifyTarget,
+            kind: t.key, host, tags: hostTags, namePrefix, message: messages[t.key], notifyTarget,
             counts: cfg.counts || (t as InfraCheckType).defCounts,
             window: cfg.window || (t as InfraCheckType).defWindow,
             priority: cfg.priority,
           })
         : buildInfraMonitorPayload({
-            kind: t.key, host, groupBy, tags, namePrefix, message: messages[t.key], notifyTarget,
+            kind: t.key, host, groupBy, tags: hostTags, namePrefix, message: messages[t.key], notifyTarget,
             mode: cfg.mode || 'threshold',
             thresholds: cfg.thresholds || (t as InfraMetricType).defThresholds,
             deviations: cfg.deviations || (t as InfraMetricType).defDeviations,
