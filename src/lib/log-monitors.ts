@@ -101,6 +101,37 @@ export function buildLogCountQuery({ queryFilter, index = DEFAULT_LOG_INDEX, win
   return `logs("${filter}").index("${idx}").rollup("count").last("${window}") > ${threshold}`
 }
 
+// Replica source:<valor>/status:<valor> do FILTRO da regra como tags
+// estáticas do monitor — só quando o valor é inequívoco. Pedido do usuário:
+// poder filtrar monitores de log na tela "Manage Monitors" (tag:source:...)
+// sem abrir cada um pra ler a query. Fica de fora de propósito, sem gerar
+// tag nenhuma pra esse facet, quando o filtro:
+//  - nega o valor (-status:info ou NOT status:info) — tagear "status:info"
+//    diria o OPOSTO do que o monitor observa;
+//  - usa wildcard (source:ng*) — "ng*" não é um valor real;
+//  - agrupa/OR (source:(nginx OR apache)) — não é 1 valor único, tagear só
+//    um dos dois seria incompleto. A regex abaixo já nem casa esse caso (o
+//    valor depois de ":" não pode conter "(", então o grupo inteiro falha
+//    silenciosamente em vez de capturar algo errado).
+// Não tenta ser um parser completo de Log Search Syntax — na dúvida, pula.
+const LOG_FILTER_TAG_RE = /(-|\bNOT\s+)?\b(source|status):(?:"([^"]*)"|([^\s()]+))/gi
+
+export function tagsFromLogFilter(filter: string): string[] {
+  const text = filter || ''
+  const tags: string[] = []
+  let m: RegExpExecArray | null
+  LOG_FILTER_TAG_RE.lastIndex = 0
+  while ((m = LOG_FILTER_TAG_RE.exec(text))) {
+    if (m[1]) continue // negado — não replica
+    const key = m[2].toLowerCase()
+    const value = m[3] ?? m[4]
+    if (!value || value.includes('*')) continue // wildcard — valor não é literal
+    const tag = `${key}:${value}`
+    if (!tags.includes(tag)) tags.push(tag)
+  }
+  return tags
+}
+
 export interface BuildLogMonitorArgs {
   label: string
   queryFilter: string
@@ -129,6 +160,8 @@ const DEFAULT_MESSAGE = `{{#is_alert}}🔴 [Log Monitor] {{name}} — {{value}} 
 export function buildLogMonitorPayload({ label, queryFilter, index = DEFAULT_LOG_INDEX, window, threshold, warningThreshold, enableLogsSample = true, message, tags, namePrefix, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildLogMonitorArgs): MonitorPayload & { options: MonitorPayload['options'] & { enable_logs_sample?: boolean } } {
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${label}`.trim()
   const baseTags = ['created_by:monitorscreator', 'monitor_kind:log']
+  // source:/status: do filtro, quando inequívocos — ver tagsFromLogFilter.
+  for (const t of tagsFromLogFilter(queryFilter)) if (!baseTags.includes(t)) baseTags.push(t)
   for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
 
   let resolvedMessage = message || DEFAULT_MESSAGE

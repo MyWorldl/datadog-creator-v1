@@ -1,7 +1,7 @@
 // tests/log-monitors.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLogCountQuery, buildLogMonitorPayload, planLogPreview, initialLogMonitors, newLogMonitorRule, LOG_WINDOW_OPTIONS, DEFAULT_LOG_INDEX } from '../src/lib/log-monitors.ts'
+import { buildLogCountQuery, buildLogMonitorPayload, planLogPreview, initialLogMonitors, newLogMonitorRule, LOG_WINDOW_OPTIONS, DEFAULT_LOG_INDEX, tagsFromLogFilter } from '../src/lib/log-monitors.ts'
 
 test('buildLogCountQuery: monta logs(query).index(idx).rollup("count").last(window) > threshold', () => {
   const q = buildLogCountQuery({ queryFilter: 'service:checkout status:error', index: 'main', window: '15m', threshold: 50 })
@@ -94,4 +94,50 @@ test('newLogMonitorRule: defaults sensatos (janela 15m, índice "*", amostra de 
   assert.equal(r.index, '*')
   assert.equal(r.enableLogsSample, true)
   assert.equal(r.warningThreshold, null)
+})
+
+// ── tagsFromLogFilter (source/status replicados do filtro pra tag do monitor) ──
+
+test('tagsFromLogFilter: source e status simples viram tag', () => {
+  assert.deepEqual(tagsFromLogFilter('source:nginx status:error'), ['source:nginx', 'status:error'])
+  assert.deepEqual(tagsFromLogFilter('status:error'), ['status:error'])
+})
+
+test('tagsFromLogFilter: valor entre aspas (com espaço) vira tag sem as aspas', () => {
+  assert.deepEqual(tagsFromLogFilter('source:"meu source"'), ['source:meu source'])
+})
+
+test('tagsFromLogFilter: negado (-status:x ou NOT status:x) não vira tag — seria o oposto do que o monitor observa', () => {
+  assert.deepEqual(tagsFromLogFilter('-status:info'), [])
+  assert.deepEqual(tagsFromLogFilter('NOT status:info'), [])
+  assert.deepEqual(tagsFromLogFilter('source:nginx -status:info'), ['source:nginx'])
+})
+
+test('tagsFromLogFilter: wildcard não vira tag (valor não é literal)', () => {
+  assert.deepEqual(tagsFromLogFilter('source:ng*'), [])
+})
+
+test('tagsFromLogFilter: grupo/OR não vira tag (não é 1 valor único)', () => {
+  assert.deepEqual(tagsFromLogFilter('source:(nginx OR apache)'), [])
+})
+
+test('tagsFromLogFilter: filtro vazio ou sem source/status não gera nada', () => {
+  assert.deepEqual(tagsFromLogFilter(''), [])
+  assert.deepEqual(tagsFromLogFilter('service:checkout env:prod'), [])
+})
+
+test('tagsFromLogFilter: outros facets (além de source/status) são ignorados de propósito', () => {
+  assert.deepEqual(tagsFromLogFilter('source:nginx team:payments'), ['source:nginx'])
+})
+
+test('buildLogMonitorPayload: filtro com source/status entra nas tags do monitor final', () => {
+  const payload = buildLogMonitorPayload({ label: 'Erros nginx', queryFilter: 'source:nginx status:error', window: '15m', threshold: 10 })
+  assert.ok(payload.tags.includes('source:nginx'))
+  assert.ok(payload.tags.includes('status:error'))
+})
+
+test('buildLogMonitorPayload: tag manual repetida do filtro não duplica (dedupe)', () => {
+  const payload = buildLogMonitorPayload({ label: 'x', queryFilter: 'source:nginx', window: '15m', threshold: 1, tags: ['source:nginx', 'team:payments'] })
+  assert.equal(payload.tags.filter(t => t === 'source:nginx').length, 1)
+  assert.ok(payload.tags.includes('team:payments'))
 })
