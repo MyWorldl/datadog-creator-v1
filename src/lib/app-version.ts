@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.60.0',
+    date: '2026-10-13',
+    title: 'Identificar operações: rate limit do Datadog (429)',
+    notes: [
+      'Corrige o erro \'Datadog respondeu 429\' em massa ao identificar operações com muitos serviços selecionados: o endpoint Metrics List v2 limita a 50 req/10s e o app disparava 1 chamada por serviço, em loop sem pausa — depois do primeiro 429 o resto da lista falhava instantaneamente.',
+      'Servidor: chamadas espaçadas (250ms, ~4 req/s) em operations e namespace-operations (esta disparava em paralelo) + retry em 429 que espera o x-ratelimit-reset informado pelo Datadog (até 3x). Novos helpers ddGetRetry429 e mapPaced em datadog-server.ts.',
+      'Cliente (MonitorsCreator, Etapa 2): identifica em lotes de 15 serviços com progresso (12/80) e, ao clicar de novo, reenvia só os pendentes/com erro em vez da lista toda.',
+    ],
+  },
+  {
     version: '1.59.0',
     date: '2026-09-21',
     title: 'Infra/DBM: tags cloud_provider/aws_account/kube_namespace e db_engine',

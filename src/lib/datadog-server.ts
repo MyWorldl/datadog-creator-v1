@@ -53,6 +53,16 @@ export interface DdResult<T = unknown> {
   detail?: string
   error?: string
   partial?: boolean
+  // Só em 429: segundos até a janela de rate limit resetar (header
+  // x-ratelimit-reset, ou retry-after) — usado por ddGetRetry429 pra esperar
+  // o tempo certo em vez de martelar a API.
+  retryAfterSec?: number
+}
+
+function parseRetryAfterSec(r: Response): number | undefined {
+  const raw = r.headers.get('x-ratelimit-reset') ?? r.headers.get('retry-after')
+  const n = raw == null ? NaN : Number(raw)
+  return Number.isFinite(n) && n >= 0 ? n : undefined
 }
 
 export async function ddGet<T = unknown>(ctx: DatadogCtx, path: string): Promise<DdResult<T>> {
@@ -61,10 +71,57 @@ export async function ddGet<T = unknown>(ctx: DatadogCtx, path: string): Promise
       headers: { 'DD-API-KEY': ctx.apiKey, 'DD-APPLICATION-KEY': ctx.appKey, Accept: 'application/json' },
       cache: 'no-store',
     })
-    if (!r.ok) return { ok: false, status: r.status, ...(await readErrorBody(r)) } as DdResult<T>
+    if (!r.ok) {
+      const body = await readErrorBody(r)
+      return { ok: false, status: r.status, ...body, ...(r.status === 429 ? { retryAfterSec: parseRetryAfterSec(r) } : {}) } as DdResult<T>
+    }
     return { ok: true, json: await r.json() }
   } catch (e) { return { ok: false, error: (e as Error).message } }
 }
+
+const realSleep = (ms: number): Promise<void> => new Promise(res => setTimeout(res, ms))
+
+export interface Retry429Options {
+  maxRetries?: number   // tentativas EXTRAS depois da primeira (default 3)
+  maxWaitMs?: number    // teto de espera por tentativa (default 12s)
+  sleep?: (ms: number) => Promise<void> // injetável (testes)
+}
+
+// ddGet com retry em 429: espera o tempo que o próprio Datadog informou
+// (x-ratelimit-reset/retry-after, +250ms de folga) e tenta de novo — em vez de
+// reportar falha na primeira. Sem o header, espera 1s. Só retenta 429; qualquer
+// outro erro volta direto. Usado na descoberta de operations, cujo endpoint
+// (Metrics List v2) limita a 50 req/10s.
+export async function ddGetRetry429<T = unknown>(ctx: DatadogCtx, path: string, opts: Retry429Options = {}): Promise<DdResult<T>> {
+  const { maxRetries = 3, maxWaitMs = 12_000, sleep = realSleep } = opts
+  let r = await ddGet<T>(ctx, path)
+  for (let attempt = 0; attempt < maxRetries && !r.ok && r.status === 429; attempt++) {
+    const waitMs = Math.min(maxWaitMs, (r.retryAfterSec ?? 1) * 1000 + 250)
+    await sleep(waitMs)
+    r = await ddGet<T>(ctx, path)
+  }
+  return r
+}
+
+// Roda `fn` em cada item, em SEQUÊNCIA, garantindo pelo menos `gapMs` entre o
+// INÍCIO de uma chamada e a próxima — mantém a taxa abaixo do rate limit
+// (ex.: 250ms = no máx. 4 req/s = 40 por 10s, folga sobre o limite de 50/10s
+// do Metrics List). Preserva a ordem do array de entrada.
+export async function mapPaced<T, R>(items: T[], fn: (item: T) => Promise<R>, gapMs: number, sleep: (ms: number) => Promise<void> = realSleep): Promise<R[]> {
+  const out: R[] = []
+  let lastStart = 0
+  for (const item of items) {
+    const wait = lastStart + gapMs - Date.now()
+    if (out.length > 0 && wait > 0) await sleep(wait)
+    lastStart = Date.now()
+    out.push(await fn(item))
+  }
+  return out
+}
+
+// Espaçamento entre chamadas ao Metrics List v2 (limite: 50 req/10s — medido
+// via header x-ratelimit-limit/period). 250ms => 4 req/s, com folga.
+export const METRICS_LIST_GAP_MS = 250
 
 // Lista TODOS os monitores paginando. Motivo: em GET /api/v1/monitor, se o
 // parâmetro `page` NÃO é informado, a API tenta devolver todos de uma vez —
@@ -415,7 +472,7 @@ export interface TraceOperationsResult {
 // ACRESCENTA operations encontradas, nunca esconde uma que a janela curta
 // já achava — troca sem risco de regressão pros ambientes já cobertos.
 export async function traceOperations(ctx: DatadogCtx, scopeTag: string, windowSeconds = 30 * 86400): Promise<TraceOperationsResult> {
-  const r = await ddGet<{ data?: { id?: string }[] }>(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
+  const r = await ddGetRetry429<{ data?: { id?: string }[] }>(ctx, `/api/v2/metrics?filter[tags]=${encodeURIComponent(scopeTag)}&window[seconds]=${windowSeconds}`)
   if (!r.ok) return { ok: false, status: r.status, error: r.error, detail: r.detail }
   const names = Array.isArray(r.json?.data) ? r.json.data.map(d => d?.id).filter((id): id is string => Boolean(id)) : []
   const ops = new Set<string>()

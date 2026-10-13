@@ -11,9 +11,15 @@
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, traceOperations, type DatadogCtx } from '@/lib/datadog-server'
+import { ctxFrom, traceOperations, mapPaced, METRICS_LIST_GAP_MS, type DatadogCtx } from '@/lib/datadog-server'
 import { pickPrimaryOperation } from '@/lib/discovery'
 import { parseDqlTokenList } from '@/lib/schemas'
+
+// Chamadas espaçadas (METRICS_LIST_GAP_MS) + retry em 429 dentro de
+// traceOperations: o Metrics List v2 limita a 50 req/10s, e um loop sem pausa
+// estourava isso e falhava TODOS os serviços seguintes. O cliente também manda
+// em lotes pequenos (DiscoveryConfigure.tsx) — esta folga cobre o retry.
+export const maxDuration = 60
 
 interface OperationResult {
   count?: number
@@ -51,13 +57,14 @@ export async function GET(request: NextRequest): Promise<Response> {
   const services = parsed.data as string[]
 
   const results: Record<string, OperationResult> = {}
-  for (const svc of services) {
+  const settled = await mapPaced(services, async (svc): Promise<OperationResult> => {
     try {
-      results[svc] = await operationsForService(ctx, svc)
+      return await operationsForService(ctx, svc)
     } catch (e) {
-      results[svc] = { error: (e as Error).message }
+      return { error: (e as Error).message }
     }
-  }
+  }, METRICS_LIST_GAP_MS)
+  services.forEach((svc, i) => { results[svc] = settled[i] })
 
   return Response.json({ results })
 }

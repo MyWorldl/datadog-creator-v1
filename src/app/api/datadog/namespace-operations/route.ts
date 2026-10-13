@@ -21,8 +21,12 @@
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { ctxFrom, traceOperations, metricTagValues, isSafeDqlToken, type DatadogCtx } from '@/lib/datadog-server'
+import { ctxFrom, traceOperations, metricTagValues, mapPaced, METRICS_LIST_GAP_MS, isSafeDqlToken, type DatadogCtx } from '@/lib/datadog-server'
 import { pickPrimaryOperation, NAMESPACE_PROBE_OPERATIONS } from '@/lib/discovery'
+
+// Ver comentário equivalente em operations/route.ts (rate limit do Metrics
+// List v2: 50 req/10s).
+export const maxDuration = 60
 
 interface NamespaceOperationResult {
   count?: number
@@ -58,7 +62,9 @@ async function operationsForNamespace(ctx: DatadogCtx, namespace: string, fromSe
     return { count: operations.length, operations, primary: pickPrimaryOperation(operations) }
   }
 
-  const perService = await Promise.all(services.map(svc => traceOperations(ctx, `service:${svc}`, windowSeconds)))
+  // Espaçado (não Promise.all): disparar todos de uma vez estourava o rate
+  // limit do Metrics List v2 em namespaces com muitos serviços.
+  const perService = await mapPaced(services, svc => traceOperations(ctx, `service:${svc}`, windowSeconds), METRICS_LIST_GAP_MS)
   const ops = new Set<string>()
   let anyOk = false
   for (const r of perService) {
