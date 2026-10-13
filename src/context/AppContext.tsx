@@ -62,15 +62,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const keysConfigured = !!activeConnection;
 
   // Carrega preferências locais (tema NÃO é segredo => localStorage ok).
+  // themeLoaded impede o efeito de persistir (abaixo) de gravar o valor INICIAL
+  // ('system') por cima da preferência salva antes dela ser lida — o que
+  // apagava a escolha do usuário (visível no StrictMode, que roda os efeitos 2x).
+  const [themeLoaded, setThemeLoaded] = useState(false);
   useEffect(() => {
     const savedTheme = (localStorage.getItem('dd_theme') as Theme) || 'system';
     setTheme(savedTheme);
+    setThemeLoaded(true);
   }, []);
 
   // Aplica o tema no <html> e persiste. Quando a escolha é 'system',
   // resolvemos pela preferência do SO (prefers-color-scheme) e reagimos
   // a mudanças do sistema em tempo real.
   useEffect(() => {
+    if (!themeLoaded) return;
     localStorage.setItem('dd_theme', theme);
 
     const mql = window.matchMedia('(prefers-color-scheme: dark)');
@@ -84,7 +90,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       mql.addEventListener('change', apply);
       return () => mql.removeEventListener('change', apply);
     }
-  }, [theme]);
+  }, [theme, themeLoaded]);
 
   // Busca as conexões do usuário no servidor.
   const refreshConnections = useCallback(async () => {

@@ -11,12 +11,12 @@ interface StepperProps {
 export default function Stepper({ steps, current }: StepperProps) {
   return (
     <nav
-      aria-label="Progresso do wizard"
+      aria-label={`Progresso do wizard — etapa ${current + 1} de ${steps.length}`}
+      className="stepper"
       style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start', // círculos alinhados pelo TOPO (a etapa ativa tem rótulo embaixo, as outras podem não ter)
         marginBottom: 28,
-        overflowX: 'auto',
         paddingBottom: 2,
       }}
     >
@@ -27,7 +27,7 @@ export default function Stepper({ steps, current }: StepperProps) {
         return (
           <div
             key={i}
-            style={{ display: 'flex', alignItems: 'center', flex: i < steps.length - 1 ? 1 : 0 }}
+            style={{ display: 'flex', alignItems: 'flex-start', flex: i < steps.length - 1 ? 1 : 0 }}
           >
             {/* Círculo + label */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
@@ -59,11 +59,12 @@ export default function Stepper({ steps, current }: StepperProps) {
                     ? '#ffffff'
                     : 'var(--text-muted)',
                   transition: 'all 0.2s',
+                  boxShadow: isActive ? '0 0 0 4px var(--accent-light)' : 'none',
                 }}
               >
                 {isDone ? '✓' : i + 1}
               </div>
-              <span style={{
+              <span className={`stepper-label${isActive ? ' is-active' : ''}`} style={{
                 fontSize: 11,
                 whiteSpace: 'nowrap',
                 color: isActive ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--text-muted)',
@@ -75,11 +76,11 @@ export default function Stepper({ steps, current }: StepperProps) {
 
             {/* Linha conectora */}
             {i < steps.length - 1 && (
-              <div style={{
+              <div className="stepper-line" style={{
                 flex: 1,
                 height: 1,
                 background: i < current ? 'var(--success)' : 'var(--border)',
-                marginBottom: 20,
+                marginTop: 14, // metade do círculo (28px)
                 marginLeft: 4,
                 marginRight: 4,
                 minWidth: 16,

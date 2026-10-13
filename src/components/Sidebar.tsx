@@ -11,16 +11,16 @@ import { useSession, signOut } from '@/context/SupabaseAuthContext'
 import { useApp } from '@/context/AppContext'
 import {
   IconDashboard, IconMonitorsCreator, IconScope, IconAnalytics,
-  IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow, IconRename,
+  IconFinops, IconSettings, IconInfo, IconLogout, IconClose, IconArrow, IconRename, IconSearch,
 } from '@/components/Icons'
 
-interface NavItem {
+export interface NavItem {
   href: string
   label: string
   Icon: ComponentType<{ size?: number }>
 }
 
-interface NavCategory {
+export interface NavCategory {
   key: string
   label: string
   Icon: ComponentType<{ size?: number }>
@@ -32,7 +32,7 @@ interface NavCategory {
 // AO LADO, na mesma cor/tema da sidebar (não é um card branco flutuando
 // por cima da página, é uma extensão dela). Em telas touch (sem hover), o
 // clique no cabeçalho abre/fecha do mesmo jeito.
-const categories: NavCategory[] = [
+export const categories: NavCategory[] = [
   {
     key: 'home',
     label: 'Home',
@@ -186,9 +186,10 @@ interface SidebarProps {
   isOpen?: boolean
   onNavigate?: () => void
   onClose?: () => void
+  onOpenPalette?: () => void
 }
 
-export default function Sidebar({ isOpen = false, onNavigate, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen = false, onNavigate, onClose, onOpenPalette }: SidebarProps) {
   const pathname = usePathname()
   const { data: session } = useSession()
   const { setKeysConfigured } = useApp()
@@ -221,14 +222,27 @@ export default function Sidebar({ isOpen = false, onNavigate, onClose }: Sidebar
         alignItems: 'flex-start',
         justifyContent: 'space-between',
       }}>
-        <div>
-          <p style={{ fontSize: 22, fontWeight: 600, color: 'var(--sidebar-logo)', margin: '1px 0 0' }}>
-            Datadog Creator
-          </p>
-          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--sidebar-text)',
-            letterSpacing: '0.03em', textTransform: 'uppercase', margin: 0, opacity: 0.85 }}>
-            Ryujin Projects
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span aria-hidden="true" style={{
+            width: 30, height: 30, borderRadius: 10, flexShrink: 0,
+            background: 'var(--accent-gradient)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 28 28" fill="none">
+              <path d="M6 22L14 6L22 22H6Z" fill="white" opacity="0.92" />
+              <circle cx="14" cy="14" r="4" fill="white" />
+            </svg>
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--sidebar-logo)', margin: 0, lineHeight: 1.15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              Datadog Creator
+            </p>
+            <p style={{ fontSize: 10, fontWeight: 600, color: 'var(--sidebar-text)',
+              letterSpacing: '0.08em', textTransform: 'uppercase', margin: '2px 0 0', opacity: 0.8 }}>
+              Ryujin Projects
+            </p>
+          </div>
         </div>
         <button
           onClick={onClose}
@@ -245,6 +259,26 @@ export default function Sidebar({ isOpen = false, onNavigate, onClose }: Sidebar
           <IconClose size={20} />
         </button>
       </div>
+
+      {/* Busca rápida (Ctrl/Cmd+K) */}
+      {onOpenPalette && (
+        <button
+          type="button"
+          onClick={() => { onOpenPalette(); onClose?.() }}
+          aria-label="Buscar (Ctrl+K)"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            width: 'calc(100% - 16px)', margin: '10px 8px 2px', padding: '8px 10px',
+            borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(255,255,255,0.05)', color: 'var(--sidebar-text)',
+            fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          }}
+        >
+          <IconSearch size={15} />
+          <span style={{ flex: 1 }}>Buscar…</span>
+          <kbd className="kbd-hint" style={{ margin: 0, background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)', color: 'var(--sidebar-text)' }}>Ctrl K</kbd>
+        </button>
+      )}
 
       {/* Navegação */}
       <nav style={{ padding: '8px 0', flex: 1 }}>

@@ -27,6 +27,20 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.62.0',
+    date: '2026-10-13',
+    title: 'Front-end modernizado, paleta de comandos e sugestão de nomes',
+    notes: [
+      'Visual: sombras em camadas, gradiente no logo, hover/press/disabled consistentes em todos os botões, cards do Dashboard com elevação no hover, entrada suave de página, skeleton utilitário, foco visível em botões/links, color-scheme nativo por tema, tipografia mais nítida e text-wrap balance nos títulos.',
+      'Responsividade: 100dvh no shell (mobile cortava o rodapé), safe-area do notch, campos 16px no celular (evita zoom automático do iOS) e alvos de toque maiores, Stepper do wizard com só a etapa ativa rotulada em tela estreita (antes rolava na horizontal), padding duplicado do wizard removido, sidebar do tablet mais larga. Verificado sem overflow horizontal em todas as rotas a 375px.',
+      'Novo — paleta de comandos (Ctrl/Cmd+K, ou botão Buscar na sidebar/topbar): navega entre ferramentas e alterna o tema, com busca sem acento e teclado completo (setas/Enter/Esc).',
+      'Novo — convenção de nomes: na Etapa 3 o prefixo do monitor já vem pré-preenchido com o padrão [Prefixo] que o org usa (monitores ligados às entidades escolhidas, senão o mais comum do org com ≥3 monitores e ≥25%); só sugere, nunca sobrescreve o que foi digitado. Nova rota /api/datadog/naming-convention (somente leitura).',
+      'Novo — botão Copiar query em cada monitor dos planos; filtro por nome e \'só com lacunas\' + cabeçalho fixo nas tabelas de cobertura do AuditMonitors.',
+      'Correção — tema: a preferência salva era sobrescrita por \'system\' na montagem e a página piscava no tema errado na primeira pintura; agora o tema é aplicado antes da hidratação e só persiste depois de carregado.',
+      'Config: poweredByHeader off, Cache-Control no-store nas rotas /api, Cross-Origin-Opener-Policy, tsconfig target ES2022 + forceConsistentCasingInFileNames, comentário do CI atualizado.',
+    ],
+  },
+  {
     version: '1.61.0',
     date: '2026-10-13',
     title: 'Atualização de dependências e segurança (Next 16.4 corrige RCE crítico)',
