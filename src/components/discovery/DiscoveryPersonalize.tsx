@@ -6,6 +6,8 @@ import { ALERT_TYPES, ALERT_BY_KEY, POD_RESTARTS_TYPE, POD_PENDING_TYPE, type Di
 import { INFRA_TYPES, INFRA_BY_KEY, type InfraDiscoveryState } from '@/lib/infra'
 import type { LogMonitorsState } from '@/lib/log-monitors'
 import { sourcesFor, type DiscoveryStepProps, type PersonalizeSource } from './types'
+import { useNamingSuggestion, suggestionNote } from './useNamingSuggestion'
+import { DEFAULT_NAME_PREFIX } from '@/lib/naming-convention'
 
 const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_namespace', 'http.status_code']
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
@@ -103,6 +105,18 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
   // k8sDiscovery em K8s/DBM) — um id fixo colidiria entre as seções.
   const uid = useId()
 
+  // Convenção de nomes já usada no org -> pré-preenche o prefixo (editável).
+  // Entidades escolhidas servem de dica pra achar monitores relacionados.
+  const selectedMap = (config[src.stateKey] as unknown as { selected?: Record<string, unknown> }).selected || {}
+  const nameSuggestion = useNamingSuggestion({
+    prefix: d.namePrefix,
+    hints: Object.keys(selectedMap).filter(k => selectedMap[k]),
+    apply: suggested => setConfig(c => {
+      const cur = c[src.stateKey] as unknown as PersonalizeCommon
+      return cur.namePrefix === DEFAULT_NAME_PREFIX ? ({ ...c, [src.stateKey]: { ...(c[src.stateKey] as object), namePrefix: suggested } } as typeof c) : c
+    }),
+  })
+
   const { TYPES, BY_KEY, groupByOptions, entityLabel, entityTag, showGroupBy } = catalogFor(src)
   const enabledKeySet = enabledKeySetFor(src, config[src.stateKey] as InfraDiscoveryState | DiscoveryState)
   const enabled = TYPES.filter(t => enabledKeySet[t.key]?.enabled)
@@ -146,6 +160,9 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
         <p style={s.hint}>
           Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;{entityLabel}&gt; · &lt;tipo&gt;</strong> (Pod Pending é global, sem entidade no nome).
         </p>
+        {nameSuggestion && d.namePrefix === nameSuggestion.prefix && (
+          <p style={{ ...s.hint, color: 'var(--accent)' }}>{suggestionNote(nameSuggestion)} Edite se preferir outro.</p>
+        )}
       </div>
 
       {/* Tags */}
@@ -293,6 +310,12 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
   const setLog = (patch: Partial<LogMonitorsState>) => setConfig(c => ({ ...c, logMonitors: { ...c.logMonitors, ...patch } }))
   const [tagInput, setTagInput] = useState('')
   const uid = useId()
+  // Regras de log não têm "entidade" — sem dicas, cai na convenção do org inteiro.
+  const nameSuggestion = useNamingSuggestion({
+    prefix: d.namePrefix,
+    hints: [],
+    apply: suggested => setConfig(c => (c.logMonitors.namePrefix === DEFAULT_NAME_PREFIX ? { ...c, logMonitors: { ...c.logMonitors, namePrefix: suggested } } : c)),
+  })
 
   function addTag() {
     const v = tagInput.trim()
@@ -315,6 +338,9 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
         <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
         <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setLog({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
         <p style={s.hint}>Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;nome da regra&gt;</strong>.</p>
+        {nameSuggestion && d.namePrefix === nameSuggestion.prefix && (
+          <p style={{ ...s.hint, color: 'var(--accent)' }}>{suggestionNote(nameSuggestion)} Edite se preferir outro.</p>
+        )}
       </div>
 
       <div>

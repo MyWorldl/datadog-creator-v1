@@ -56,6 +56,9 @@ const nextConfig = {
   /* config options here */
   reactCompiler: true,
 
+  // Não anuncia "X-Powered-By: Next.js" (fingerprint inútil pra quem ataca).
+  poweredByHeader: false,
+
   // Headers de segurança aplicados a toda resposta (páginas e API). Nenhum
   // domínio externo é chamado do browser além de 'self' e do próprio
   // Supabase (fontes via next/font são self-hospedadas em build time;
@@ -77,6 +80,17 @@ const nextConfig = {
           // HSTS recebido sobre HTTP simples de qualquer forma, mas evita
           // até o dev tooling ficar confuso durante `npm run dev`.
           ...(isDev ? [] : [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]),
+          // Isola o contexto de navegação (mitiga ataques cross-window tipo
+          // Spectre / window.opener) — o app não abre popups de terceiros.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+        ],
+      },
+      {
+        // Respostas de API carregam dados da conta Datadog do usuário (hosts,
+        // monitores, consumo) — nunca devem ficar em cache de browser/proxy.
+        source: '/api/(.*)',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, max-age=0' },
         ],
       },
     ]

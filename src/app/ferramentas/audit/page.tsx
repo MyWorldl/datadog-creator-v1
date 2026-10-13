@@ -157,24 +157,51 @@ interface CoverageTableProps<T extends { gapCount: number; metrics: Record<strin
 
 function CoverageTable<T extends { gapCount: number; metrics: Record<string, boolean> }>({ title, rows, metrics, rowKey, rowLabel, footnote }: CoverageTableProps<T>) {
   const complete = rows.filter(r => r.gapCount === 0).length
+  // Filtro local (ambientes com centenas de hosts/serviços): busca por nome
+  // (aceita vários termos separados por vírgula, mesma convenção do resto do
+  // app) + "só com lacunas".
+  const [search, setSearch] = useState('')
+  const [onlyGaps, setOnlyGaps] = useState(false)
+  const terms = search.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
+  const visible = rows.filter(r => {
+    if (onlyGaps && r.gapCount === 0) return false
+    if (terms.length === 0) return true
+    const name = String(r[rowKey]).toLowerCase()
+    return terms.some(t => name.includes(t))
+  })
   return (
     <details style={{ marginTop: 16 }}>
       <summary style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, cursor: 'pointer' }}>
         {title} ({complete}/{rows.length} completos)
       </summary>
-      <div style={{ overflowX: 'auto', marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+        <input
+          aria-label={`Filtrar ${rowLabel.toLowerCase()}`}
+          className="focus-ring"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={`Filtrar ${rowLabel.toLowerCase()} (vários termos separados por vírgula)`}
+          style={{ flex: 1, minWidth: 200, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' }}
+        />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={onlyGaps} onChange={e => setOnlyGaps(e.target.checked)} />
+          Só com lacunas
+        </label>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{visible.length} de {rows.length}</span>
+      </div>
+      <div className="scroll-x" style={{ marginTop: 10, maxHeight: 520, overflowY: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 11.5, width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--text-muted)', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>{rowLabel}</th>
+              <th style={{ textAlign: 'left', padding: '6px 10px', color: 'var(--text-muted)', position: 'sticky', left: 0, top: 0, zIndex: 2, background: 'var(--bg-surface)' }}>{rowLabel}</th>
               {metrics.map(m => (
-                <th key={m.key} style={{ padding: '6px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>{m.label}</th>
+                <th key={m.key} style={{ padding: '6px 8px', color: 'var(--text-muted)', fontWeight: 600, position: 'sticky', top: 0, background: 'var(--bg-surface)' }}>{m.label}</th>
               ))}
-              <th style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>Lacunas</th>
+              <th style={{ padding: '6px 8px', color: 'var(--text-muted)', position: 'sticky', top: 0, background: 'var(--bg-surface)' }}>Lacunas</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map(r => (
+            {visible.map(r => (
               <tr key={String(r[rowKey])} style={{ borderTop: '1px solid var(--border)' }}>
                 <td style={{ padding: '6px 10px', color: 'var(--text-primary)', fontFamily: 'var(--font-geist-mono), monospace', position: 'sticky', left: 0, background: 'var(--bg-surface)' }}>{String(r[rowKey])}</td>
                 {metrics.map(m => (
@@ -185,6 +212,9 @@ function CoverageTable<T extends { gapCount: number; metrics: Record<string, boo
                 <td style={{ padding: '6px 8px', textAlign: 'center', fontWeight: 700, color: r.gapCount === 0 ? 'var(--success)' : 'var(--danger)' }}>{r.gapCount}</td>
               </tr>
             ))}
+            {visible.length === 0 && (
+              <tr><td colSpan={metrics.length + 2} style={{ padding: 14, textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum {rowLabel.toLowerCase()} para esse filtro.</td></tr>
+            )}
           </tbody>
         </table>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>{footnote}</p>

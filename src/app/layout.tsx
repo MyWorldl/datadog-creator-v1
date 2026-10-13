@@ -27,7 +27,19 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="pt-BR"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // data-theme é definido pelo script abaixo ANTES da hidratação.
+      suppressHydrationWarning
     >
+      <head>
+        {/* Aplica o tema salvo na PRIMEIRA pintura — sem isso a página nascia
+            no tema claro (padrão do CSS) e piscava pro escuro depois que o
+            React hidratava. Mesma lógica de AppContext (dd_theme / system). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('dd_theme')||'system';var d=t==='system'?window.matchMedia('(prefers-color-scheme: dark)').matches:t==='dark';document.documentElement.setAttribute('data-theme',d?'dark':'light')}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="h-full">
         <Providers>
           <AppShell>{children}</AppShell>

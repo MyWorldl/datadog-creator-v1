@@ -85,7 +85,9 @@ export default function Home() {
     <div style={{
       minHeight: '100%',
       background: 'var(--bg-base)',
-      padding: '2rem',
+      // sem padding próprio: o .app-main já dá o respiro (antes era 2rem
+      // DOBRADO, deixando o wizard espremido no celular).
+      padding: 0,
     }}>
       <main style={{
         maxWidth: 640,

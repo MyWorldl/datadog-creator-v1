@@ -54,8 +54,8 @@ function avgGroupPct(rows: (HostCoverageRow | ServiceCoverageRow)[], metrics: Me
 
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
+  h1: { fontSize: 'clamp(1.35rem, 1.1rem + 1vw, 1.75rem)', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' },
+  sub: { fontSize: 13.5, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   metricStrip: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 },
   metricTile: { background: 'var(--bg-surface-2)', borderRadius: 10, padding: '12px 14px' },
   metricNum: { fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 },
@@ -172,7 +172,7 @@ export default function DashboardPage() {
   return (
     <div>
       <h1 style={s.h1}>{heading}</h1>
-      <p style={s.sub}>Visão geral do ambiente {keysConfigured ? `· ${datadogSite}` : ''}.</p>
+      <p style={s.sub}>Visão geral do ambiente{keysConfigured ? ` · ${datadogSite}` : ''}.</p>
 
       {keysConfigured && (
         <>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
 
           <div style={s.band}>
             {/* ScopeMaturity */}
-            <Link href="/ferramentas/analise" style={s.hero}>
+            <Link href="/ferramentas/analise" style={s.hero} className="card-hover">
               <div style={s.heroTop}>
                 <div style={ringWrapStyle(66)}>
                   <ScoreRing value={sm?.score ?? null} color={scoreColor(sm?.score ?? null)} size={66} stroke={8} />
@@ -206,7 +206,7 @@ export default function DashboardPage() {
             </Link>
 
             {/* AuditMonitors */}
-            <Link href="/ferramentas/audit" style={s.hero}>
+            <Link href="/ferramentas/audit" style={s.hero} className="card-hover">
               <div style={s.heroTop}>
                 <div style={ringWrapStyle(66)}>
                   <ScoreRing value={ma?.score ?? null} color={scoreColor(ma?.score ?? null)} size={66} stroke={8} />
@@ -251,7 +251,7 @@ export default function DashboardPage() {
           <p style={s.sectionTitle}>{section.title}</p>
           <div style={s.grid}>
             {section.items.map(({ href, Icon, title, desc, cta }) => (
-              <Link key={href} href={href} style={s.card}>
+              <Link key={href} href={href} style={s.card} className="card-hover">
                 <div style={s.icon}><Icon size={19} /></div>
                 <p style={s.cTitle}>{title}</p>
                 <p style={s.cDesc}>{desc}</p>
