@@ -19,6 +19,11 @@ interface ScopeConfigEntry {
   opsUrl: (names: string[]) => string
   discoverHint: (site: string) => string
   opsLabel: string
+  // Quantas entidades por requisição em "Identificar operações" — o Metrics
+  // List do Datadog limita a 50 req/10s e cada entidade vira ≥1 chamada, então
+  // lotes pequenos (com progresso) evitam estourar o limite e timeout de
+  // função serverless numa seleção grande.
+  opsChunkSize: number
   allowManualEntry?: boolean
   manualPlaceholder?: string
 }
@@ -38,6 +43,7 @@ const SCOPE_CONFIG: Record<ScopeType, ScopeConfigEntry> = {
     opsUrl: (names) => `/api/datadog/operations?services=${encodeURIComponent(names.join(','))}`,
     discoverHint: (site) => `Clique em "Descobrir serviços" para listar os serviços reportando ao Datadog (via ${site}).`,
     opsLabel: 'Operações por serviço',
+    opsChunkSize: 15,
   },
   namespace: {
     entityNoun: 'namespace',
@@ -49,6 +55,7 @@ const SCOPE_CONFIG: Record<ScopeType, ScopeConfigEntry> = {
     opsUrl: (names) => `/api/datadog/namespace-operations?namespaces=${encodeURIComponent(names.join(','))}`,
     discoverHint: (site) => `Clique em "Descobrir namespaces" para listar os kube_namespace com tráfego APM no Datadog (via ${site}). Se algum não aparecer (ex.: namespace sem http), adicione manualmente abaixo.`,
     opsLabel: 'Operações por namespace',
+    opsChunkSize: 3, // cada namespace dispara 1 chamada por serviço dele
     allowManualEntry: true,
     manualPlaceholder: 'Adicionar namespace manualmente… ex.: payments',
   },
@@ -103,6 +110,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
 
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [manualInput, setManualInput] = useState('')
@@ -184,26 +192,40 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
 
   async function analyze() {
     if (selectedNames.length === 0) { setError(`Selecione ao menos um ${cfg.entityNoun}.`); return }
-    setError(''); setAnalyzing(true)
+    // Só os PENDENTES (ainda não identificados, ou que deram erro — ex.: 429 do
+    // rate limit): reenviar a lista toda gastava a cota à toa e repetia o erro.
+    // Se tudo já está identificado, o clique reidentifica tudo (atualizar).
+    const pending = selectedNames.filter(n => d.selected[n]?.opsCount == null || d.selected[n]?.error)
+    const targets = pending.length > 0 ? pending : selectedNames
+    setError(''); setAnalyzing(true); setProgress({ done: 0, total: targets.length })
     try {
-      const r = await fetch(cfg.opsUrl(selectedNames))
-      const data = await r.json()
-      if (!r.ok) { setError(data.error || 'Falha ao identificar operações.'); return }
-      const sel = { ...d.selected }
-      for (const name of selectedNames) {
-        const res = data.results?.[name] || {}
-        const operations: string[] = res.operations || []
-        const primary = res.primary || operations[0] || 'http.request'
-        sel[name] = {
-          opsCount: res.count ?? operations.length,
-          operations,
-          chosen: [primary],
-          error: res.error || null,
-        }
+      for (let i = 0; i < targets.length; i += cfg.opsChunkSize) {
+        const chunk = targets.slice(i, i + cfg.opsChunkSize)
+        const r = await fetch(cfg.opsUrl(chunk))
+        const data = await r.json()
+        if (!r.ok) { setError(data.error || 'Falha ao identificar operações.'); return }
+        // Update funcional: grava a cada lote sem pisar em mudanças feitas
+        // durante a busca (ex.: entidade desmarcada no meio).
+        setConfig(c => {
+          const sel = { ...c.discovery.selected }
+          for (const name of chunk) {
+            if (!sel[name]) continue
+            const res = data.results?.[name] || {}
+            const operations: string[] = res.operations || []
+            const primary = res.primary || operations[0] || 'http.request'
+            sel[name] = {
+              opsCount: res.count ?? operations.length,
+              operations,
+              chosen: [primary],
+              error: res.error || null,
+            }
+          }
+          return { ...c, discovery: { ...c.discovery, selected: sel } }
+        })
+        setProgress({ done: Math.min(i + chunk.length, targets.length), total: targets.length })
       }
-      setDisc({ selected: sel })
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
-    finally { setAnalyzing(false) }
+    finally { setAnalyzing(false); setProgress(null) }
   }
 
   function toggleOp(name: string, op: string) {
@@ -353,7 +375,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <label style={{ ...s.label, marginBottom: 0 }}>{cfg.opsLabel}</label>
             <button style={s.btnGhost} onClick={analyze} disabled={analyzing}>
-              {analyzing ? 'Identificando…' : 'Identificar operações'}
+              {analyzing ? `Identificando…${progress ? ` (${progress.done}/${progress.total})` : ''}` : 'Identificar operações'}
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -392,7 +414,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
               )
             })}
           </div>
-          <p style={s.hint}>Cada operação selecionada gera um monitor por tipo de alerta.</p>
+          <p style={s.hint}>Cada operação selecionada gera um monitor por tipo de alerta.{selectedNames.some(n => d.selected[n]?.error) && ' Os com erro (ex.: limite de requisições do Datadog) são tentados de novo ao clicar em Identificar — só os pendentes, não a lista toda.'}</p>
         </div>
       )}
 
