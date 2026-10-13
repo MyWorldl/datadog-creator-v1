@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.61.0',
+    date: '2026-10-13',
+    title: 'Atualização de dependências e segurança (Next 16.4 corrige RCE crítico)',
+    notes: [
+      'Next.js 16.3.1 -> 16.4.0 (corrige vulnerabilidade CRÍTICA de execução remota de código sem autenticação em servidores Windows e outras avisadas pelo npm audit). React/React-DOM 19.2.8 -> 19.3.0, eslint-config-next 16.4.0, @types/react 19.3.0.',
+      'Atualizações minor/patch: Sentry 10.76, Supabase (ssr/supabase-js), zod 4.6, ESLint 9.39.5, lint-staged 17.6. npm audit fix resolveu as 5 vulnerabilidades altas transitivas (sharp, browserslist, brace-expansion, fast-uri, source-map-js); sobram só 2 moderadas de exceljs/uuid, aceitas de propósito (ver DiscoveryCreate/monitor-excel).',
+      'CI: o gate de npm audit agora olha só dependências de PRODUÇÃO (--omit=dev) — o advisory de braces (via eslint-config-next) não tem versão corrigida e é só ferramenta de lint, bloqueava o PR sem risco real.',
+    ],
+  },
+  {
     version: '1.60.0',
     date: '2026-10-13',
     title: 'Identificar operações: rate limit do Datadog (429)',

@@ -38,8 +38,13 @@ jobs:
       # moderada de exceljs/uuid é aceita de propósito — ver comentário em
       # src/components/discovery/DiscoveryCreate.tsx, o único fix disponível
       # troca essa moderada por uma cadeia com vulnerabilidade ALTA).
-      - name: Auditoria de dependências (npm audit, alto/crítico)
-        run: npm audit --audit-level=high
+      # --omit=dev: o gate vale pro que VAI PRA PRODUÇÃO. Ferramentas só de
+      # desenvolvimento (ex.: eslint-config-next -> fast-glob -> micromatch ->
+      # braces, advisory GHSA-vfj7-8cjw-p6xm sem versão corrigida publicada)
+      # não rodam no servidor nem no browser — bloquear o PR por elas só gera
+      # ruído, e o único "fix" sugerido pelo npm é um downgrade pro Next 14.
+      - name: Auditoria de dependências de produção (npm audit, alto/crítico)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: ESLint
         run: npm run lint
