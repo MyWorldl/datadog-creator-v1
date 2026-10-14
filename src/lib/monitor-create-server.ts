@@ -140,6 +140,3 @@ export function selectBatch<T>(batch: unknown, plan: T[]): BatchSelection<T> {
   return { ok: true, plan: (only as number[]).map(i => plan[i]), options: { existingNames: new Set<string>() } }
 }
 
-// maxDuration das rotas de criação: lote de 25 com concorrência 4 leva poucos
-// segundos; 60s dá folga pra 429 com backoff.
-export const CREATE_MAX_DURATION = 60

@@ -16,11 +16,11 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planLogPreview, validateLogRule, type LogMonitorRule, type LogMonitorsState } from '@/lib/log-monitors'
 import { ctxFrom } from '@/lib/datadog-server'
-import { createPlanIdempotent, selectBatch, CREATE_MAX_DURATION } from '@/lib/monitor-create-server'
+import { createPlanIdempotent, selectBatch } from '@/lib/monitor-create-server'
 import { logMonitorsBodySchema, firstIssueMessage } from '@/lib/schemas'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 
-export const maxDuration = CREATE_MAX_DURATION
+export const maxDuration = 60 // literal (o Next não aceita constante importada); lote de 25 leva poucos segundos
 
 export async function POST(request: NextRequest): Promise<Response> {
   if (!isFeatureEnabled('logMonitors')) {

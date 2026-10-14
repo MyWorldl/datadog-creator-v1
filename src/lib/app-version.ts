@@ -27,6 +27,14 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.65.1',
+    date: '2026-10-14',
+    title: 'Correção do build da criação em lotes',
+    notes: [
+      'maxDuration das rotas de criação como número literal (exigência do Next); a v1.65.0 não chegou a publicar',
+    ],
+  },
+  {
     version: '1.65.0',
     date: '2026-10-14',
     title: 'Criação em lotes + planilha do plano',
