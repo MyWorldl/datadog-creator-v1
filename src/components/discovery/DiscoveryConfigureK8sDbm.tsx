@@ -20,7 +20,7 @@
 import { useState, type CSSProperties } from 'react'
 import { INFRA_TYPES, DB_HOSTING_OPTIONS, detectDbHosting, type DbHostingChoice, type InfraMetricConfig, type InfraMetricType } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS, POD_RESTARTS_TYPE, POD_PENDING_TYPE } from '@/lib/discovery'
-import ProgressBar from '@/components/ProgressBar'
+import ProgressBar, { EstimatedProgressBar } from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 import { accStyle, chevStyle, winShort } from './styles'
 
@@ -179,7 +179,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
           <input aria-label="Filtrar hosts" className="focus-ring" style={s.search} placeholder="Filtrar hosts (vírgula = vários termos)" value={hostSearch} onChange={e => setHostSearch(e.target.value)} />
           <button className="btn btn-ghost" onClick={discoverHosts} disabled={loadingHosts}>{loadingHosts ? 'Descobrindo…' : 'Descobrir hosts'}</button>
         </div>
-        {loadingHosts && <ProgressBar value={null} label="Consultando hosts no Datadog…" />}
+        {loadingHosts && <EstimatedProgressBar op="hosts" label="Consultando hosts no Datadog…" defaultMs={5000} />}
 
         {infra.hosts.length > 0 ? (
           <>
@@ -274,7 +274,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
           <input aria-label="Filtrar namespaces" className="focus-ring" style={s.search} placeholder="Filtrar namespaces (vírgula = vários termos)" value={nsSearch} onChange={e => setNsSearch(e.target.value)} />
           <button className="btn btn-ghost" onClick={discoverNamespaces} disabled={loadingNs}>{loadingNs ? 'Descobrindo…' : 'Descobrir namespaces'}</button>
         </div>
-        {loadingNs && <ProgressBar value={null} label="Consultando namespaces no Datadog…" />}
+        {loadingNs && <EstimatedProgressBar op="namespaces" label="Consultando namespaces no Datadog…" defaultMs={5000} />}
 
         {disc.services.length > 0 ? (
           <>

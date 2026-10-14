@@ -1,7 +1,7 @@
 // src/app/ferramentas/bulk-rename/page.tsx
 'use client'
 
-import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import ProgressBar, { EstimatedProgressBar, useJobProgress } from '@/components/ProgressBar'
 import { fetchJob } from '@/lib/job-client'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
@@ -148,7 +148,7 @@ export default function BulkRenamePage() {
               <button className="btn btn-primary" onClick={loadMonitors} disabled={loadingList}>
                 {loadingList ? 'Carregando…' : 'Carregar monitores'}
               </button>
-              {loadingList && <div style={{ marginTop: 14 }}><ProgressBar value={null} label="Lendo os monitores do Datadog…" /></div>}
+              {loadingList && <div style={{ marginTop: 14 }}><EstimatedProgressBar op="bulk-list" label="Lendo os monitores do Datadog…" defaultMs={6000} /></div>}
               {listError && <div className="wz-msg" style={s.err}>{listError}</div>}
             </div>
           )}

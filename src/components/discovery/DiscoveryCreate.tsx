@@ -172,7 +172,7 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
       {busy && (
         <div>
           <ProgressBar
-            value={phase === 'sheet' ? null : (progress.total ? progress.done / progress.total : null)}
+            value={phase === 'sheet' ? 0 : (progress.total ? progress.done / progress.total : 0)}
             label={phase === 'sheet' ? 'Gerando a planilha do plano…' : 'Criando monitores no Datadog…'}
             detail={phase === 'sheet' ? undefined : `${progress.done} de ${progress.total}`}
           />
