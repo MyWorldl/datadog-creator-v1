@@ -24,6 +24,7 @@ import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, estimatedUsage, type DatadogCtx } from '@/lib/datadog-server'
+import { streamJob, type JobProgress } from '@/lib/job-stream'
 import { PRODUCTS } from '@/lib/finops-pricing'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { monthQuerySchema, firstIssueMessage } from '@/lib/schemas'
@@ -97,7 +98,7 @@ async function viaUsageSummary(ctx: DatadogCtx, month: string): Promise<SourceRe
   return { ok: true, products, missing, startDate: (summary.start_date as string) || null, endDate: (summary.end_date as string) || null }
 }
 
-async function viaEstimatedUsageMetrics(ctx: DatadogCtx, month: string): Promise<SourceResult> {
+async function viaEstimatedUsageMetrics(ctx: DatadogCtx, month: string, progress?: JobProgress): Promise<SourceResult> {
   const { start, end } = monthBoundsMs(month)
   const fromSec = Math.floor(start / 1000)
   const toSec = Math.floor(end / 1000)
@@ -106,6 +107,7 @@ async function viaEstimatedUsageMetrics(ctx: DatadogCtx, month: string): Promise
   const results = await Promise.all(PRODUCTS.map(async (p) => {
     if (!p.estMetric) return { p, ok: false, reason: 'sem métrica estimada' as string | undefined, u: undefined }
     const u = await estimatedUsage(ctx, p, fromSec, toSec)
+    progress?.step(`${p.label} medido`)
     return { p, u, ok: u.ok && u.value != null, reason: undefined as string | undefined }
   }))
 
@@ -131,6 +133,8 @@ async function viaEstimatedUsageMetrics(ctx: DatadogCtx, month: string): Promise
 
   return { ok: products.length > 0, products, missing, diagnostics, startDate: new Date(start).toISOString(), endDate: new Date(end).toISOString() }
 }
+
+export const maxDuration = 60
 
 export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
@@ -158,65 +162,72 @@ export async function GET(request: NextRequest): Promise<Response> {
   const cached = await cacheGet(key)
   if (cached) return Response.json({ ...cached, cached: true })
 
-  let result = await viaUsageSummary(ctx, month)
-  let source = 'usage_summary'
-  let warning: string | null = null
+  return streamJob(async (progress) => {
+    let result = await viaUsageSummary(ctx, month)
+    progress.step('Resumo de uso lido')
+    let source = 'usage_summary'
+    let warning: string | null = null
 
-  // O usage/summary agrega no nível PARENT-org ("for all organizations").
-  // Numa Sub-Org, ele costuma voltar quase vazio — às vezes 200 sem nada,
-  // às vezes com apenas 1 campo simples (ex.: custom metrics) e SEM os
-  // agregados principais (infra/APM/logs). Tratamos como "incompleto" e
-  // caímos para as métricas datadog.estimated_usage.* (que funcionam por org)
-  // quando: (a) a chamada falhou, (b) veio 0 produto, ou (c) veio produto
-  // mas nenhum dos "core" (infra, apm, logs) — sinal de resposta parcial.
-  const CORE = ['infra', 'apm', 'logsIngest']
-  const summaryHasCore = result.ok && (result.products || []).some(p => CORE.includes(p.key))
-  const summaryCount = result.ok ? (result.products || []).length : 0
-  const needFallback = !result.ok || summaryCount === 0 || !summaryHasCore
+    // O usage/summary agrega no nível PARENT-org ("for all organizations").
+    // Numa Sub-Org, ele costuma voltar quase vazio — às vezes 200 sem nada,
+    // às vezes com apenas 1 campo simples (ex.: custom metrics) e SEM os
+    // agregados principais (infra/APM/logs). Tratamos como "incompleto" e
+    // caímos para as métricas datadog.estimated_usage.* (que funcionam por org)
+    // quando: (a) a chamada falhou, (b) veio 0 produto, ou (c) veio produto
+    // mas nenhum dos "core" (infra, apm, logs) — sinal de resposta parcial.
+    const CORE = ['infra', 'apm', 'logsIngest']
+    const summaryHasCore = result.ok && (result.products || []).some(p => CORE.includes(p.key))
+    const summaryCount = result.ok ? (result.products || []).length : 0
+    const needFallback = !result.ok || summaryCount === 0 || !summaryHasCore
 
-  if (needFallback) {
-    const summaryHint = !result.ok
-      ? (result.status === 403
-        ? 'usage_summary retornou 403 (App key sem escopo usage_read, ou organização não-parent).'
-        : `usage_summary falhou (${result.status || result.error}).`)
-      : (summaryCount === 0
-        ? 'usage_summary respondeu 200 sem nenhum campo de consumo reconhecido.'
-        : `usage_summary respondeu, mas com dados incompletos (${summaryCount} produto(s), sem os agregados principais de infra/APM/logs) — típico de Sub-Org, pois o summary agrega no nível da Parent Org.`)
+    if (needFallback) {
+      const summaryHint = !result.ok
+        ? (result.status === 403
+          ? 'usage_summary retornou 403 (App key sem escopo usage_read, ou organização não-parent).'
+          : `usage_summary falhou (${result.status || result.error}).`)
+        : (summaryCount === 0
+          ? 'usage_summary respondeu 200 sem nenhum campo de consumo reconhecido.'
+          : `usage_summary respondeu, mas com dados incompletos (${summaryCount} produto(s), sem os agregados principais de infra/APM/logs) — típico de Sub-Org, pois o summary agrega no nível da Parent Org.`)
 
-    const fallback = await viaEstimatedUsageMetrics(ctx, month)
-    // Usa o fallback se ele trouxer pelo menos tantos produtos quanto o summary
-    // (evita "rebaixar" um summary completo por acidente).
-    if (fallback.ok && (fallback.products?.length ?? 0) >= summaryCount) {
-      result = fallback
-      source = 'estimated_usage_metrics'
-      warning = `${summaryHint} Exibindo consumo via métricas datadog.estimated_usage.* (Metrics API), que respondem por org (inclusive Sub-Org). Agregado como o Datadog fatura (hosts=pico p99, custom metrics/containers=média, logs/RUM/synthetics=soma). Estimativa em tempo real, ~10–20% de diferença média vs. o faturável.`
-    } else if (!result.ok) {
-      return Response.json({
-        error: `${summaryHint} O fallback via Metrics API também não retornou dados (métricas estimated_usage ausentes ou App key sem escopo timeseries_query).`,
-      }, { status: 502 })
-    } else if (summaryCount === 0) {
-      warning = `${summaryHint} O fallback via métricas estimated_usage.* também não retornou pontos (org sem uso no período, ou App key sem escopo timeseries_query/metrics_read).`
-      source = 'estimated_usage_metrics'
-      result = fallback.ok ? fallback : result
-    } else {
-      // Summary parcial e o fallback não veio melhor: mantém o summary, mas avisa.
-      warning = `${summaryHint} Não consegui complementar via métricas estimated_usage.* (verifique o escopo timeseries_query na App key). Exibindo o que o summary retornou.`
-      if (fallback.diagnostics) result.diagnostics = fallback.diagnostics
+      // Fallback mede cada produto por métrica: o total da barra cresce.
+      progress.setTotal(2 + PRODUCTS.length)
+      progress.note('Medindo consumo por produto…')
+      const fallback = await viaEstimatedUsageMetrics(ctx, month, progress)
+      // Usa o fallback se ele trouxer pelo menos tantos produtos quanto o summary
+      // (evita "rebaixar" um summary completo por acidente).
+      if (fallback.ok && (fallback.products?.length ?? 0) >= summaryCount) {
+        result = fallback
+        source = 'estimated_usage_metrics'
+        warning = `${summaryHint} Exibindo consumo via métricas datadog.estimated_usage.* (Metrics API), que respondem por org (inclusive Sub-Org). Agregado como o Datadog fatura (hosts=pico p99, custom metrics/containers=média, logs/RUM/synthetics=soma). Estimativa em tempo real, ~10–20% de diferença média vs. o faturável.`
+      } else if (!result.ok) {
+        return Response.json({
+          error: `${summaryHint} O fallback via Metrics API também não retornou dados (métricas estimated_usage ausentes ou App key sem escopo timeseries_query).`,
+        }, { status: 502 })
+      } else if (summaryCount === 0) {
+        warning = `${summaryHint} O fallback via métricas estimated_usage.* também não retornou pontos (org sem uso no período, ou App key sem escopo timeseries_query/metrics_read).`
+        source = 'estimated_usage_metrics'
+        result = fallback.ok ? fallback : result
+      } else {
+        // Summary parcial e o fallback não veio melhor: mantém o summary, mas avisa.
+        warning = `${summaryHint} Não consegui complementar via métricas estimated_usage.* (verifique o escopo timeseries_query na App key). Exibindo o que o summary retornou.`
+        if (fallback.diagnostics) result.diagnostics = fallback.diagnostics
+      }
     }
-  }
 
-  const payload = {
-    site,
-    month,
-    source,
-    warning,
-    startDate: result.startDate,
-    endDate: result.endDate,
-    products: result.products,
-    missing: result.missing,
-    diagnostics: result.diagnostics || null,
-    generatedAt: new Date().toISOString(),
-  }
-  await cacheSet(key, payload, CACHE_TTL_MS)
-  return Response.json(payload)
+    const payload = {
+      site,
+      month,
+      source,
+      warning,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      products: result.products,
+      missing: result.missing,
+      diagnostics: result.diagnostics || null,
+      generatedAt: new Date().toISOString(),
+    }
+    await cacheSet(key, payload, CACHE_TTL_MS)
+    progress.step('Consumo calculado')
+    return Response.json(payload)
+  }, 2)
 }

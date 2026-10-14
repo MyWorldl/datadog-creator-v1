@@ -1,6 +1,8 @@
 // src/app/ferramentas/bulk-rename/page.tsx
 'use client'
 
+import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import { fetchJob } from '@/lib/job-client'
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { computeRenames, type MonitorRef, type RenameCandidate } from '@/lib/bulk-rename'
@@ -46,6 +48,7 @@ export default function BulkRenamePage() {
   const [renameSearch, setRenameSearch] = useState('')
   const [renameReplace, setRenameReplace] = useState('')
   const [applying, setApplying] = useState(false)
+  const { progress, start, onProgress } = useJobProgress()
   const [applyError, setApplyError] = useState('')
   const [result, setResult] = useState<RenameResult | null>(null)
 
@@ -111,14 +114,17 @@ export default function BulkRenamePage() {
     if (candidates.length === 0) return
     setApplying(true); setApplyError(''); setResult(null)
     try {
-      const r = await fetch('/api/datadog/bulk-rename-monitors', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ renames: candidates.map(c => ({ id: c.id, name: c.newName })) }),
+      start('Renomeando monitores…')
+      const r = await fetchJob<RenameResult>('/api/datadog/bulk-rename-monitors', {
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ renames: candidates.map(c => ({ id: c.id, name: c.newName })) }),
+        },
+        onProgress,
       })
-      const data = await r.json()
-      if (!r.ok) { setApplyError(data.error || 'Falha ao renomear.'); return }
-      setResult(data)
+      if (!r.ok) { setApplyError(r.data.error || 'Falha ao renomear.'); return }
+      setResult(r.data)
       setSelected(new Set())
     } catch (e) { setApplyError('Falha de rede: ' + (e as Error).message) }
     finally { setApplying(false) }
@@ -142,6 +148,7 @@ export default function BulkRenamePage() {
               <button className="btn btn-primary" onClick={loadMonitors} disabled={loadingList}>
                 {loadingList ? 'Carregando…' : 'Carregar monitores'}
               </button>
+              {loadingList && <div style={{ marginTop: 14 }}><ProgressBar value={null} label="Lendo os monitores do Datadog…" /></div>}
               {listError && <div className="wz-msg" style={s.err}>{listError}</div>}
             </div>
           )}
@@ -212,6 +219,7 @@ export default function BulkRenamePage() {
                   {applying ? 'Renomeando…' : `Renomear ${candidates.length} monitor(es)`}
                 </button>
               </div>
+              {applying && progress && <div style={{ marginTop: 14 }}><ProgressBar value={progress.value} label={progress.label} detail={progress.detail} /></div>}
               <p style={{ ...s.hint, marginTop: 8 }}>
                 Aplica só nos monitores selecionados acima cujo nome contém o texto buscado (substituição literal, não é regex — diferencia
                 maiúsculas/minúsculas). Deixe &quot;Substituir por&quot; em branco para apenas remover o trecho buscado. Só o nome muda; query, tags e

@@ -741,3 +741,13 @@ input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s 
 /* Login: cartão central entra com leve escala. */
 @keyframes authIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
 .auth-card { animation: authIn 0.45s var(--ease-out) both; }
+
+/* ── Barra de progresso (ProgressBar.tsx): rótulo + % + tempo ── */
+.wz-progress { display: flex; flex-direction: column; gap: var(--space-2); }
+.wz-progress-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.wz-progress-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.wz-progress-meta { display: inline-flex; gap: var(--space-3); font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.wz-progress-meta strong { color: var(--accent); font-weight: 700; }
+.wz-progress-bar.is-indeterminate { width: 38%; animation: wzIndeterminate 1.3s ease-in-out infinite; background-image: var(--accent-gradient); }
+@keyframes wzIndeterminate { 0% { margin-left: -38%; } 100% { margin-left: 100%; } }
+.wz-progress.is-block { margin-top: var(--space-4); }

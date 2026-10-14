@@ -9,6 +9,7 @@
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
+import { streamJob } from '@/lib/job-stream'
 import { ctxFrom, ddPut, listMonitors, type DatadogCtx } from '@/lib/datadog-server'
 import { bulkRenameApplySchema, firstIssueMessage } from '@/lib/schemas'
 
@@ -28,6 +29,8 @@ async function renameWithRetry(ctx: DatadogCtx, id: string | number, name: strin
   }
   return last!
 }
+
+export const maxDuration = 60
 
 export async function GET(): Promise<Response> {
   const user = await getServerUser()
@@ -68,17 +71,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
 
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const results: { id: string | number; ok: boolean; name: string; error?: string }[] = []
-  for (const { id, name } of parsed.data.renames) {
-    const r = await renameWithRetry(ctx, id, name)
-    if (!r.ok) {
-      const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
-      results.push({ id, ok: false, name, error: errMsg })
-    } else {
-      results.push({ id, ok: true, name })
+  const renames = parsed.data.renames
+  // Streaming: a barra mostra quantos monitores já foram renomeados (1 por vez).
+  return streamJob(async (progress) => {
+    const results: { id: string | number; ok: boolean; name: string; error?: string }[] = []
+    for (const { id, name } of renames) {
+      const r = await renameWithRetry(ctx, id, name)
+      if (!r.ok) {
+        const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
+        results.push({ id, ok: false, name, error: errMsg })
+      } else {
+        results.push({ id, ok: true, name })
+      }
+      progress.step(`Renomeando monitores (${results.length}/${renames.length})`)
     }
-  }
-
-  const renamed = results.filter(r => r.ok).length
-  return Response.json({ renamed, total: results.length, results })
+    const renamed = results.filter(r => r.ok).length
+    return Response.json({ renamed, total: results.length, results })
+  }, renames.length)
 }

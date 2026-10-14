@@ -7,6 +7,8 @@ import { useApp } from '@/context/AppContext'
 import Sparkline from '@/components/Sparkline'
 import MonitorPlanList from '@/components/discovery/MonitorPlanList'
 import ScoreRing from '@/components/ScoreRing'
+import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import { fetchJob } from '@/lib/job-client'
 import { IconCluster } from '@/components/Icons'
 import {
   coveragePercent, percentBand, type PercentBand, type CoverageItem,
@@ -226,6 +228,7 @@ function CoverageTable<T extends { gapCount: number; metrics: Record<string, boo
 export default function AuditMonitorsPage() {
   const { keysConfigured, datadogSite, features } = useApp()
   const [loading, setLoading] = useState(false)
+  const { progress, start, onProgress } = useJobProgress()
   const [error, setError] = useState('')
   const [data, setData] = useState<AuditData | null>(null)
   const [previewKind, setPreviewKind] = useState<'infra' | 'apm' | null>(null)
@@ -238,12 +241,11 @@ export default function AuditMonitorsPage() {
     // até a resposta nova chegar. Mantém o dado anterior visível durante o
     // reload — o botão "Reauditar" já indica loading via texto, mesmo padrão
     // que ferramentas/bulk-rename/page.tsx (loadMonitors) já usava.
-    setError(''); setLoading(true); setCreateResult(null); setPreviewKind(null)
+    setError(''); setLoading(true); setCreateResult(null); setPreviewKind(null); start()
     try {
-      const r = await fetch('/api/datadog/audit-monitors')
-      const json = await r.json()
-      if (!r.ok) { setError(json.error || 'Falha ao auditar.'); return }
-      setData(json)
+      const r = await fetchJob<AuditData>('/api/datadog/audit-monitors', { onProgress })
+      if (!r.ok) { setError(r.data.error || 'Falha ao auditar.'); return }
+      setData(r.data)
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
@@ -326,6 +328,8 @@ export default function AuditMonitorsPage() {
               </button>
             </div>
           </div>
+
+          {loading && progress && <ProgressBar className="is-block wz-msg" value={progress.value} label={progress.label} detail={progress.detail} />}
 
           {error && <div className="wz-msg" style={s.err}>{error}</div>}
           {createResult && <div className="wz-msg" style={s.ok}>Criados {createResult.created} · pulados {createResult.skipped} (já existiam) · total {createResult.total}.</div>}
