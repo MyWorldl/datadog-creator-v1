@@ -21,6 +21,7 @@ interface HostRaw {
   is_muted?: boolean
   last_reported_time?: number
   tags_by_source?: Record<string, string[]>
+  sources?: string[]
 }
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -76,6 +77,9 @@ export async function GET(request: NextRequest): Promise<Response> {
         muted: !!h.is_muted,
         lastReportedAt: h.last_reported_time ? h.last_reported_time * 1000 : null,
         tags: allTags,
+        // Origem(ns) do host (agent, aws, gcp...) — usada pra detectar a hospedagem
+        // de bancos (ex.: só 'aws' + nome *.rds.amazonaws.com = RDS).
+        sources: Array.isArray(h.sources) ? h.sources : [],
       }
     })
     .filter(h => h.name)

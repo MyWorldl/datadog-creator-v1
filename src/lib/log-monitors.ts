@@ -9,27 +9,20 @@
 // pelos outros catálogos, pra reaproveitar createPlanIdempotent sem duplicar
 // lógica de criação.
 //
-// Sintaxe da query confirmada via pesquisa (doc oficial da API do Datadog,
-// "Create a Monitor" -> campo "query" -> "Logs alert query"):
-//   logs(query).index(index_name).rollup(rollup_method[, measure]).last(time_window) operator #
-// - query: Log Search Syntax (mesma sintaxe do Log Explorer)
-// - index_name: nome do índice, ou "*" pra todos (orgs multi-índice)
-// - rollup_method: count, avg, cardinality
-// - time_window: "#m" (1-2880) ou "#h" (1-48) — SEM prefixo "last_" (diferente
-//   do ALERT_WINDOW_OPTIONS de metric/anomaly monitor). Teto de 2 dias
-//   documentado em docs.datadoghq.com/monitors/types/log/.
-// - operator: <, <=, >, >=, ==, !=
-//
-// Escopo desta v1 (registrado de propósito, não esquecido): só rollup
-// "count" (contagem de logs que casam o filtro) — SEM measure (avg/
-// cardinality) e SEM .by() (agrupamento por facet). Motivo: encontrei duas
-// fontes conflitantes sobre quais funções de agregação valem quando um
-// "measure" é escolhido (a doc da API de monitor cita count/avg/cardinality;
-// a doc da UI do Log Monitor cita min/avg/sum/median/pc75-99/max pra quando
-// uma "measure" é selecionada) — sem um exemplo real testável, não vale
-// arriscar inventar sintaxe. .by() (agrupamento) só apareceu confirmado num
-// exemplo de events(), não de logs() especificamente. Ambos ficam para uma
-// rodada futura, já com a sintaxe re-confirmada.
+// Sintaxe da query:
+//   logs(filtro).index(índice).rollup(método[, "@atributo"])[.by("a,b")].last(janela) operador N
+// Confirmada de duas formas: pela doc da API (Create a Monitor -> "Logs alert
+// query") E, o que vale mais, pelo endpoint POST /api/v1/monitor/validate do
+// próprio Datadog (valida sem criar nada), contra um org real:
+//  - rollup: count | avg | sum | min | max | median | pc50/75/90/98/99 |
+//    cardinality. Tudo menos "count" EXIGE um atributo "@..." (sem ele:
+//    "invalid aggregation metric specified");
+//  - .by("facet1,facet2"): até 4 grupos (5 => "max number of groups allowed 4");
+//    vira um monitor multi-alert (1 alerta por grupo);
+//  - janela: "#m" ou "#h" (ex.: 15m, 48h). O validador também aceita "#d" de 1
+//    a 2 dias, mas seguimos em m/h (documentado);
+//  - operadores < <= > >=; com ">" o warning precisa ser MENOR que o critical,
+//    com "<" precisa ser MAIOR (o validador recusa o contrário).
 
 import type { MonitorPayload } from './discovery'
 
@@ -38,9 +31,7 @@ export interface LogWindowOption {
   label: string
 }
 
-// Só "#m"/"#h" são unidades válidas no time_window da query (a doc NÃO
-// documenta um sufixo "d") — 1/2 dias abaixo são escritos em horas (24h/48h),
-// não "1d"/"2d", pra não inventar uma unidade fora do que foi confirmado.
+// Janelas em "#m"/"#h" (as unidades documentadas) — 1/2 dias saem como 24h/48h.
 export const LOG_WINDOW_OPTIONS: LogWindowOption[] = [
   { value: '5m', label: '5m' },
   { value: '15m', label: '15m' },
@@ -53,12 +44,37 @@ export const LOG_WINDOW_OPTIONS: LogWindowOption[] = [
 export const DEFAULT_LOG_WINDOW = '15m'
 export const DEFAULT_LOG_INDEX = '*'
 
+export type LogRollup = 'count' | 'avg' | 'sum' | 'min' | 'max' | 'median' | 'pc75' | 'pc90' | 'pc95' | 'pc98' | 'pc99' | 'cardinality'
+export type LogOperator = '>' | '>=' | '<' | '<='
+
+export const LOG_ROLLUP_OPTIONS: { value: LogRollup; label: string; needsMeasure: boolean }[] = [
+  { value: 'count', label: 'Contagem de logs', needsMeasure: false },
+  { value: 'avg', label: 'Média de um atributo', needsMeasure: true },
+  { value: 'sum', label: 'Soma de um atributo', needsMeasure: true },
+  { value: 'min', label: 'Mínimo de um atributo', needsMeasure: true },
+  { value: 'max', label: 'Máximo de um atributo', needsMeasure: true },
+  { value: 'median', label: 'Mediana de um atributo', needsMeasure: true },
+  { value: 'pc75', label: 'Percentil 75 de um atributo', needsMeasure: true },
+  { value: 'pc90', label: 'Percentil 90 de um atributo', needsMeasure: true },
+  { value: 'pc95', label: 'Percentil 95 de um atributo', needsMeasure: true },
+  { value: 'pc98', label: 'Percentil 98 de um atributo', needsMeasure: true },
+  { value: 'pc99', label: 'Percentil 99 de um atributo', needsMeasure: true },
+  { value: 'cardinality', label: 'Valores distintos de um atributo', needsMeasure: true },
+]
+export const LOG_OPERATORS: LogOperator[] = ['>', '>=', '<', '<=']
+export const MAX_LOG_GROUPS = 4 // limite do Datadog no .by()
+
 export interface LogMonitorRule {
   id: string          // chave client-side (lista editável na UI, não vai pro payload)
   label: string        // nome curto do que a regra monitora (ex.: "Erros 5xx do checkout")
   queryFilter: string  // Log Search Syntax — vazio = todos os logs do índice
   index: string
   window: string
+  // v2 (opcionais: regras antigas/sem esses campos = contagem simples, ">")
+  rollup?: LogRollup
+  measure?: string      // atributo "@..." — obrigatório quando rollup != count
+  groupBy?: string[]    // facets do .by() (máx. 4) — vira multi-alert
+  operator?: LogOperator
   threshold: number
   warningThreshold: number | null
   priority: number | null
@@ -72,6 +88,10 @@ export function newLogMonitorRule(id: string): LogMonitorRule {
     queryFilter: '',
     index: DEFAULT_LOG_INDEX,
     window: DEFAULT_LOG_WINDOW,
+    rollup: 'count',
+    measure: '',
+    groupBy: [],
+    operator: '>',
     threshold: 100,
     warningThreshold: null,
     priority: 3,
@@ -88,17 +108,46 @@ function escapeForLogsQuery(v: string): string {
   return (v || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
-export interface BuildLogCountQueryArgs {
+export interface BuildLogQueryArgs {
   queryFilter: string
   index?: string
   window: string
   threshold: number
+  rollup?: LogRollup
+  measure?: string
+  groupBy?: string[]
+  operator?: LogOperator
 }
 
-export function buildLogCountQuery({ queryFilter, index = DEFAULT_LOG_INDEX, window, threshold }: BuildLogCountQueryArgs): string {
+// Facets do .by(): sem aspas/vírgula/espaço (quebrariam a string "a,b"),
+// sem vazios, sem repetidos, no máximo MAX_LOG_GROUPS.
+export function sanitizeLogGroupBy(groupBy: string[] | undefined): string[] {
+  const out: string[] = []
+  for (const g of groupBy || []) {
+    const v = String(g).trim().replace(/[\s,"]+/g, '')
+    if (v && !out.includes(v)) out.push(v)
+  }
+  return out.slice(0, MAX_LOG_GROUPS)
+}
+
+// Atributo do rollup ("@duration"): o validador exige o "@" na frente.
+export function normalizeLogMeasure(measure: string | undefined): string {
+  const v = String(measure || '').trim().replace(/[\s,"]+/g, '')
+  return v ? (v.startsWith('@') ? v : `@${v}`) : ''
+}
+
+export function buildLogQuery({ queryFilter, index = DEFAULT_LOG_INDEX, window, threshold, rollup = 'count', measure, groupBy, operator = '>' }: BuildLogQueryArgs): string {
   const filter = escapeForLogsQuery((queryFilter || '').trim())
   const idx = escapeForLogsQuery((index || DEFAULT_LOG_INDEX).trim() || DEFAULT_LOG_INDEX)
-  return `logs("${filter}").index("${idx}").rollup("count").last("${window}") > ${threshold}`
+  const rollupArgs = rollup === 'count' ? '"count"' : `"${rollup}", "${normalizeLogMeasure(measure)}"`
+  const groups = sanitizeLogGroupBy(groupBy)
+  const by = groups.length ? `.by("${groups.join(',')}")` : ''
+  return `logs("${filter}").index("${idx}").rollup(${rollupArgs})${by}.last("${window}") ${operator} ${threshold}`
+}
+
+// v1 (só contagem, ">") — mantida como atalho/compatibilidade.
+export function buildLogCountQuery(args: Pick<BuildLogQueryArgs, 'queryFilter' | 'index' | 'window' | 'threshold'>): string {
+  return buildLogQuery({ ...args, rollup: 'count', operator: '>' })
 }
 
 // Replica source:<valor>/status:<valor> do FILTRO da regra como tags
@@ -139,6 +188,10 @@ export interface BuildLogMonitorArgs {
   window: string
   threshold: number
   warningThreshold?: number | null
+  rollup?: LogRollup
+  measure?: string
+  groupBy?: string[]
+  operator?: LogOperator
   enableLogsSample?: boolean
   message?: string
   tags?: string[]
@@ -149,28 +202,44 @@ export interface BuildLogMonitorArgs {
   renotifyInterval?: number
 }
 
-const DEFAULT_MESSAGE = `{{#is_alert}}🔴 [Log Monitor] {{name}} — {{value}} log(s) na janela (limite: {{threshold}}).{{/is_alert}}{{#is_warning}}⚠️ [Log Monitor] {{name}} — {{value}} log(s) na janela (aviso: {{warn_threshold}}).{{/is_warning}}{{#is_alert_recovery}}✅ [Log Monitor] {{name}} — voltou abaixo do limite.{{/is_alert_recovery}}{{#is_no_data}}⚪ [Log Monitor] {{name}} — sem dados recentes.{{/is_no_data}}
+// Variável de template do grupo: tag simples => {{service.name}}; atributo
+// (@...) => {{[@http.status_code].name}} (mesmo padrão dos monitores reais).
+function groupVar(g: string): string {
+  return g.startsWith('@') ? `{{[${g}].name}}` : `{{${g}.name}}`
+}
 
-**O que monitora:** contagem de logs que casam o filtro configurado, dentro da janela avaliada.
+// Mensagem padrão — muda com a agregação/agrupamento da regra.
+export function defaultLogMessage({ rollup = 'count', measure, groupBy, operator = '>' }: Pick<BuildLogQueryArgs, 'rollup' | 'measure' | 'groupBy' | 'operator'> = { rollup: 'count' }): string {
+  const groups = sanitizeLogGroupBy(groupBy)
+  const what = rollup === 'count' ? '{{value}} log(s)' : `${rollup}(${normalizeLogMeasure(measure)}) = {{value}}`
+  const limitWord = operator === '<' || operator === '<=' ? 'mínimo' : 'limite'
+  const scope = groups.length ? ` em ${groups.map(groupVar).join(' / ')}` : ''
+  const desc = rollup === 'count'
+    ? 'contagem de logs que casam o filtro configurado'
+    : `${rollup} do atributo ${normalizeLogMeasure(measure)} nos logs que casam o filtro configurado`
+  return `{{#is_alert}}🔴 [Log Monitor] {{name}}${scope} — ${what} na janela (${limitWord}: {{threshold}}).{{/is_alert}}{{#is_warning}}⚠️ [Log Monitor] {{name}}${scope} — ${what} na janela (aviso: {{warn_threshold}}).{{/is_warning}}{{#is_alert_recovery}}✅ [Log Monitor] {{name}}${scope} — voltou ao normal.{{/is_alert_recovery}}{{#is_no_data}}⚪ [Log Monitor] {{name}}${scope} — sem dados recentes.{{/is_no_data}}
+
+**O que monitora:** ${desc}, dentro da janela avaliada${groups.length ? `, separado por ${groups.join(', ')} (1 alerta por grupo)` : ''}.
 
 **Ação recomendada:** abra a amostra de logs anexada à notificação (ou o Log Explorer com o mesmo filtro) para identificar a causa raiz antes de escalar.
 
 @equipe-ops`
+}
 
-export function buildLogMonitorPayload({ label, queryFilter, index = DEFAULT_LOG_INDEX, window, threshold, warningThreshold, enableLogsSample = true, message, tags, namePrefix, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildLogMonitorArgs): MonitorPayload & { options: MonitorPayload['options'] & { enable_logs_sample?: boolean } } {
+export function buildLogMonitorPayload({ label, queryFilter, index = DEFAULT_LOG_INDEX, window, threshold, warningThreshold, rollup = 'count', measure, groupBy, operator = '>', enableLogsSample = true, message, tags, namePrefix, priority, notifyTarget, notifyNoData, renotifyInterval }: BuildLogMonitorArgs): MonitorPayload & { options: MonitorPayload['options'] & { enable_logs_sample?: boolean } } {
   const name = `${(namePrefix || '[MonitorsCreator]').trim()} ${label}`.trim()
   const baseTags = ['created_by:monitorscreator', 'monitor_kind:log']
   // source:/status: do filtro, quando inequívocos — ver tagsFromLogFilter.
   for (const t of tagsFromLogFilter(queryFilter)) if (!baseTags.includes(t)) baseTags.push(t)
   for (const t of (tags || [])) if (t && !baseTags.includes(t)) baseTags.push(t)
 
-  let resolvedMessage = message || DEFAULT_MESSAGE
+  let resolvedMessage = message || defaultLogMessage({ rollup, measure, groupBy, operator })
   if (notifyTarget) resolvedMessage = resolvedMessage.replaceAll('@equipe-ops', notifyTarget)
 
   return {
     name,
     type: 'log alert',
-    query: buildLogCountQuery({ queryFilter, index, window, threshold }),
+    query: buildLogQuery({ queryFilter, index, window, threshold, rollup, measure, groupBy, operator }),
     message: resolvedMessage,
     tags: baseTags,
     ...(priority ? { priority } : {}),
@@ -244,6 +313,10 @@ export function planLogPreview(state: Partial<LogMonitorsState>): LogMonitorPlan
       queryFilter: rule.queryFilter,
       index: rule.index,
       window: rule.window,
+      rollup: rule.rollup,
+      measure: rule.measure,
+      groupBy: rule.groupBy,
+      operator: rule.operator,
       threshold: rule.threshold,
       warningThreshold: rule.warningThreshold,
       enableLogsSample: rule.enableLogsSample,
@@ -255,4 +328,20 @@ export function planLogPreview(state: Partial<LogMonitorsState>): LogMonitorPlan
     plan.push({ kind: 'log', label: rule.label, service: rule.label, operation: rule.window, name: payload.name, query: payload.query, message: payload.message, priority: rule.priority ?? null, payload })
   }
   return plan
+}
+
+// Problemas de uma regra que o Datadog recusaria (confirmado via /validate) —
+// a UI mostra antes de avançar e a rota devolve 400 em vez de falhar no
+// meio da criação. Lista vazia = regra ok.
+export function validateLogRule(rule: Pick<LogMonitorRule, 'rollup' | 'measure' | 'groupBy' | 'operator' | 'threshold' | 'warningThreshold'>): string[] {
+  const problems: string[] = []
+  const rollup = rule.rollup || 'count'
+  if (rollup !== 'count' && !normalizeLogMeasure(rule.measure)) problems.push('informe o atributo (ex.: @duration) para essa agregação')
+  if ((rule.groupBy || []).filter(g => String(g).trim()).length > MAX_LOG_GROUPS) problems.push(`no máximo ${MAX_LOG_GROUPS} grupos em "agrupar por"`)
+  if (rule.warningThreshold != null) {
+    const below = (rule.operator || '>') === '<' || rule.operator === '<='
+    if (!below && rule.warningThreshold >= rule.threshold) problems.push('o limite de aviso precisa ser MENOR que o crítico (operador ">"/">=")')
+    if (below && rule.warningThreshold <= rule.threshold) problems.push('o limite de aviso precisa ser MAIOR que o crítico (operador "<"/"<=")')
+  }
+  return problems
 }

@@ -9,7 +9,7 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { LOG_WINDOW_OPTIONS, DEFAULT_LOG_INDEX, newLogMonitorRule, type LogMonitorRule } from '@/lib/log-monitors'
+import { LOG_WINDOW_OPTIONS, LOG_ROLLUP_OPTIONS, LOG_OPERATORS, MAX_LOG_GROUPS, DEFAULT_LOG_INDEX, newLogMonitorRule, sanitizeLogGroupBy, validateLogRule, type LogMonitorRule, type LogOperator, type LogRollup } from '@/lib/log-monitors'
 import type { DiscoveryStepProps } from './types'
 import { accStyle, chevStyle } from './styles'
 
@@ -64,6 +64,10 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
     if (d.rules.length === 0) return setError('Adicione ao menos uma regra.')
     const semNome = d.rules.filter(r => !r.label.trim())
     if (semNome.length) return setError('Toda regra precisa de um nome.')
+    for (const r of d.rules) {
+      const problems = validateLogRule(r)
+      if (problems.length) { setOpenId(r.id); return setError(`Regra "${r.label}": ${problems.join('; ')}.`) }
+    }
     setError('')
     onNext()
   }
@@ -92,7 +96,9 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
                 <div style={s.pillRow}>
                   <span style={s.pill}>{rule.index}</span>
                   <span style={s.pill}>{rule.window}</span>
-                  <span style={s.pill}>&gt; {rule.threshold}</span>
+                  <span style={s.pill}>{(rule.rollup || 'count') === 'count' ? 'count' : `${rule.rollup}(${rule.measure || '?'})`}</span>
+                  {(rule.groupBy || []).length > 0 && <span style={s.pill}>por {(rule.groupBy || []).join(', ')}</span>}
+                  <span style={s.pill}>{rule.operator || '>'} {rule.threshold}</span>
                 </div>
                 <span style={chevStyle(open)}>▶</span>
               </div>
@@ -108,6 +114,30 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
                     <p style={s.hint}>source:&lt;valor&gt; e status:&lt;valor&gt; (quando não negados/wildcard/OR) viram tag do monitor automaticamente — dá pra filtrar em Manage Monitors sem abrir a regra.</p>
                   </div>
                   <div>
+                    <label style={s.miniLabel} htmlFor={`${rule.id}-rollup`}>Agregação</label>
+                    <select id={`${rule.id}-rollup`} className="focus-ring" style={s.select} value={rule.rollup || 'count'} onChange={e => patchRule(rule.id, { rollup: e.target.value as LogRollup })}>
+                      {LOG_ROLLUP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  {(rule.rollup || 'count') !== 'count' && (
+                    <div>
+                      <label style={s.miniLabel} htmlFor={`${rule.id}-measure`}>Atributo (@)</label>
+                      <input id={`${rule.id}-measure`} className="focus-ring" style={s.select} value={rule.measure || ''} onChange={e => patchRule(rule.id, { measure: e.target.value })} placeholder="@duration" />
+                    </div>
+                  )}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={s.miniLabel} htmlFor={`${rule.id}-groupby`}>Agrupar por (opcional, até {MAX_LOG_GROUPS}, separados por vírgula)</label>
+                    <input
+                      id={`${rule.id}-groupby`}
+                      className="focus-ring"
+                      style={s.input}
+                      defaultValue={(rule.groupBy || []).join(', ')}
+                      onBlur={e => patchRule(rule.id, { groupBy: sanitizeLogGroupBy(e.target.value.split(',')) })}
+                      placeholder="ex.: service, @http.status_code"
+                    />
+                    <p style={s.hint}>Com agrupamento o monitor vira multi-alert: 1 alerta por valor (ex.: 1 por serviço).</p>
+                  </div>
+                  <div>
                     <label style={s.miniLabel} htmlFor={`${rule.id}-index`}>Índice</label>
                     <input id={`${rule.id}-index`} className="focus-ring" style={s.select} value={rule.index} onChange={e => patchRule(rule.id, { index: e.target.value || DEFAULT_LOG_INDEX })} placeholder={DEFAULT_LOG_INDEX} />
                   </div>
@@ -115,6 +145,12 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
                     <label style={s.miniLabel} htmlFor={`${rule.id}-window`}>Janela</label>
                     <select id={`${rule.id}-window`} className="focus-ring" style={s.select} value={rule.window} onChange={e => patchRule(rule.id, { window: e.target.value })}>
                       {LOG_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={s.miniLabel} htmlFor={`${rule.id}-operator`}>Dispara quando</label>
+                    <select id={`${rule.id}-operator`} className="focus-ring" style={s.select} value={rule.operator || '>'} onChange={e => patchRule(rule.id, { operator: e.target.value as LogOperator })}>
+                      {LOG_OPERATORS.map(o => <option key={o} value={o}>{o === '>' ? 'maior que (>)' : o === '>=' ? 'maior ou igual (>=)' : o === '<' ? 'menor que (<)' : 'menor ou igual (<=)'}</option>)}
                     </select>
                   </div>
                   <div>

@@ -148,6 +148,11 @@ export const logMonitorRuleSchema = z.object({
   warningThreshold: z.number().nullable().optional(),
   priority: z.number().int().min(1).max(5).nullable().optional(),
   enableLogsSample: z.boolean().optional(),
+  // v2: agregação/atributo/agrupamento/operador (valores confirmados via /validate).
+  rollup: z.enum(['count', 'avg', 'sum', 'min', 'max', 'median', 'pc75', 'pc90', 'pc95', 'pc98', 'pc99', 'cardinality']).optional(),
+  measure: z.string().trim().max(200).optional(),
+  groupBy: z.array(z.string().max(200)).max(20).optional(),
+  operator: z.enum(['>', '>=', '<', '<=']).optional(),
 }).passthrough()
 
 export const logMonitorsBodySchema = z.object({

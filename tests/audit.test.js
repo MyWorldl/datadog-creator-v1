@@ -354,3 +354,14 @@ test('coverageScoreWeighted: com envCoverage (flag ligada), K8s/DBM entram como 
   const withNoneCovered = coverageScoreWeighted(hostCoverage, serviceCoverage, noneCovered)
   assert.ok(withNoneCovered <= baseline)
 })
+
+test('buildSuggestedApm/Infra: namePrefix detectado entra no nome dos monitores (default se ausente)', () => {
+  const cov = [{ service: 'checkout', metrics: { apmLatency: true, apmErrors: false, apmHits: true }, gapCount: 1 }]
+  assert.match(buildSuggestedApm(cov, undefined, '[Kafka]').plan[0].name, /^\[Kafka\] checkout/)
+  assert.match(buildSuggestedApm(cov).plan[0].name, /^\[MonitorsCreator\] checkout/)
+  assert.equal(buildSuggestedApm(cov, undefined, '[Kafka]').namePrefix, '[Kafka]')
+  const hosts = [{ host: 'web-1', metrics: { cpu: false }, gapCount: 1 }]
+  const infra = buildSuggestedInfra(hosts, '[Infra]')
+  assert.ok(infra.plan.length > 0)
+  assert.match(infra.plan[0].name, /^\[Infra\] web-1/)
+})

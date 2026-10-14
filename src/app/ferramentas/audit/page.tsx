@@ -26,6 +26,7 @@ interface AuditData {
   environment: {
     hostCount: number
     serviceCount: number
+    usmOnlyCount?: number
     monitorCount: number
     definitionsAvailable?: boolean
     catalogServiceCount?: number
@@ -116,6 +117,11 @@ function SuggestionCard({ title, sug, entityLabel, endpoint, fileLabel, operatio
           <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>
             {sug.monitorCount} monitor(es) em {entityLabel}. Idempotente: pula os que já existirem.
           </div>
+          {sug.namePrefix && sug.namePrefix !== '[MonitorsCreator]' && (
+            <div style={{ fontSize: 11.5, color: 'var(--accent)', marginTop: 3 }}>
+              Prefixo {sug.namePrefix} — convenção de nomes detectada nos monitores existentes deste ambiente.
+            </div>
+          )}
           {'enrichedServiceCount' in sug && sug.enrichedServiceCount > 0 && (
             <div style={{ fontSize: 11.5, color: 'var(--accent)', marginTop: 3 }}>
               {sug.enrichedServiceCount} serviço(s) com Service Definition — monitor sai com tag team:&lt;time&gt; e notificação do dono no lugar de @equipe-ops.
@@ -299,7 +305,9 @@ export default function AuditMonitorsPage() {
                   <div><div style={statStyle()}>{data.environment.hostCount}</div><div style={s.statLbl}>hosts</div></div>
                   <div>
                     <div style={statStyle()}>{data.environment.serviceCount}</div>
-                    <div style={s.statLbl}>serviços APM</div>
+                    <div style={s.statLbl} title="Serviços com traces APM. Os detectados só por USM (Universal Service Monitoring) não têm métricas trace.* e ficam fora da cobertura e das sugestões de APM.">
+                      serviços APM{data.environment.usmOnlyCount ? ` · +${data.environment.usmOnlyCount} só USM` : ''}
+                    </div>
                   </div>
                   {data.environment.definitionsAvailable && data.environment.catalogServiceCount != null && (
                     <div title="União de serviços com APM ativo e serviços com Service Definition no Software Catalog (não inclui inferred services).">

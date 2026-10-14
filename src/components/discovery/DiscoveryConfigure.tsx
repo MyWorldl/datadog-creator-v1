@@ -111,6 +111,8 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
   const [loading, setLoading] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
+  // Serviços detectados só por USM (sem traces APM) que a descoberta deixou de fora.
+  const [usmHidden, setUsmHidden] = useState(0)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [manualInput, setManualInput] = useState('')
@@ -166,6 +168,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
       if (!r.ok) { setError((data.error || `Falha ao descobrir ${cfg.entityNoun}s.`) + (data.hint ? ' ' + data.hint : '')); return }
       const names: string[] = data[cfg.listKey] || []
       setDisc({ services: names })
+      setUsmHidden(Number(data.usmOnlyCount) || 0)
       if (names.length === 0) setError(`Nenhum ${cfg.entityNoun} encontrado.`)
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
@@ -350,6 +353,12 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
             )}
             {d.services.length === 0 && !loading && (
               <p style={s.hint}>{cfg.discoverHint(datadogSite)}</p>
+            )}
+            {usmHidden > 0 && scopeType === 'service' && (
+              <p style={s.hint}>
+                {usmHidden} serviço(s) detectado(s) só por USM (Universal Service Monitoring) foram ocultados: sem traces APM
+                não existem métricas trace.*, e um monitor de APM neles nasceria sem dados.
+              </p>
             )}
 
             {cfg.allowManualEntry && (

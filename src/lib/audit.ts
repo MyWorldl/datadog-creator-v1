@@ -297,6 +297,9 @@ export function percentBand(percent: number | null): PercentBand {
 }
 
 export interface SuggestedInfraResult {
+  // Prefixo de nome usado nos monitores (convenção detectada no org, ou o
+  // padrão [MonitorsCreator]) — ver lib/naming-convention.ts.
+  namePrefix?: string
   plan: InfraPlanItem[]
   hostCount: number
   monitorCount: number
@@ -306,8 +309,9 @@ export interface SuggestedInfraResult {
 // só as métricas REALMENTE faltantes daquele host entram (hosts 100%
 // cobertos não geram nenhum item). Reaproveita planInfraPreview (já com
 // queryWindow/evaluationDelay corretos) — só orquestra por host.
-export function buildSuggestedInfra(hostCoverage: HostCoverageRow[]): SuggestedInfraResult {
+export function buildSuggestedInfra(hostCoverage: HostCoverageRow[], namePrefix?: string): SuggestedInfraResult {
   const base = initialInfraDiscovery()
+  if (namePrefix) base.namePrefix = namePrefix
   let plan: InfraPlanItem[] = []
   let hostCount = 0
   for (const hc of (hostCoverage || [])) {
@@ -321,10 +325,11 @@ export function buildSuggestedInfra(hostCoverage: HostCoverageRow[]): SuggestedI
     }
     plan = plan.concat(planInfraPreview(d))
   }
-  return { plan, hostCount, monitorCount: plan.length }
+  return { plan, hostCount, monitorCount: plan.length, namePrefix: namePrefix || base.namePrefix }
 }
 
 export interface SuggestedApmResult {
+  namePrefix?: string
   plan: PlanItem[]
   serviceCount: number
   monitorCount: number
@@ -387,7 +392,7 @@ export function tagsFromDefinition(def: ServiceDefinitionMeta | undefined): stri
 // serviço tem definição, o monitor sugerido herda team:<slug> (+ tags
 // declaradas) e a notificação vai pro dono (e-mail ou @team-<slug>) em vez
 // do @equipe-ops genérico do template.
-export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[], defsByName?: Record<string, ServiceDefinitionMeta>): SuggestedApmResult {
+export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[], defsByName?: Record<string, ServiceDefinitionMeta>, namePrefix?: string): SuggestedApmResult {
   const plan: PlanItem[] = []
   let serviceCount = 0
   let enrichedCount = 0
@@ -413,6 +418,7 @@ export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[], defsByN
         priority: 3, // mesmo default P3 usado em initialDiscovery()
         tags: extraTags.length ? extraTags : undefined,
         notifyTarget,
+        namePrefix,
       })
       plan.push({ kind, label: a.label, service: sc.service, operation: DEFAULT_OPERATION, name: payload.name, query: payload.query, message: payload.message, priority: 3, payload })
     }
@@ -422,6 +428,7 @@ export function buildSuggestedApm(serviceCoverage: ServiceCoverageRow[], defsByN
     serviceCount,
     monitorCount: plan.length,
     enrichedServiceCount: enrichedCount,
+    namePrefix: namePrefix || '[MonitorsCreator]',
     operationNote: `Operation usada: ${DEFAULT_OPERATION} (padrão) — para escolher outra, use o MonitorsCreator.`,
   }
 }

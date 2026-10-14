@@ -18,7 +18,7 @@
 'use client'
 
 import { useState, type CSSProperties } from 'react'
-import { INFRA_TYPES, type InfraMetricConfig, type InfraMetricType } from '@/lib/infra'
+import { INFRA_TYPES, DB_HOSTING_OPTIONS, detectDbHosting, type DbHostingChoice, type InfraMetricConfig, type InfraMetricType } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS, POD_RESTARTS_TYPE, POD_PENDING_TYPE } from '@/lib/discovery'
 import type { DiscoveryStepProps } from './types'
 import { accStyle, chevStyle, winShort } from './styles'
@@ -45,20 +45,15 @@ const s: Record<string, CSSProperties> = {
   pillRow: { display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 },
   pill: { fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontFamily: 'var(--font-geist-mono), monospace' },
   accBody: { padding: '4px 12px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 },
+  hostBadge: { fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 999, padding: '1px 7px', textTransform: 'uppercase', letterSpacing: '0.03em', whiteSpace: 'nowrap' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
+const hostingLabel = (v: string | null): string => DB_HOSTING_OPTIONS.find(o => o.value === v)?.label.split(' (')[0] ?? ''
+
 const K8S_INFRA_TYPES = INFRA_TYPES.filter(t => t.flag === 'k8sDbmCoverage') as InfraMetricType[]
 
-// Selo "em desenvolvimento" — cinza de propósito, diferente do selo "Preview"
-// (accent color) da Outlier Detection em DiscoveryConfigureInfra.tsx, que É
-// usável atrás de uma feature flag. Aqui o campo abaixo do selo é só visual:
-// fica sempre desabilitado, pra ninguém (nem quem tem acesso a variável de
-// ambiente) conseguir ligar antes da detecção de hospedagem existir de
-// verdade — existe só pra registrar que o recurso está a caminho.
-const devBadgeStyle: CSSProperties = { fontSize: 9, fontWeight: 800, color: 'var(--text-muted)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 999, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 6 }
-const devSelectStyle: CSSProperties = { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-muted)', outline: 'none', boxSizing: 'border-box', cursor: 'not-allowed' }
 
 export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const infra = config.k8sInfra
@@ -77,6 +72,15 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
   const selectedHosts = Object.keys(infra.selected).filter(h => infra.selected[h])
   const hostSearchTerms = hostSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
   const filteredHosts = infra.hosts.filter(h => hostSearchTerms.length === 0 || hostSearchTerms.some(t => h.name.toLowerCase().includes(t)))
+
+  // Resumo do que a detecção achou nos hosts selecionados (ex.: "2 AWS RDS, 1 Self-managed").
+  const hostingCounts: Record<string, number> = {}
+  for (const h of infra.hosts) {
+    if (!infra.selected[h.name]) continue
+    const v = detectDbHosting(h)
+    if (v) hostingCounts[v] = (hostingCounts[v] || 0) + 1
+  }
+  const hostingSummary = Object.entries(hostingCounts).map(([v, n]) => `${n} ${hostingLabel(v)}`).join(', ')
 
   const selectedNamespaces = Object.keys(disc.selected)
   const nsSearchTerms = nsSearch.split(',').map(t => t.trim().toLowerCase()).filter(Boolean)
@@ -185,7 +189,8 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
               {filteredHosts.map(h => (
                 <label key={h.name} style={{ ...s.row, background: infra.selected[h.name] ? 'var(--accent-light)' : 'transparent' }}>
                   <input type="checkbox" checked={!!infra.selected[h.name]} onChange={() => toggleHost(h.name)} />
-                  <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{h.name}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1, wordBreak: 'break-all' }}>{h.name}</span>
+                  {detectDbHosting(h) && <span style={s.hostBadge} title="Hospedagem detectada pelos dados do host">{hostingLabel(detectDbHosting(h))}</span>}
                 </label>
               ))}
               {filteredHosts.length === 0 && <p style={{ ...s.hint, textAlign: 'center', padding: 12 }}>Nenhum host para esse filtro.</p>}
@@ -194,6 +199,27 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         ) : (
           <p style={s.hint}>Clique em &quot;Descobrir hosts&quot; para listar os hosts reportando ao Datadog.</p>
         )}
+
+        <div>
+          <label style={s.miniLabel} htmlFor="dbm-hosting">Tipo de hospedagem do banco → tag db_type</label>
+          <select
+            id="dbm-hosting"
+            className="focus-ring"
+            style={s.select}
+            value={infra.dbHosting || 'auto'}
+            onChange={e => setInfra({ dbHosting: e.target.value as DbHostingChoice })}
+          >
+            <option value="auto">Detectar automaticamente (recomendado)</option>
+            {DB_HOSTING_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <p style={s.hint}>
+            {hostingSummary
+              ? `Detectado nos hosts selecionados: ${hostingSummary}. `
+              : 'Nada detectado nos hosts selecionados (sem sinal de RDS ou Agent). '}
+            Vale só pros monitores de banco (Conexões, Replicação, Query Health); escolher um valor aqui aplica a todos os hosts selecionados.
+            Cloud SQL e Azure não são detectados automaticamente.
+          </p>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {K8S_INFRA_TYPES.map(t => {
@@ -220,22 +246,6 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
                           <option value="postgres">Postgres</option>
                           <option value="mysql">MySQL</option>
                         </select>
-                      </div>
-                    )}
-                    {t.requiresEngine && (
-                      <div>
-                        <label style={s.miniLabel} htmlFor={`${t.key}-hosting`}>
-                          Tipo de hospedagem<span style={devBadgeStyle}>Em desenvolvimento</span>
-                        </label>
-                        {/* Placeholder visual — sem estado, sem onChange, sempre disabled.
-                            Vai detectar RDS/Cloud SQL/self-managed sondando a API de
-                            Métricas (ex.: presença de aws.rds.* pra confirmar RDS) e
-                            taguear o monitor — ver combinado no chat. Nada funcional
-                            ainda: só registra que o campo está vindo. */}
-                        <select id={`${t.key}-hosting`} style={devSelectStyle} disabled value="">
-                          <option value="">Detecção automática (em breve)</option>
-                        </select>
-                        <p style={s.hint}>Vai detectar se o banco é RDS, Cloud SQL ou self-managed e usar isso pra taguear o monitor. Ainda não está disponível.</p>
                       </div>
                     )}
                     <div>

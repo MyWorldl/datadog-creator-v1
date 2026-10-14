@@ -13,6 +13,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet, logsCount, sloBudget, alertEvents, listMonitors, listHosts, queryMetric, type SloRaw } from '@/lib/datadog-server'
 import { analyzeHostCoverage, INFRA_CATALOG, type DatadogMonitor } from '@/lib/audit'
+import { parseApmServices } from '@/lib/apm-services'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 
@@ -90,13 +91,10 @@ export async function GET(): Promise<Response> {
   const hosts = ((hostsR.ok ? hostsR.json : []) as HostRaw[]) || []
   const hostNames = hosts.map(h => h.host_name || h.name).filter(Boolean) as string[]
   const totals = totalsR.json || {}
-  const apmServices = (() => {
-    const data = apmR.json?.data
-    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean) as string[]
-    if (data?.attributes?.services) return data.attributes.services
-    return [] as string[]
-  })()
-  const servicesCount = new Set(apmServices).size
+  // all = todo serviço conhecido; traced = com APM de verdade (os só-USM não
+  // têm métricas trace.* — ver lib/apm-services.ts).
+  const apmParsed = parseApmServices(apmR.json)
+  const servicesCount = apmParsed.all.length
   const dashboards = dashR.json?.dashboards || []
   const slos = sloR.json?.data || []
 
@@ -159,13 +157,15 @@ export async function GET(): Promise<Response> {
   // Ratio de cobertura escala com o ambiente (o antigo limiar fixo "≥6 = 100"
   // dava nota máxima tanto para 6 serviços quanto para 6 de 309).
   if (apmR.ok) {
-    const apmSet = new Set(apmServices)
+    const apmSet = new Set(apmParsed.traced)
     const svcFromHosts = new Set<string>()
     for (const h of hosts) for (const t of hostTags(h)) if (t.startsWith('service:')) svcFromHosts.add(t.slice('service:'.length))
-    const universe = new Set([...apmSet, ...svcFromHosts])
+    // universo = TODOS os serviços conhecidos (inclui os só-USM, que são
+    // "conhecidos mas sem traces" = lacuna de APM) + service:<x> nos hosts.
+    const universe = new Set([...apmParsed.all, ...svcFromHosts])
     const apmScore = universe.size ? pct(apmSet.size, universe.size) : (apmSet.size > 0 ? 100 : 0)
     add('apm', 'Aplicações com APM', true, apmScore,
-      `${apmSet.size} de ${universe.size || apmSet.size} serviços conhecidos com APM (universo = serviços com APM ∪ tag service em hosts). Instrumente os serviços sem traces para subir.`)
+      `${apmSet.size} de ${universe.size || apmSet.size} serviços conhecidos com APM (universo = serviços conhecidos ∪ tag service em hosts${apmParsed.usmOnly.length ? `; ${apmParsed.usmOnly.length} são só USM, sem traces` : ''}). Instrumente os serviços sem traces para subir.`)
   } else add('apm', 'Aplicações com APM', false, 0, 'apm_read indisponível na App key.')
 
   // 4. Logs Correlacionados — requer análise de logs (não coletado aqui)
@@ -271,7 +271,7 @@ export async function GET(): Promise<Response> {
   const obsSignals = [
     { label: 'Métricas', on: hostsR.ok && hosts.length > 0, w: 2 },
     { label: 'Logs', on: (logsTotal || 0) > 0, w: 2 },
-    { label: 'APM', on: servicesCount > 0, w: 2 },
+    { label: 'APM', on: apmParsed.traced.length > 0, w: 2 },
     { label: 'RUM', on: rumOn, w: 1 },
     { label: 'Synthetics', on: synthOn, w: 1 },
     { label: 'Profiling', on: profOn, w: 1 },

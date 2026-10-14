@@ -12,6 +12,8 @@ import {
   analyzeHostCoverage, analyzeServiceCoverage, INFRA_CATALOG, APM_CATALOG,
   type DatadogMonitor,
 } from '@/lib/audit'
+import { parseApmServices } from '@/lib/apm-services'
+import { detectNamingConvention, type MonitorNameLike } from '@/lib/naming-convention'
 import { cacheKey, cacheGet, cacheSet } from '@/lib/route-cache'
 import { recordScore, computeDelta } from '@/lib/score-history'
 import { isFeatureEnabled } from '@/lib/feature-flags'
@@ -57,13 +59,11 @@ export async function GET(): Promise<Response> {
 
   const monitors = (Array.isArray(monitorsR.json) ? monitorsR.json : []) as DatadogMonitor[]
   const hosts = ((hostsR.ok ? hostsR.json : []) as HostRaw[]).map(h => h.host_name || h.name).filter(Boolean) as string[]
-  const apmServices = (() => {
-    const data = apmR.json?.data
-    if (Array.isArray(data)) return data.map(d => d?.attributes?.services || d?.id).flat().filter(Boolean) as string[]
-    if (data?.attributes?.services) return data.attributes.services
-    return [] as string[]
-  })()
-  const services = [...new Set(apmServices)].sort()
+  // Só serviços COM TRACE entram na cobertura/sugestão de APM — os "só USM"
+  // (Universal Service Monitoring) não têm métricas trace.* e qualquer monitor
+  // de APM neles nasceria sem dados (ver lib/apm-services.ts).
+  const apmParsed = parseApmServices(apmR.json)
+  const services = apmParsed.traced
   const serviceCount = services.length
 
   // Service Definitions: mapa nome -> metadado (dono/time/contatos/tags).
@@ -79,7 +79,7 @@ export async function GET(): Promise<Response> {
   // inferred services (esses só vêm pela Software Catalog API v3, não pela de
   // definitions) — por isso pode não bater exatamente com o número da tela
   // "Software Catalog" do Datadog, que soma os inferred também.
-  const catalogServiceCount = new Set([...services, ...defsList.map(d => d.name)]).size
+  const catalogServiceCount = new Set([...apmParsed.all, ...defsList.map(d => d.name)]).size
   const definitionsAvailable = defsR.ok
 
   // K8s/DBM (lib/audit.ts: K8S_CATALOG/DBM_CATALOG) ficam atrás da flag
@@ -96,8 +96,13 @@ export async function GET(): Promise<Response> {
   // binário (0/100) já que não têm lista de entidades — só quando a flag
   // está ligada (envCoverage vem vazio senão, resultado idêntico a antes).
   const score = coverageScoreWeighted(hostCoverage, serviceCoverage, envCoverage)
-  const suggestedInfra = buildSuggestedInfra(hostCoverage)
-  const suggestedApm = buildSuggestedApm(serviceCoverage, defsByName)
+  // Convenção de nomes do org (ex.: "[Kafka]") em vez do [MonitorsCreator]
+  // fixo — mesma detecção da Etapa 3 do wizard, com os hosts/serviços EM
+  // LACUNA como dicas pra achar monitores relacionados a eles.
+  const infraNaming = detectNamingConvention(monitors as MonitorNameLike[], hostCoverage.filter(h => h.gapCount > 0).map(h => h.host))
+  const apmNaming = detectNamingConvention(monitors as MonitorNameLike[], serviceCoverage.filter(sc => sc.gapCount > 0).map(sc => sc.service))
+  const suggestedInfra = buildSuggestedInfra(hostCoverage, infraNaming?.prefix)
+  const suggestedApm = buildSuggestedApm(serviceCoverage, defsByName, apmNaming?.prefix)
 
   const gaps = coverage.filter(c => !c.covered)
 
@@ -110,7 +115,8 @@ export async function GET(): Promise<Response> {
     score, // % de cobertura (0-100)
     environment: {
       hostCount: hosts.length,
-      serviceCount, // serviços com APM ativo na janela recente (fonte: /apm/services)
+      serviceCount, // serviços COM TRACE APM (fonte: /apm/services, isTraced)
+      usmOnlyCount: apmParsed.usmOnly.length, // detectados só por USM — sem métricas trace.*
       monitorCount: monitors.length,
       hostsPartial: !!hostsR.partial,
       // Software Catalog (via Service Definitions): união APM ∪ com definição.
@@ -127,8 +133,8 @@ export async function GET(): Promise<Response> {
     infraMetrics: INFRA_CATALOG.map(c => ({ key: c.key, label: c.label })),
     apmMetrics: APM_CATALOG.map(c => ({ key: c.key, label: c.label })),
     gapCount: gaps.length,
-    suggestedInfra: { plan: suggestedInfra.plan, hostCount: suggestedInfra.hostCount, monitorCount: suggestedInfra.monitorCount },
-    suggestedApm: { plan: suggestedApm.plan, serviceCount: suggestedApm.serviceCount, monitorCount: suggestedApm.monitorCount, enrichedServiceCount: suggestedApm.enrichedServiceCount, operationNote: suggestedApm.operationNote },
+    suggestedInfra: { plan: suggestedInfra.plan, hostCount: suggestedInfra.hostCount, monitorCount: suggestedInfra.monitorCount, namePrefix: suggestedInfra.namePrefix, namingDetected: infraNaming },
+    suggestedApm: { plan: suggestedApm.plan, serviceCount: suggestedApm.serviceCount, monitorCount: suggestedApm.monitorCount, enrichedServiceCount: suggestedApm.enrichedServiceCount, namePrefix: suggestedApm.namePrefix, namingDetected: apmNaming, operationNote: suggestedApm.operationNote },
     history: hist.map(h => h.score),
     delta: computeDelta(hist),
     generatedAt: new Date().toISOString(),

@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test",
     "check:version": "node scripts/check-version-sync.mjs",
+    "validate:monitors": "node scripts/validate-monitors.mjs",
     "bump:version": "node scripts/bump-version.mjs",
     "prepare": "husky"
   },
