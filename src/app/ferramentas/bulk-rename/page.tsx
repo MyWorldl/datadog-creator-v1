@@ -19,14 +19,8 @@ interface RenameResult {
 }
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 16 },
   label: { display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   input: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 18px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   ok: { fontSize: 12.5, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px' },
   counter: { fontSize: 12.5, color: 'var(--text-secondary)' },
@@ -132,28 +126,28 @@ export default function BulkRenamePage() {
 
   return (
     <div>
-      <h1 style={s.h1}>SwitchName</h1>
-      <p style={s.sub}>
+      <h1 className="page-h1">SwitchName</h1>
+      <p className="page-sub">
         Carregue os monitores, selecione quais quer renomear e troque um trecho do nome em todos de uma vez · coleta no servidor via {datadogSite}.
       </p>
 
       {!keysConfigured ? (
-        <div style={s.card}>
+        <div className="surface" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Conecte-se ao Datadog em Configurações para renomear monitores.</p>
         </div>
       ) : (
         <>
           {!allMonitors && (
-            <div style={s.card}>
-              <button style={s.btn} onClick={loadMonitors} disabled={loadingList}>
+            <div className="surface" style={{ marginBottom: 16 }}>
+              <button className="btn btn-primary" onClick={loadMonitors} disabled={loadingList}>
                 {loadingList ? 'Carregando…' : 'Carregar monitores'}
               </button>
-              {listError && <div style={s.err}>{listError}</div>}
+              {listError && <div className="wz-msg" style={s.err}>{listError}</div>}
             </div>
           )}
 
           {allMonitors && (
-            <div style={s.card}>
+            <div className="surface" style={{ marginBottom: 16 }}>
               <div style={s.toolbar}>
                 <input
                   aria-label="Filtrar monitores por trecho do nome"
@@ -163,27 +157,27 @@ export default function BulkRenamePage() {
                   onChange={e => setFilterText(e.target.value)}
                   placeholder="Filtrar por trecho do nome (aceita vários termos separados por vírgula)"
                 />
-                <button style={s.btnGhost} onClick={loadMonitors} disabled={loadingList}>
+                <button className="btn btn-ghost" onClick={loadMonitors} disabled={loadingList}>
                   {loadingList ? 'Recarregando…' : 'Recarregar'}
                 </button>
               </div>
 
               <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button style={s.smallBtn} onClick={selectAllFiltered} disabled={filtered.length === 0}>
+                <button className="btn btn-outline btn-sm" onClick={selectAllFiltered} disabled={filtered.length === 0}>
                   Selecionar {filtered.length}{filterText ? ' (filtrados)' : ''}
                 </button>
-                <button style={s.smallBtn} onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
+                <button className="btn btn-outline btn-sm" onClick={clearFiltered} disabled={selectedInFiltered === 0}>Limpar seleção</button>
                 <span style={s.counter}>{selected.size} de {allMonitors.length} selecionado(s)</span>
               </div>
 
-              {listError && <div style={s.err}>{listError}</div>}
+              {listError && <div className="wz-msg" style={s.err}>{listError}</div>}
 
               <div style={s.list}>
                 {filtered.map(m => {
                   const on = selected.has(m.id)
                   const cand = candidatesById.get(m.id)
                   return (
-                    <label key={m.id} style={{ ...s.row, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                    <label key={m.id} className="list-row" style={{ ...s.row, ...(on ? { background: 'var(--accent-light)' } : {}) }}>
                       <input type="checkbox" checked={on} onChange={() => toggle(m.id)} style={{ marginTop: 3 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {cand ? (
@@ -204,7 +198,7 @@ export default function BulkRenamePage() {
           )}
 
           {allMonitors && (
-            <div style={s.card}>
+            <div className="surface" style={{ marginBottom: 16 }}>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <label style={s.label} htmlFor="bulk-rename-search">Buscar no nome</label>
@@ -214,7 +208,7 @@ export default function BulkRenamePage() {
                   <label style={s.label} htmlFor="bulk-rename-replace">Substituir por</label>
                   <input id="bulk-rename-replace" className="focus-ring" style={s.input} value={renameReplace} onChange={e => setRenameReplace(e.target.value)} placeholder="ex.: [Monitors]" />
                 </div>
-                <button style={s.btn} onClick={apply} disabled={applying || candidates.length === 0}>
+                <button className="btn btn-primary" onClick={apply} disabled={applying || candidates.length === 0}>
                   {applying ? 'Renomeando…' : `Renomear ${candidates.length} monitor(es)`}
                 </button>
               </div>
@@ -223,12 +217,12 @@ export default function BulkRenamePage() {
                 maiúsculas/minúsculas). Deixe &quot;Substituir por&quot; em branco para apenas remover o trecho buscado. Só o nome muda; query, tags e
                 outras opções do monitor ficam intactas.
               </p>
-              {applyError && <div style={s.err}>{applyError}</div>}
+              {applyError && <div className="wz-msg" style={s.err}>{applyError}</div>}
             </div>
           )}
 
           {result && (
-            <div style={s.card}>
+            <div className="surface" style={{ marginBottom: 16 }}>
               <div style={result.renamed === result.total ? s.ok : s.err}>
                 {result.renamed} de {result.total} monitor(es) renomeado(s).
               </div>

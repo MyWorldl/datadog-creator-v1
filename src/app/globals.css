@@ -460,6 +460,7 @@ input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s 
   border-radius: 10px;
   cursor: pointer;
   user-select: none;
+  text-decoration: none;
   transition: var(--t-base);
 }
 .btn-sm { min-height: 32px; padding: 0 var(--space-3); font-size: 12px; border-radius: var(--radius-sm); }
@@ -642,3 +643,101 @@ input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s 
 /* Linhas compactas de listas rolantes (hosts, serviços, namespaces). */
 .list-row { cursor: pointer; transition: background-color 0.2s ease, transform 0.2s var(--ease-out); }
 .list-row:hover { background: var(--bg-surface-2); transform: translateX(2px); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Páginas (Auditoria, Análise, FinOps, Bulk Rename, Dashboard, Configurações,
+   Login) — mesma linguagem visual do wizard
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Cartão de página (bloco, sem flex — o conteúdo define o próprio layout). */
+.surface {
+  padding: var(--space-6);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+}
+.surface.is-flat { box-shadow: none; }
+@media (max-width: 560px) { .surface { padding: var(--space-4); border-radius: var(--radius-md); } }
+
+/* Hierarquia de títulos de página. */
+.page-h1 {
+  margin: 0 0 var(--space-1);
+  font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+.page-sub {
+  margin: 0 0 var(--space-6);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 70ch;
+}
+
+/* Botão de largura total (login, redefinir senha) e tamanho grande. */
+.btn-block { width: 100%; }
+.btn-lg { min-height: 46px; font-size: 15px; }
+.btn-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--accent); font-size: 13px; font-weight: 600;
+  text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px;
+  transition: text-decoration-color 0.2s ease, opacity 0.2s ease;
+}
+.btn-link:hover { text-decoration-color: currentColor; filter: none; }
+
+/* Botão só com ícone/caractere (renomear, mostrar senha...). */
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 8px; border: none; background: transparent;
+  color: var(--text-muted); transition: var(--t-base);
+}
+.icon-btn:hover { color: var(--accent); background: var(--accent-light); }
+
+/* Opção selecionável em cartão (tema claro/escuro/sistema). */
+.choice {
+  flex: 1; min-height: 44px; padding: 0 var(--space-4);
+  display: flex; align-items: center; gap: var(--space-2);
+  text-align: left; font-size: 13px; cursor: pointer;
+  color: var(--text-secondary); background: var(--bg-surface-2);
+  border: 1px solid var(--border); border-radius: 10px;
+  transition: var(--t-base);
+}
+.choice:hover { border-color: var(--accent); transform: translateY(-1px); }
+.choice[aria-pressed="true"] {
+  color: var(--accent); background: var(--accent-light);
+  border-color: var(--accent); font-weight: 600;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* Linha de org conectada. */
+.org-row { transition: var(--t-base); }
+.org-row:hover { border-color: var(--text-muted) !important; }
+
+/* Tabelas de dados: linha destacada no hover e cabeçalho fixo ao rolar. */
+.data-table tbody tr { transition: background-color 0.2s ease; }
+.data-table tbody tr:hover td { background: var(--bg-surface-2); }
+.data-table thead th { position: sticky; top: 0; background: var(--bg-surface); z-index: 1; }
+
+/* Cartões de estatística/cobertura clicáveis ou não: elevação leve. */
+.tile { transition: var(--t-base); }
+.tile:hover { border-color: var(--text-muted); box-shadow: var(--card-shadow); }
+
+/* Entrada escalonada de grades de cartões. */
+.stagger > * { animation: wzItemIn 0.4s var(--ease-out) both; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(7) { animation-delay: 240ms; }
+.stagger > *:nth-child(8) { animation-delay: 280ms; }
+.stagger > *:nth-child(9) { animation-delay: 320ms; }
+.stagger > *:nth-child(10) { animation-delay: 360ms; }
+.stagger > *:nth-child(n+11) { animation-delay: 400ms; }
+
+/* Login: cartão central entra com leve escala. */
+@keyframes authIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+.auth-card { animation: authIn 0.45s var(--ease-out) both; }

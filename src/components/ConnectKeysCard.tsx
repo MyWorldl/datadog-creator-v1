@@ -28,8 +28,6 @@ const s: Record<string, CSSProperties> = {
   input:  { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font-geist-mono), monospace' },
   select: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   btn:    { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost:{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' },
-  btnDanger:{ fontSize: 12, fontWeight: 600, color: 'var(--danger)', background: 'transparent', border: '1px solid var(--danger)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' },
   hint:   { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   err:    { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   ok:     { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '8px 12px' },
@@ -79,7 +77,7 @@ function OrgRow({ conn, onActivate, onRemove, onRename, busy }: OrgRowProps) {
   }
 
   return (
-    <div style={s.row}>
+    <div className="org-row" style={s.row}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {editing ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -93,13 +91,13 @@ function OrgRow({ conn, onActivate, onRemove, onRename, busy }: OrgRowProps) {
               disabled={renaming}
               autoFocus
             />
-            <button style={s.btnGhost} onClick={saveRename} disabled={renaming}>{renaming ? '…' : 'Salvar'}</button>
-            <button style={s.btnGhost} onClick={cancelEditing} disabled={renaming}>Cancelar</button>
+            <button className="btn btn-ghost btn-sm" onClick={saveRename} disabled={renaming}>{renaming ? '…' : 'Salvar'}</button>
+            <button className="btn btn-ghost btn-sm" onClick={cancelEditing} disabled={renaming}>Cancelar</button>
           </div>
         ) : (
           <p style={s.orgName}>
             {conn.name}
-            <button style={s.editBtn} onClick={startEditing} title="Renomear" aria-label="Renomear org">✎</button>
+            <button className="icon-btn" style={s.editBtn} onClick={startEditing} title="Renomear" aria-label="Renomear org">✎</button>
           </p>
         )}
         <p style={s.orgSite}>{conn.site}</p>
@@ -108,18 +106,18 @@ function OrgRow({ conn, onActivate, onRemove, onRename, busy }: OrgRowProps) {
       {conn.isActive ? (
         <span style={s.badge}>● Ativa</span>
       ) : (
-        <button style={s.btnGhost} onClick={() => onActivate(conn.id)} disabled={busy}>
+        <button className="btn btn-ghost btn-sm" onClick={() => onActivate(conn.id)} disabled={busy}>
           Usar esta org
         </button>
       )}
       {!confirming ? (
-        <button style={s.btnDanger} onClick={() => setConfirming(true)} disabled={busy}>
+        <button className="btn btn-danger btn-sm" onClick={() => setConfirming(true)} disabled={busy}>
           Remover
         </button>
       ) : (
         <span style={{ display: 'flex', gap: 6 }}>
-          <button style={s.btnDanger} onClick={() => onRemove(conn.id)} disabled={busy}>Confirmar</button>
-          <button style={s.btnGhost} onClick={() => setConfirming(false)} disabled={busy}>Cancelar</button>
+          <button className="btn btn-danger btn-sm" onClick={() => onRemove(conn.id)} disabled={busy}>Confirmar</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setConfirming(false)} disabled={busy}>Cancelar</button>
         </span>
       )}
     </div>
@@ -196,7 +194,7 @@ export default function ConnectKeysCard() {
   }
 
   return (
-    <div style={s.card}>
+    <div className="surface">
       <p style={s.title}>Conexões Datadog</p>
       <p style={s.sub}>
         Guarde quantas orgs quiser — as chaves ficam cifradas no banco (Supabase),
@@ -223,11 +221,11 @@ export default function ConnectKeysCard() {
             />
           ))}
 
-          {error && <div style={s.err}>{error}</div>}
+          {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
           {!showForm ? (
             <div>
-              <button style={s.btn} onClick={() => setShowForm(true)}>+ Adicionar org</button>
+              <button className="btn btn-primary" onClick={() => setShowForm(true)}>+ Adicionar org</button>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 4, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
@@ -264,13 +262,13 @@ export default function ConnectKeysCard() {
               )}
 
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button style={s.btn} onClick={save} disabled={saving}>
+                <button className="btn btn-primary" onClick={save} disabled={saving}>
                   {saving ? 'Salvando…' : 'Salvar e conectar'}
                 </button>
-                <button style={s.btnGhost} onClick={testConnection} disabled={testing}>
+                <button className="btn btn-ghost btn-sm" onClick={testConnection} disabled={testing}>
                   {testing ? 'Testando…' : 'Testar antes de salvar'}
                 </button>
-                <button style={s.btnGhost} onClick={() => { setShowForm(false); setError(''); setTestResult(null) }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setShowForm(false); setError(''); setTestResult(null) }}>
                   Cancelar
                 </button>
               </div>

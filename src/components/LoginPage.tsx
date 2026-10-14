@@ -9,13 +9,11 @@ const s: Record<string, CSSProperties> = {
   wrap: { minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },
   // 0.5px (não 1px) — achado da auditoria: alinhado ao padrão de borda de
   // card usado nos outros ~13 arquivos do app.
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
+  card: { width: '100%', maxWidth: 400, padding: '2.5rem 2rem' },
   label: { display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 },
   input: { width: '100%', padding: '0.65rem 0.875rem', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9375rem', outline: 'none', boxSizing: 'border-box' },
   err: { background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--danger)', fontSize: '0.875rem' },
   ok: { background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--success)', fontSize: '0.875rem' },
-  btn: { marginTop: 4, padding: '0.75rem', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.9375rem', fontWeight: 600, transition: 'background 0.15s' },
-  link: { background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.8125rem', fontWeight: 600, cursor: 'pointer', padding: 0, textAlign: 'left' },
   eyeBtn: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'inline-flex', padding: 4 },
 };
 
@@ -57,7 +55,7 @@ export function PasswordField({ label, value, onChange, autoComplete }: { label:
           autoComplete={autoComplete}
           style={{ ...s.input, paddingRight: 40 }}
         />
-        <button type="button" style={s.eyeBtn} onClick={() => setShow(v => !v)} aria-label={show ? 'Ocultar senha' : 'Mostrar senha'} title={show ? 'Ocultar senha' : 'Mostrar senha'}>
+        <button type="button" className="icon-btn" style={s.eyeBtn} onClick={() => setShow(v => !v)} aria-label={show ? 'Ocultar senha' : 'Mostrar senha'} title={show ? 'Ocultar senha' : 'Mostrar senha'}>
           {show ? <IconEyeOff size={18} /> : <IconEye size={18} />}
         </button>
       </div>
@@ -169,7 +167,7 @@ export default function LoginPage() {
   if (mode === 'forgot') {
     return (
       <div style={s.wrap}>
-        <div style={s.card}>
+        <div className="surface auth-card" style={s.card}>
           <Logo />
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', marginTop: -12, marginBottom: 24 }}>
             Esqueci minha senha
@@ -177,10 +175,10 @@ export default function LoginPage() {
 
           {forgotSent ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={s.ok}>
+              <div className="wz-msg" style={s.ok}>
                 Se <strong>{forgotEmail}</strong> estiver cadastrado, enviamos um e-mail com um link pra você definir uma nova senha.
               </div>
-              <button type="button" style={s.link} onClick={backToLogin}>← Voltar para o login</button>
+              <button type="button" className="btn-link" style={{ textAlign: 'left' }} onClick={backToLogin}>← Voltar para o login</button>
             </div>
           ) : (
             <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -199,12 +197,12 @@ export default function LoginPage() {
                 />
               </div>
 
-              {forgotError && <div style={s.err}>{forgotError}</div>}
+              {forgotError && <div className="wz-msg" style={s.err}>{forgotError}</div>}
 
-              <button type="submit" disabled={forgotLoading} style={{ ...s.btn, background: forgotLoading ? 'var(--text-muted)' : 'var(--accent)', cursor: forgotLoading ? 'not-allowed' : 'pointer' }}>
+              <button type="submit" disabled={forgotLoading} className="btn btn-primary btn-lg btn-block" style={{ marginTop: 4 }}>
                 {forgotLoading ? 'Enviando…' : 'Enviar link de recuperação'}
               </button>
-              <button type="button" style={s.link} onClick={backToLogin}>← Voltar para o login</button>
+              <button type="button" className="btn-link" style={{ textAlign: 'left' }} onClick={backToLogin}>← Voltar para o login</button>
             </form>
           )}
         </div>
@@ -214,7 +212,7 @@ export default function LoginPage() {
 
   return (
     <div style={s.wrap}>
-      <div style={s.card}>
+      <div className="surface auth-card" style={s.card}>
         <Logo />
         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', marginTop: -12, marginBottom: 24 }}>
           Faça login para continuar
@@ -237,13 +235,13 @@ export default function LoginPage() {
 
           <PasswordField label="Senha" value={password} onChange={setPassword} autoComplete="current-password" />
 
-          <button type="button" style={{ ...s.link, marginTop: -6 }} onClick={() => { setMode('forgot'); setForgotEmail(email); }}>
+          <button type="button" className="btn-link" style={{ marginTop: -6, textAlign: 'left' }} onClick={() => { setMode('forgot'); setForgotEmail(email); }}>
             Esqueci minha senha
           </button>
 
-          {error && <div style={s.err}>{error}</div>}
+          {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
-          <button type="submit" disabled={loading} style={{ ...s.btn, background: loading ? 'var(--text-muted)' : 'var(--accent)', cursor: loading ? 'not-allowed' : 'pointer' }}>
+          <button type="submit" disabled={loading} className="btn btn-primary btn-lg btn-block" style={{ marginTop: 4 }}>
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>

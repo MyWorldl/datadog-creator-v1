@@ -43,23 +43,10 @@ export default function Error({ error, reset }: ErrorPageProps) {
         O erro já foi registrado. Tente novamente — se persistir, volte para a Home.
       </p>
       <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-        <button
-          onClick={reset}
-          style={{
-            fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)',
-            border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer',
-          }}
-        >
+        <button onClick={reset} className="btn btn-primary">
           Tentar novamente
         </button>
-        <a
-          href="/ferramentas/dashboard"
-          style={{
-            fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)',
-            border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', textDecoration: 'none',
-            display: 'inline-flex', alignItems: 'center',
-          }}
-        >
+        <a href="/ferramentas/dashboard" className="btn btn-ghost">
           Voltar para a Home
         </a>
       </div>

@@ -20,12 +20,11 @@ const s: Record<string, CSSProperties> = {
   wrap: { minHeight: 'calc(100vh - 4rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' },
   // 0.5px (não 1px) — achado da auditoria: alinhado ao padrão de borda de
   // card usado nos outros ~13 arquivos do app.
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 16, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, boxShadow: 'var(--card-shadow)' },
+  card: { width: '100%', maxWidth: 400, padding: '2.5rem 2rem' },
   title: { fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px', textAlign: 'center' },
   sub: { color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', margin: '0 0 24px' },
   err: { background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--danger)', fontSize: '0.875rem' },
   ok: { background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '0.6rem 0.875rem', color: 'var(--success)', fontSize: '0.875rem' },
-  btn: { marginTop: 4, padding: '0.75rem', color: 'white', border: 'none', borderRadius: 8, fontSize: '0.9375rem', fontWeight: 600 },
 }
 
 const MIN_LENGTH = 6 // mínimo padrão do Supabase Auth pra senha
@@ -60,20 +59,20 @@ export default function RedefinirSenhaPage() {
 
   return (
     <div style={s.wrap}>
-      <div style={s.card}>
+      <div className="surface auth-card" style={s.card}>
         <p style={s.title}>Redefinir senha</p>
         <p style={s.sub}>Escolha uma nova senha pra sua conta.</p>
 
         {done ? (
-          <div style={s.ok}>✓ Senha atualizada. Redirecionando…</div>
+          <div className="wz-msg" style={s.ok}>✓ Senha atualizada. Redirecionando…</div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <PasswordField label="Nova senha" value={password} onChange={setPassword} autoComplete="new-password" />
             <PasswordField label="Confirmar nova senha" value={confirm} onChange={setConfirm} autoComplete="new-password" />
 
-            {error && <div style={s.err}>{error}</div>}
+            {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
-            <button type="submit" disabled={saving} style={{ ...s.btn, background: saving ? 'var(--text-muted)' : 'var(--accent)', cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <button type="submit" disabled={saving} className="btn btn-primary btn-lg btn-block" style={{ marginTop: 4 }}>
               {saving ? 'Salvando…' : 'Salvar nova senha'}
             </button>
           </form>
