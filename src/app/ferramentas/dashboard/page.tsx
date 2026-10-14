@@ -1,6 +1,8 @@
 // src/app/ferramentas/dashboard/page.tsx
 'use client'
 
+import ProgressBar from '@/components/ProgressBar'
+import { fetchJob } from '@/lib/job-client'
 import Link from 'next/link'
 import { useEffect, useState, type CSSProperties, type ComponentType } from 'react'
 import { useSession } from '@/context/SupabaseAuthContext'
@@ -136,6 +138,9 @@ export default function DashboardPage() {
   const [ma, setMa] = useState<AuditMonitorsSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // Progresso combinado das duas coletas (ScopeMaturity + AuditMonitors): média
+  // das frações reais; nunca volta pra trás.
+  const [prog, setProg] = useState<{ sm: number; ma: number; label: string }>({ sm: 0, ma: 0, label: 'Conectando ao Datadog…' })
 
   useEffect(() => {
     // Sincroniza com o servidor: busca ScopeMaturity + AuditMonitors ao conectar.
@@ -143,14 +148,17 @@ export default function DashboardPage() {
     if (!keysConfigured) { setSm(null); setMa(null); return }
     let cancel = false
     setLoading(true); setError('')
+    setProg({ sm: 0, ma: 0, label: 'Conectando ao Datadog…' })
+    const upd = (k: 'sm' | 'ma') => (i: { fraction: number | null; label: string }) =>
+      setProg(p => ({ ...p, [k]: Math.max(p[k], i.fraction ?? 0), label: i.label }))
     Promise.all([
-      fetch('/api/datadog/scope-maturity').then(r => r.json().then(j => ({ ok: r.ok, j }))),
-      fetch('/api/datadog/audit-monitors').then(r => r.json().then(j => ({ ok: r.ok, j }))),
+      fetchJob<ScopeMaturitySummary>('/api/datadog/scope-maturity', { onProgress: upd('sm') }),
+      fetchJob<AuditMonitorsSummary>('/api/datadog/audit-monitors', { onProgress: upd('ma') }),
     ])
       .then(([smR, maR]) => {
         if (cancel) return
-        if (smR.ok) setSm(smR.j); else setError(smR.j.error || 'Falha ao calcular ScopeMaturity.')
-        if (maR.ok) setMa(maR.j)
+        if (smR.ok) setSm(smR.data); else setError(smR.data.error || 'Falha ao calcular ScopeMaturity.')
+        if (maR.ok) setMa(maR.data)
       })
       .catch(e => { if (!cancel) setError('Falha de rede: ' + e.message) })
       .finally(() => { if (!cancel) setLoading(false) })
@@ -173,6 +181,7 @@ export default function DashboardPage() {
 
       {keysConfigured && (
         <>
+          {loading && <div className="surface wz-msg" style={{ marginBottom: 16 }}><ProgressBar value={(prog.sm + prog.ma) / 2} label={prog.label} detail="ScopeMaturity + AuditMonitors" /></div>}
           <div className="stagger" style={s.metricStrip}>
             <div className="tile" style={s.metricTile}><div style={s.metricNum}>{env ? env.hostCount : '—'}</div><div style={s.metricLbl}>hosts</div></div>
             <div className="tile" style={s.metricTile}><div style={s.metricNum}>{env ? env.serviceCount : '—'}</div><div style={s.metricLbl}>serviços APM</div></div>

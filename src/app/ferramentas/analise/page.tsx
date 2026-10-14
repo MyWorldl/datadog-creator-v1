@@ -2,9 +2,11 @@
 
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { useApp } from '@/context/AppContext'
-import CollapsibleCard, { type CardStatus } from '@/components/CollapsibleCard'
+import PillarCard, { type CardStatus } from '@/components/PillarCard'
 import Sparkline from '@/components/Sparkline'
 import ScoreRing from '@/components/ScoreRing'
+import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import { fetchJob } from '@/lib/job-client'
 import { scoreColor } from '@/lib/score'
 import { IconLayers, IconBell, IconPulse, IconChecklist, IconShieldCheck, IconWarning } from '@/components/Icons'
 
@@ -53,7 +55,7 @@ const STATUS_TINT: Record<CardStatus, { c: string; bg: string }> = {
 
 // Ícones temáticos por pilar — de Icons.tsx (achado da auditoria: viviam
 // inline aqui, fonte única agora). Cada pilar ganha um glyph de identidade
-// em vez da forma de status (ver CollapsibleCard, que já cuida do aria-hidden
+// em vez da forma de status (ver PillarCard, que já cuida do aria-hidden
 // no wrapper que consome esses ícones).
 const PILLAR_ICON: Record<string, ReactNode> = {
   cobertura: <IconLayers size={18} />,        // camadas (infra/apps/cloud empilhadas)
@@ -65,13 +67,14 @@ const PILLAR_ICON: Record<string, ReactNode> = {
 
 const s: Record<string, CSSProperties> = {
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', alignItems: 'start', gap: 12, marginTop: 16 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', alignItems: 'stretch', gap: 16, marginTop: 16 },
   dimDetail: { fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 },
 }
 
 export default function ScopeMaturityPage() {
   const { keysConfigured, datadogSite } = useApp()
   const [loading, setLoading] = useState(false)
+  const { progress, start, onProgress } = useJobProgress()
   const [error, setError] = useState('')
   const [data, setData] = useState<ScopeMaturityData | null>(null)
 
@@ -80,18 +83,17 @@ export default function ScopeMaturityPage() {
     // painel inteiro mesmo com dado válido já na tela, até a resposta nova
     // chegar. Mantém o dado anterior visível durante o reload — o botão já
     // indica loading via texto, mesmo padrão de ferramentas/audit/page.tsx.
-    setError(''); setLoading(true)
+    setError(''); setLoading(true); start()
     try {
-      const r = await fetch('/api/datadog/scope-maturity')
-      const json = await r.json()
-      if (!r.ok) { setError(json.error || 'Falha ao calcular o score.'); return }
-      setData(json)
+      const r = await fetchJob<ScopeMaturityData>('/api/datadog/scope-maturity', { onProgress })
+      if (!r.ok) { setError(r.data.error || 'Falha ao calcular o score.'); return }
+      setData(r.data)
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setLoading(false) }
   }
 
   return (
-    <div style={{ maxWidth: 820 }}>
+    <div>
       <h1 className="page-h1">ScopeMaturity</h1>
       <p className="page-sub">Score de maturidade do ambiente Datadog (0–100) por dimensões de governança e cobertura.</p>
 
@@ -102,6 +104,7 @@ export default function ScopeMaturityPage() {
           </p>
         </div>
       ) : (
+        <>
         <div className="surface">
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             {data ? (
@@ -142,6 +145,8 @@ export default function ScopeMaturityPage() {
             </div>
           </div>
 
+          {loading && progress && <ProgressBar className="is-block wz-msg" value={progress.value} label={progress.label} detail={progress.detail} />}
+
           {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
           {data && (
@@ -154,51 +159,54 @@ export default function ScopeMaturityPage() {
                   }} title={`Nível ${n}`} />
                 ))}
               </div>
-              <div className="stagger" style={s.grid}>
-                {data.pillars.map(p => (
-                  <CollapsibleCard
-                    key={p.key}
-                    title={p.label}
-                    score={p.measured ? p.score : 'N/D'}
-                    status={smStatus(p)}
-                    icon={PILLAR_ICON[p.key] || null}
-                  >
-                    <div style={{ background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 11 }}>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--success)' }} />
-                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-                          <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro </span>— {p.maduro}
-                        </p>
-                      </div>
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--danger)' }} />
-                        <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-                          <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo </span>— {p.imaturo}
-                        </p>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-                      {p.dimensions.map(dim => {
-                        const tint = STATUS_TINT[smStatus(dim)]
-                        return (
-                          <div key={dim.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                            <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 9, background: tint.bg, color: tint.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: dim.measured ? 12.5 : 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-                              {dim.measured ? dim.score : 'N/D'}
-                            </span>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{dim.label}</div>
-                              <p style={{ ...s.dimDetail, margin: '2px 0 0' }}>{dim.detail}</p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CollapsibleCard>
-                ))}
-              </div>
             </>
           )}
         </div>
+        {data && (
+          <div className="stagger" style={s.grid}>
+            {data.pillars.map(p => (
+              <PillarCard
+                key={p.key}
+                title={p.label}
+                score={p.measured ? p.score : 'N/D'}
+                status={smStatus(p)}
+                icon={PILLAR_ICON[p.key] || null}
+              >
+                <div style={{ background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 11 }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--success)' }} />
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--success)', fontWeight: 600 }}>Maduro </span>— {p.maduro}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <span style={{ width: 3, flexShrink: 0, borderRadius: 2, background: 'var(--danger)' }} />
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+                      <span style={{ color: 'var(--danger)', fontWeight: 600 }}>Imaturo </span>— {p.imaturo}
+                    </p>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  {p.dimensions.map(dim => {
+                    const tint = STATUS_TINT[smStatus(dim)]
+                    return (
+                      <div key={dim.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                        <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 9, background: tint.bg, color: tint.c, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: dim.measured ? 12.5 : 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                          {dim.measured ? dim.score : 'N/D'}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{dim.label}</div>
+                          <p style={{ ...s.dimDetail, margin: '2px 0 0' }}>{dim.detail}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </PillarCard>
+            ))}
+          </div>
+        )}
+        </>
       )}
     </div>
   )

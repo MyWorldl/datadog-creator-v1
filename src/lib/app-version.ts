@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.68.0',
+    date: '2026-10-14',
+    title: 'Barra de progresso real e cartões separados',
+    notes: [
+      'Barra de progresso com porcentagem, etapa atual e tempo em Auditoria, Análise, Dashboard, FinOps, Bulk Rename, descoberta do wizard e criação; nas rotas demoradas o servidor envia o andamento real em streaming (NDJSON)',
+      'Operações de uma chamada só (hosts, namespaces, SLOs, alarme) mostram barra indeterminada com a etapa atual',
+      'Análise: cartão principal em largura total e cada pilar em cartão próprio, sempre aberto (sem expandir/recolher)',
+    ],
+  },
+  {
     version: '1.67.0',
     date: '2026-10-14',
     title: 'Visual unificado nas demais páginas',

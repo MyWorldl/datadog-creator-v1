@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { ALERT_TYPES, ALERT_WINDOW_OPTIONS, type ScopeType } from '@/lib/discovery'
+import ProgressBar from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 import { type SubStepState, subNavItemStyle, subNavDotStyle, accStyle, chevStyle, winShort } from './styles'
 
@@ -322,6 +323,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                 {loading ? 'Descobrindo…' : cfg.discoverLabel}
               </button>
             </div>
+            {loading && <ProgressBar value={null} label="Consultando o Datadog…" />}
 
             {d.services.length > 0 && (
               <>
@@ -380,9 +382,14 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <label style={{ ...s.label, marginBottom: 0 }}>{cfg.opsLabel}</label>
             <button className="btn btn-ghost" onClick={analyze} disabled={analyzing}>
-              {analyzing ? `Identificando…${progress ? ` (${progress.done}/${progress.total})` : ''}` : 'Identificar operações'}
+              {analyzing ? 'Identificando…' : 'Identificar operações'}
             </button>
           </div>
+          {analyzing && progress && (
+            <div style={{ marginBottom: 12 }}>
+              <ProgressBar value={progress.total ? progress.done / progress.total : null} label="Identificando operações…" detail={`${progress.done} de ${progress.total}`} />
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {selectedNames.map(name => {
               const meta = d.selected[name]

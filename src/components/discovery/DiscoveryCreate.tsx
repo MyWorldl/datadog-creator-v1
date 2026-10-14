@@ -9,6 +9,7 @@ import { planSloPreview, type SloPlanItem, type SloMonitorsState } from '@/lib/s
 import { downloadResultsExcel as downloadResultsExcelShared, downloadPlanExcel, type ExcelResultEntry } from '@/lib/monitor-excel'
 import type { PlanResultItem } from '@/lib/monitor-create-server'
 import { planBatches, readJsonSafe } from '@/lib/create-batches'
+import ProgressBar from '@/components/ProgressBar'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
 type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem | SloPlanItem
@@ -28,7 +29,6 @@ const s: Record<string, CSSProperties> = {
   okBox: { fontSize: 13, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px' },
   resItem: { fontSize: 12, padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--border)', fontFamily: 'var(--font-geist-mono), monospace', wordBreak: 'break-all' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
-  progressWrap: { display: 'flex', flexDirection: 'column', gap: 6 },
   warnBox: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' },
 }
 
@@ -154,7 +154,6 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
   // Com milhares de monitores, listar todos os ✓ trava a tela: mostra só o que falhou.
   const LIST_LIMIT = 200
   const listed = done.length > LIST_LIMIT ? failedItems : done
-  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
     <div className="wz-card">
@@ -171,16 +170,13 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
       )}
 
       {busy && (
-        <div style={s.progressWrap} role="status" aria-live="polite">
-          <p style={s.summary}>
-            {phase === 'sheet'
-              ? 'Gerando a planilha do plano…'
-              : <>Criando… <strong>{progress.done}</strong> de <strong>{progress.total}</strong> ({pct}%)</>}
-          </p>
-          <div className="wz-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={phase === 'sheet' ? 0 : pct} aria-label="Progresso da criação">
-            <div className="wz-progress-bar is-active" style={{ width: `${phase === 'sheet' ? 4 : Math.max(pct, 2)}%` }} />
-          </div>
-          <p style={{ ...s.summary, fontSize: 11.5 }}>Mantenha esta aba aberta. Se precisar parar, os já criados são pulados na próxima vez.</p>
+        <div>
+          <ProgressBar
+            value={phase === 'sheet' ? null : (progress.total ? progress.done / progress.total : null)}
+            label={phase === 'sheet' ? 'Gerando a planilha do plano…' : 'Criando monitores no Datadog…'}
+            detail={phase === 'sheet' ? undefined : `${progress.done} de ${progress.total}`}
+          />
+          <p style={{ ...s.summary, fontSize: 11.5, marginTop: 8 }}>Mantenha esta aba aberta. Se precisar parar, os já criados são pulados na próxima vez.</p>
         </div>
       )}
 

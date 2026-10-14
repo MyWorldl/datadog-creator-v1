@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { SLO_ALERT_TYPES, validateSloAlerts, type SloInfo, type SloAlertConfig } from '@/lib/slo-monitors'
+import ProgressBar from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 
 const s: Record<string, CSSProperties> = {

@@ -1,6 +1,8 @@
 // src/app/ferramentas/finops/page.tsx
 'use client'
 
+import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import { fetchJob } from '@/lib/job-client'
 import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { EST_METRICS, computeCost, fmtMoney, fmtNum } from '@/lib/finops-pricing'
@@ -77,6 +79,7 @@ export default function FinOpsPage() {
 
   // Consumo / Custo compartilham os dados carregados
   const [loading, setLoading] = useState(false)
+  const { progress, start, onProgress } = useJobProgress()
   const [error, setError] = useState('')
   const [data, setData] = useState<UsageData | null>(null)
   const [prices, setPrices] = useState<Record<string, number>>({}) // key -> override de preço
@@ -94,11 +97,11 @@ export default function FinOpsPage() {
     // painel inteiro mesmo com dado válido já na tela, até a resposta nova
     // chegar. Mantém o dado anterior visível durante o reload — o botão já
     // indica loading via texto, mesmo padrão de ferramentas/audit/page.tsx.
-    setError(''); setLoading(true)
+    setError(''); setLoading(true); start()
     try {
-      const r = await fetch('/api/datadog/finops')
-      const json = await r.json()
-      if (!r.ok) { setError(json.error || 'Falha ao carregar consumo.'); return }
+      const r = await fetchJob<UsageData>('/api/datadog/finops', { onProgress })
+      if (!r.ok) { setError(r.data.error || 'Falha ao carregar consumo.'); return }
+      const json = r.data
       setData(json)
       const seed: Record<string, number> = {}
       for (const p of json.products) seed[p.key] = p.price
@@ -182,6 +185,7 @@ export default function FinOpsPage() {
               </span>
             )}
           </div>
+          {loading && progress && <ProgressBar className="is-block wz-msg" value={progress.value} label={progress.label} detail={progress.detail} />}
           {error && <div className="wz-msg" style={s.err}>{error}</div>}
           {data?.warning && <div className="wz-msg" style={s.warn}><Warn />{data.warning}</div>}
           {data && (
@@ -278,6 +282,7 @@ export default function FinOpsPage() {
               {creating ? 'Criando…' : 'Criar monitor de anomalia (direção: ambos)'}
             </button>
           </div>
+          {creating && <div style={{ marginTop: 14 }}><ProgressBar value={null} label="Criando o monitor no Datadog…" /></div>}
           {alarmErr && <div className="wz-msg" style={s.err}>{alarmErr}</div>}
           {alarmMsg && (
             <div className="wz-msg" style={s.okBox}>
