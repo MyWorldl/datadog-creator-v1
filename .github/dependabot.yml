@@ -17,6 +17,16 @@ updates:
       # separados, pra revisar breaking changes com atenção individual.
       minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Os tipos acompanham o runtime (engines: node 22.x) — @types/node 26
+      # descreveria APIs que o Node 22 em produção não tem.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 (compilador nativo) compila e builda o app, mas quebra o
+      # ESLint: typescript-eslint ainda não suporta TS >= 7 (previsto pro 7.1).
+      # Testado em out/2026 — reavaliar quando o typescript-eslint suportar.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

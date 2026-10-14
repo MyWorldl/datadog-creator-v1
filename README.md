@@ -8,10 +8,13 @@ usuário** (chaves cifradas e guardadas no Supabase), e coleta feita no servidor
 ## Ferramentas
 
 - **Dashboard** — visão geral do ambiente conectado, com atalhos pras demais ferramentas.
-- **MonitorsCreator** — descobre hosts/serviços/namespaces e cria monitores (threshold, *anomaly detection* e *outlier detection*), com parâmetros por tipo de alerta (algoritmo, sazonalidade, alert window, direção). Três abas: APM (por serviço/namespace), Infraestrutura (por host: CPU/Memória/Disco/Rede/Load) e, atrás de feature flag, APM e Infraestrutura (K8s/DBM: Node Ready, banco de dados, Pod Restarts, Pod Pending).
+- **MonitorsCreator** — descobre hosts/serviços/namespaces e cria monitores (threshold, *anomaly detection* e *outlier detection*), com parâmetros por tipo de alerta (algoritmo, sazonalidade, alert window, direção). Abas: APM (por serviço/namespace — só serviços com trace; os detectados apenas por USM ficam de fora, não têm métricas `trace.*`), Infraestrutura (por host: CPU/Memória/Disco/Rede/Load) e, atrás de feature flag, APM e Infraestrutura (K8s/DBM: Node Ready, banco de dados com tag `db_engine`/`db_type` — RDS detectado automaticamente —, Pod Restarts, Pod Pending) e Logs (`FEATURE_LOG_MONITORS`: contagem ou agregação de atributo, agrupamento até 4 facets, operadores). O prefixo do nome dos monitores é sugerido a partir da convenção `[Prefixo]` já usada no ambiente, e a configuração é salva como rascunho no navegador (retomar/descartar).
 - **AuditMonitors** — analisa o ambiente e mostra, métrica a métrica, quais hosts/serviços têm monitor e quais estão sem cobertura (score 0–100 ponderado pela % real de cobertura), com sugestão pronta de monitores para as lacunas.
 - **ScopeMaturity** — score de governança/cobertura do ambiente (tags, SLO/error budget, logs, etc.).
 - **FinOps Insights** — consumo por licenciamento, alarme de anomalia de consumo e custo estimado.
+- **SwitchName** — renomeia monitores em lote (busca/substituição no nome, com preview).
+
+Atalho: **Ctrl/Cmd+K** abre a paleta de comandos (navegação e troca de tema).
 
 ## Setup rápido
 
@@ -102,6 +105,8 @@ npm run typecheck              # tsc --noEmit
 npm test                       # testes (runner nativo do Node: node --test)
 npm run check:version          # confere package.json x VERSION_HISTORY (roda no CI)
 npm run bump:version           # atualiza package.json + insere entrada em VERSION_HISTORY
+npm run validate:monitors      # valida TODOS os tipos de monitor gerados contra o Datadog real (POST /monitor/validate, não cria nada; precisa de .env.datadog.local)
+node scripts/dd-search-monitors.mjs TAG   # lista ID + nome dos monitores com a tag (mesma busca do Manage Monitors; usa .env.datadog.local)
 ```
 
 ## Testes e CI

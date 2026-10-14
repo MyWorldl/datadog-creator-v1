@@ -27,6 +27,19 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.63.0',
+    date: '2026-10-14',
+    title: 'Serviços só-USM, hospedagem do DBM, Log Monitor v2, rascunho e manutenção',
+    notes: [
+      'Correção — serviços só-USM: /apm/services traz isTraced/isUsm por serviço e ~48% dos serviços do org real eram só USM (sem métricas trace.*: 0/6 com operations vs 6/6 dos com trace). O app contava todos como \'serviços APM\' e sugeria monitores de APM que nasceriam sem dados. Agora cobertura, sugestões do AuditMonitors, ScopeMaturity (APM/Observabilidade) e a descoberta do wizard usam só os serviços com trace; os só-USM aparecem como aviso (\'+N só USM\'). Atenção: o score de APM do ScopeMaturity fica mais honesto (menor) em ambientes com muito USM.',
+      'DBM — hospedagem do banco: o placeholder \'Em desenvolvimento\' virou funcional. Detecta RDS (tag dbinstanceidentifier/dbinstanceclass ou nome *.rds.amazonaws.com) e self-managed (Agent no host) sem nenhuma chamada extra, mostra o resultado por host e aplica a tag db_type nos monitores de banco; dá pra forçar RDS/Self-managed/Cloud SQL/Azure/Outro. Validado nos 141 hosts reais (21 RDS, 98 self-managed).',
+      'Log Monitor v2: agregações (avg/sum/min/max/median/p75-p99/cardinality) sobre um atributo @, agrupamento .by() até 4 facets (multi-alert) e operadores > >= < <=, com mensagem padrão que cita o grupo. A sintaxe foi confirmada com o validador do próprio Datadog (POST /monitor/validate), e regras inválidas (atributo faltando, warning do lado errado) são barradas na UI e na rota.',
+      'Correção — Node Ready (K8s): critical=warning=0 era recusado pelo Datadog (400) na criação; o warning agora só entra quando está do lado certo do critical. Achado pelo novo script npm run validate:monitors, que valida os 68 payloads de todos os tipos de monitor contra o Datadog real sem criar nada.',
+      'Novo — rascunho do wizard salvo no navegador (banner Retomar/Descartar; nunca restaura sozinho nem sobrescreve o antigo antes da decisão; limpo após criar). AuditMonitors: \'criar os que faltam\' passa a usar a convenção de nomes detectada no ambiente.',
+      'Manutenção: ESLint 9 -> 10; TypeScript 7 testado e NÃO adotado (compila/builda mas typescript-eslint ainda não suporta TS 7) e @types/node 26 recusado (engines é Node 22) — Dependabot configurado pra não propor esses majors; 4 branches locais já mescladas removidas; README atualizado.',
+    ],
+  },
+  {
     version: '1.62.0',
     date: '2026-10-13',
     title: 'Front-end modernizado, paleta de comandos e sugestão de nomes',
