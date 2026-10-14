@@ -1,44 +1,39 @@
 // src/components/ProgressBar.tsx
 //
-// Barra de progresso única do app. `value` 0..1 = determinada (progresso REAL
-// vindo do servidor via job-stream); `null` = indeterminada (operação de uma
-// chamada só, sem como medir quanto falta). Mostra o que está acontecendo, a
-// porcentagem e o tempo decorrido. Tema/animação em globals.css (.wz-progress*).
+// Barra de progresso única do app — sempre em PORCENTAGEM.
+//  - ProgressBar: `value` 0..1 REAL (etapas concluídas / total, vindo do
+//    servidor via job-stream, ou lotes do cliente).
+//  - EstimatedProgressBar: pra operações de uma chamada só (o Datadog não
+//    informa o andamento): porcentagem ESTIMADA pela duração das últimas
+//    execuções, exibida como "~42%" e limitada a 95% até a operação terminar.
+// Tema/animação em globals.css (.wz-progress*).
 
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
 import type { JobProgressInfo } from '@/lib/job-client'
+import { estimateFraction, nextExpected, clampExpected } from '@/lib/progress-estimate'
 
 interface ProgressBarProps {
-  value: number | null
+  /** 0..1 */
+  value: number
   label?: string
-  /** Texto extra à direita da porcentagem (ex.: "12 de 40"). */
+  /** Texto extra ao lado da porcentagem (ex.: "12 de 40"). */
   detail?: string
+  /** Porcentagem estimada (mostra "~"). */
+  approx?: boolean
   className?: string
 }
 
-function useElapsed(): number {
-  const [s, setS] = useState(0)
-  useEffect(() => {
-    const t0 = Date.now()
-    const id = setInterval(() => setS(Math.floor((Date.now() - t0) / 1000)), 1000)
-    return () => clearInterval(id)
-  }, [])
-  return s
-}
-
-export default function ProgressBar({ value, label, detail, className }: ProgressBarProps) {
-  const elapsed = useElapsed()
-  const pct = value == null ? null : Math.round(Math.max(0, Math.min(1, value)) * 100)
+export default function ProgressBar({ value, label, detail, approx, className }: ProgressBarProps) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100)
   return (
     <div className={`wz-progress${className ? ' ' + className : ''}`} role="status" aria-live="polite">
       <div className="wz-progress-head">
         <span className="wz-progress-label">{label || 'Carregando…'}</span>
         <span className="wz-progress-meta">
-          {pct != null && <strong>{pct}%</strong>}
+          <strong>{approx ? '~' : ''}{pct}%</strong>
           {detail && <span>{detail}</span>}
-          {elapsed >= 3 && <span>{elapsed}s</span>}
         </span>
       </div>
       <div
@@ -47,27 +42,70 @@ export default function ProgressBar({ value, label, detail, className }: Progres
         aria-label={label || 'Progresso'}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={pct ?? undefined}
+        aria-valuenow={pct}
       >
-        <div
-          className={`wz-progress-bar is-active${pct == null ? ' is-indeterminate' : ''}`}
-          style={pct == null ? undefined : { width: `${Math.max(pct, 3)}%` }}
-        />
+        <div className="wz-progress-bar is-active" style={{ width: `${Math.max(pct, 2)}%` }} />
       </div>
     </div>
   )
 }
 
-export interface JobProgressState { value: number | null; label: string; detail?: string }
+// ── Estimativa pra operações de uma chamada só ──
+
+const KEY = (op: string) => `dd_op_ms_${op}`
+
+function readExpected(op: string, fallbackMs: number): number {
+  try {
+    const v = Number(localStorage.getItem(KEY(op)))
+    return v > 0 ? clampExpected(v) : clampExpected(fallbackMs)
+  } catch { return clampExpected(fallbackMs) }
+}
+
+function saveDuration(op: string, ms: number, fallbackMs: number) {
+  if (ms < 300) return // desmontou quase na hora (troca de tela/cancelou): não representa a operação
+  try {
+    const prev = Number(localStorage.getItem(KEY(op))) || null
+    localStorage.setItem(KEY(op), String(Math.round(nextExpected(prev ?? fallbackMs, ms))))
+  } catch { /* storage bloqueado: segue sem aprender */ }
+}
+
+interface EstimatedProgressBarProps {
+  /** Identifica a operação (aprende a duração típica de cada uma). */
+  op: string
+  label?: string
+  /** Duração esperada na 1ª vez, antes de ter histórico. */
+  defaultMs?: number
+  className?: string
+}
+
+// Monte QUANDO a operação começar e desmonte quando terminar ({loading && <… />}):
+// ao desmontar, a duração real alimenta a estimativa das próximas vezes.
+export function EstimatedProgressBar({ op, label, defaultMs = 4000, className }: EstimatedProgressBarProps) {
+  const [fraction, setFraction] = useState(0)
+
+  useEffect(() => {
+    const start = Date.now()
+    const expected = readExpected(op, defaultMs)
+    const id = setInterval(() => setFraction(estimateFraction(Date.now() - start, expected)), 200)
+    return () => {
+      clearInterval(id)
+      saveDuration(op, Date.now() - start, defaultMs)
+    }
+  }, [op, defaultMs])
+
+  return <ProgressBar value={fraction} label={label} approx className={className} />
+}
+
+export interface JobProgressState { value: number; label: string; detail?: string }
 
 // Estado da barra a partir dos eventos do fetchJob. A porcentagem NUNCA volta
 // pra trás (se o servidor aumentar o total no meio, a barra só espera).
 export function useJobProgress() {
   const [progress, setProgress] = useState<JobProgressState | null>(null)
-  const start = useCallback((label = 'Conectando ao Datadog…') => setProgress({ value: null, label }), [])
+  const start = useCallback((label = 'Conectando ao Datadog…') => setProgress({ value: 0, label }), [])
   const onProgress = useCallback((i: JobProgressInfo) => {
     setProgress(prev => ({
-      value: i.fraction == null ? prev?.value ?? null : Math.max(prev?.value ?? 0, i.fraction),
+      value: Math.max(prev?.value ?? 0, i.fraction ?? 0),
       label: i.label,
       detail: i.total > 1 ? `${Math.min(i.done, i.total)} de ${i.total}` : undefined,
     }))

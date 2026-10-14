@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
 import { ALERT_TYPES, ALERT_WINDOW_OPTIONS, type ScopeType } from '@/lib/discovery'
-import ProgressBar from '@/components/ProgressBar'
+import ProgressBar, { EstimatedProgressBar } from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 import { type SubStepState, subNavItemStyle, subNavDotStyle, accStyle, chevStyle, winShort } from './styles'
 
@@ -323,7 +323,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                 {loading ? 'Descobrindo…' : cfg.discoverLabel}
               </button>
             </div>
-            {loading && <ProgressBar value={null} label="Consultando o Datadog…" />}
+            {loading && <EstimatedProgressBar op="discover" label="Consultando o Datadog…" defaultMs={6000} />}
 
             {d.services.length > 0 && (
               <>
@@ -387,7 +387,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
           </div>
           {analyzing && progress && (
             <div style={{ marginBottom: 12 }}>
-              <ProgressBar value={progress.total ? progress.done / progress.total : null} label="Identificando operações…" detail={`${progress.done} de ${progress.total}`} />
+              <ProgressBar value={progress.total ? progress.done / progress.total : 0} label="Identificando operações…" detail={`${progress.done} de ${progress.total}`} />
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

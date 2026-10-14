@@ -1,7 +1,7 @@
 // src/app/ferramentas/finops/page.tsx
 'use client'
 
-import ProgressBar, { useJobProgress } from '@/components/ProgressBar'
+import ProgressBar, { EstimatedProgressBar, useJobProgress } from '@/components/ProgressBar'
 import { fetchJob } from '@/lib/job-client'
 import { useState, type CSSProperties } from 'react'
 import { useApp } from '@/context/AppContext'
@@ -282,7 +282,7 @@ export default function FinOpsPage() {
               {creating ? 'Criando…' : 'Criar monitor de anomalia (direção: ambos)'}
             </button>
           </div>
-          {creating && <div style={{ marginTop: 14 }}><ProgressBar value={null} label="Criando o monitor no Datadog…" /></div>}
+          {creating && <div style={{ marginTop: 14 }}><EstimatedProgressBar op="finops-alarm" label="Criando o monitor no Datadog…" defaultMs={3000} /></div>}
           {alarmErr && <div className="wz-msg" style={s.err}>{alarmErr}</div>}
           {alarmMsg && (
             <div className="wz-msg" style={s.okBox}>

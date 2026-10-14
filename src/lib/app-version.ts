@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.69.0',
+    date: '2026-10-14',
+    title: 'Progresso em porcentagem',
+    notes: [
+      'Barra de progresso sempre em porcentagem (sem tempo decorrido)',
+      'Operações de uma chamada só (hosts, namespaces, SLOs, leitura de monitores, alarme) usam porcentagem estimada (~%) pela duração das últimas execuções, limitada a 95% até terminar',
+    ],
+  },
+  {
     version: '1.68.0',
     date: '2026-10-14',
     title: 'Barra de progresso real e cartões separados',

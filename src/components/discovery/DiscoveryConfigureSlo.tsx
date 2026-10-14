@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { SLO_ALERT_TYPES, validateSloAlerts, type SloInfo, type SloAlertConfig } from '@/lib/slo-monitors'
-import ProgressBar from '@/components/ProgressBar'
+import { EstimatedProgressBar } from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 
 const s: Record<string, CSSProperties> = {
@@ -96,8 +96,10 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
 
       {loadError && <div className="wz-msg" style={s.err}>{loadError} <button style={s.link} onClick={load}>Tentar de novo</button></div>}
 
-      {!loadError && d.slos.length === 0 && (
-        <p className="wz-msg" style={s.empty}>{loading ? 'Carregando SLOs…' : 'Nenhum SLO encontrado neste org. Crie um SLO no Datadog e recarregue.'}</p>
+      {loading && <EstimatedProgressBar op="slos" label="Carregando SLOs do Datadog…" defaultMs={3000} />}
+
+      {!loadError && !loading && d.slos.length === 0 && (
+        <p className="wz-msg" style={s.empty}>Nenhum SLO encontrado neste org. Crie um SLO no Datadog e recarregue.</p>
       )}
 
       {d.slos.length > 0 && (

@@ -5,7 +5,7 @@ import { useState, type CSSProperties } from 'react'
 import { INFRA_TYPES, type InfraMetricConfig, type InfraCheckConfig, type OutlierAlgorithm } from '@/lib/infra'
 import { ALERT_WINDOW_OPTIONS } from '@/lib/discovery'
 import { useApp } from '@/context/AppContext'
-import ProgressBar from '@/components/ProgressBar'
+import ProgressBar, { EstimatedProgressBar } from '@/components/ProgressBar'
 import type { DiscoveryStepProps } from './types'
 import { type SubStepState, subNavItemStyle, subNavDotStyle, accStyle, chevStyle } from './styles'
 
@@ -187,7 +187,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
               {loading ? 'Descobrindo…' : 'Descobrir hosts'}
             </button>
           </div>
-          {loading && <ProgressBar value={null} label="Consultando hosts no Datadog…" />}
+          {loading && <EstimatedProgressBar op="hosts" label="Consultando hosts no Datadog…" defaultMs={5000} />}
 
           {d.hosts.length > 0 && (
             <>
