@@ -54,8 +54,6 @@ function avgGroupPct(rows: (HostCoverageRow | ServiceCoverageRow)[], metrics: Me
 
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 'clamp(1.35rem, 1.1rem + 1vw, 1.75rem)', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13.5, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
   metricStrip: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 16 },
   metricTile: { background: 'var(--bg-surface-2)', borderRadius: 10, padding: '12px 14px' },
   metricNum: { fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 },
@@ -73,7 +71,6 @@ const s: Record<string, CSSProperties> = {
   cTitle: { fontSize: 14.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },
   cDesc: { fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5, flex: 1 },
   cCta: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 2 },
-  panel: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)', marginBottom: 22 },
 }
 
 const ringWrapStyle = (size: number): CSSProperties => ({ position: 'relative', width: size, height: size, flexShrink: 0 })
@@ -171,19 +168,19 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 style={s.h1}>{heading}</h1>
-      <p style={s.sub}>Visão geral do ambiente{keysConfigured ? ` · ${datadogSite}` : ''}.</p>
+      <h1 className="page-h1">{heading}</h1>
+      <p className="page-sub">Visão geral do ambiente{keysConfigured ? ` · ${datadogSite}` : ''}.</p>
 
       {keysConfigured && (
         <>
-          <div style={s.metricStrip}>
-            <div style={s.metricTile}><div style={s.metricNum}>{env ? env.hostCount : '—'}</div><div style={s.metricLbl}>hosts</div></div>
-            <div style={s.metricTile}><div style={s.metricNum}>{env ? env.serviceCount : '—'}</div><div style={s.metricLbl}>serviços APM</div></div>
-            <div style={s.metricTile}><div style={s.metricNum}>{env ? env.monitorCount.toLocaleString('pt-BR') : '—'}</div><div style={s.metricLbl}>monitores</div></div>
-            <div style={s.metricTile}><div style={{ ...s.metricNum, color: ma == null ? undefined : ma.gapCount === 0 ? 'var(--success)' : ma.gapCount <= 5 ? 'var(--warning)' : 'var(--danger)' }}>{ma ? ma.gapCount : '—'}</div><div style={s.metricLbl}>lacunas</div></div>
+          <div className="stagger" style={s.metricStrip}>
+            <div className="tile" style={s.metricTile}><div style={s.metricNum}>{env ? env.hostCount : '—'}</div><div style={s.metricLbl}>hosts</div></div>
+            <div className="tile" style={s.metricTile}><div style={s.metricNum}>{env ? env.serviceCount : '—'}</div><div style={s.metricLbl}>serviços APM</div></div>
+            <div className="tile" style={s.metricTile}><div style={s.metricNum}>{env ? env.monitorCount.toLocaleString('pt-BR') : '—'}</div><div style={s.metricLbl}>monitores</div></div>
+            <div className="tile" style={s.metricTile}><div style={{ ...s.metricNum, color: ma == null ? undefined : ma.gapCount === 0 ? 'var(--success)' : ma.gapCount <= 5 ? 'var(--warning)' : 'var(--danger)' }}>{ma ? ma.gapCount : '—'}</div><div style={s.metricLbl}>lacunas</div></div>
           </div>
 
-          <div style={s.band}>
+          <div className="stagger" style={s.band}>
             {/* ScopeMaturity */}
             <Link href="/ferramentas/analise" style={s.hero} className="card-hover">
               <div style={s.heroTop}>
@@ -234,12 +231,12 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {error && <div style={{ ...s.panel, color: 'var(--danger)', fontSize: 13 }}>{error}</div>}
+          {error && <div className="surface wz-msg" style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 22 }}>{error}</div>}
         </>
       )}
 
       {!keysConfigured && !keysLoading && (
-        <div style={s.panel}>
+        <div className="surface" style={{ marginBottom: 22 }}>
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
             Conecte a API e a App Key em <Link href="/configuracoes" style={{ color: 'var(--accent)' }}>Configurações</Link> para ver os scores do ambiente automaticamente aqui.
           </p>
@@ -249,7 +246,7 @@ export default function DashboardPage() {
       {sections.map(section => (
         <div key={section.title} style={{ marginBottom: 22 }}>
           <p style={s.sectionTitle}>{section.title}</p>
-          <div style={s.grid}>
+          <div className="stagger" style={s.grid}>
             {section.items.map(({ href, Icon, title, desc, cta }) => (
               <Link key={href} href={href} style={s.card} className="card-hover">
                 <div style={s.icon}><Icon size={19} /></div>

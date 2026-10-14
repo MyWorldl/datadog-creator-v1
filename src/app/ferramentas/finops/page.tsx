@@ -13,12 +13,6 @@ import { IconWarning } from '@/components/Icons'
 const Warn = () => <span aria-hidden="true" style={{ display: 'inline-flex', verticalAlign: 'middle', marginRight: 5 }}><IconWarning size={13} /></span>
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
-  tabs: { display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 16px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   note: { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 },
   warn: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', margin: '0 0 14px' },
@@ -34,7 +28,6 @@ const s: Record<string, CSSProperties> = {
   okBox: { fontSize: 12.5, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12, lineHeight: 1.5 },
 }
 
-const tabStyle = (on: boolean): CSSProperties => ({ fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 8, cursor: 'pointer', border: '0.5px solid var(--border)', background: on ? 'var(--accent)' : 'var(--bg-surface)', color: on ? '#fff' : 'var(--text-secondary)' })
 
 const PRICING_URL = 'https://www.datadoghq.com/pricing/list/'
 
@@ -131,9 +124,9 @@ export default function FinOpsPage() {
   if (!keysConfigured) {
     return (
       <div style={{ maxWidth: 900 }}>
-        <h1 style={s.h1}>Datadog FinOps Insights</h1>
-        <p style={s.sub}>Consumo e custo do ambiente Datadog.</p>
-        <div style={s.card}>
+        <h1 className="page-h1">Datadog FinOps Insights</h1>
+        <p className="page-sub">Consumo e custo do ambiente Datadog.</p>
+        <div className="surface">
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
             Conecte a API e a App Key em Configurações para ver o consumo. A leitura de uso exige o escopo <code>usage_read</code>.
           </p>
@@ -161,20 +154,20 @@ export default function FinOpsPage() {
 
   return (
     <div style={{ maxWidth: 900 }}>
-      <h1 style={s.h1}>Datadog FinOps Insights</h1>
-      <p style={s.sub}>Consumo e custo do ambiente · coleta no servidor via {datadogSite}.</p>
+      <h1 className="page-h1">Datadog FinOps Insights</h1>
+      <p className="page-sub">Consumo e custo do ambiente · coleta no servidor via {datadogSite}.</p>
 
-      <div style={s.tabs}>
-        <button style={tabStyle(tab === 'consumo')} onClick={() => setTab('consumo')}>Consumo</button>
-        <button style={tabStyle(tab === 'alarme')} onClick={() => setTab('alarme')}>Alerta de consumo</button>
-        <button style={tabStyle(tab === 'custo')} onClick={() => setTab('custo')}>Custo estimado</button>
+      <div className="wz-tabs" role="tablist" aria-label="Seções do FinOps">
+        <button role="tab" aria-selected={tab === 'consumo'} className="wz-tab" onClick={() => setTab('consumo')}>Consumo</button>
+        <button role="tab" aria-selected={tab === 'alarme'} className="wz-tab" onClick={() => setTab('alarme')}>Alerta de consumo</button>
+        <button role="tab" aria-selected={tab === 'custo'} className="wz-tab" onClick={() => setTab('custo')}>Custo estimado</button>
       </div>
 
       {/* ── CONSUMO ── */}
       {tab === 'consumo' && (
-        <div style={s.card}>
+        <div className="surface">
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-            <button style={s.btn} onClick={loadUsage} disabled={loading}>
+            <button className="btn btn-primary" onClick={loadUsage} disabled={loading}>
               {loading ? 'Carregando…' : data ? 'Recarregar' : 'Carregar consumo'}
             </button>
             {data && <span style={s.note}>Mês {data.month}{data.startDate ? ` · desde ${data.startDate.slice(0, 10)}` : ''}</span>}
@@ -189,12 +182,12 @@ export default function FinOpsPage() {
               </span>
             )}
           </div>
-          {error && <div style={s.err}>{error}</div>}
-          {data?.warning && <div style={s.warn}><Warn />{data.warning}</div>}
+          {error && <div className="wz-msg" style={s.err}>{error}</div>}
+          {data?.warning && <div className="wz-msg" style={s.warn}><Warn />{data.warning}</div>}
           {data && (
             <>
               <div style={{ overflowX: 'auto' }}>
-                <table style={s.table}>
+                <table className="data-table" style={s.table}>
                   <thead>
                     <tr><th style={s.th}>Produto (licenciamento)</th><th style={s.thR}>Consumo</th><th style={s.th}>Unidade</th></tr>
                   </thead>
@@ -220,7 +213,7 @@ export default function FinOpsPage() {
                 <details style={{ marginTop: 16 }}>
                   <summary style={{ fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer' }}>Diagnóstico das métricas (query, pontos e valor)</summary>
                   <div style={{ overflowX: 'auto', marginTop: 10 }}>
-                    <table style={{ ...s.table, fontSize: 11.5 }}>
+                    <table className="data-table" style={{ ...s.table, fontSize: 11.5 }}>
                       <thead>
                         <tr>
                           <th style={s.th}>Métrica</th><th style={s.th}>Agg</th>
@@ -250,7 +243,7 @@ export default function FinOpsPage() {
 
       {/* ── ANÁLISE & ALARME ── */}
       {tab === 'alarme' && (
-        <div style={s.card}>
+        <div className="surface">
           <div style={{ ...s.warn, marginBottom: 14 }}>
             <Warn /><strong>Isto não é um alarme de gasto em dólares</strong> — não usa os preços da aba Custo nem tem
             threshold em US$. Cria um monitor de <strong>anomaly detection</strong> sobre o <strong>volume bruto</strong> de
@@ -281,13 +274,13 @@ export default function FinOpsPage() {
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
-            <button style={s.btn} onClick={createAlarm} disabled={creating || !metric}>
+            <button className="btn btn-primary" onClick={createAlarm} disabled={creating || !metric}>
               {creating ? 'Criando…' : 'Criar monitor de anomalia (direção: ambos)'}
             </button>
           </div>
-          {alarmErr && <div style={s.err}>{alarmErr}</div>}
+          {alarmErr && <div className="wz-msg" style={s.err}>{alarmErr}</div>}
           {alarmMsg && (
-            <div style={s.okBox}>
+            <div className="wz-msg" style={s.okBox}>
               Monitor criado: <strong>{alarmMsg.name}</strong> (id {String(alarmMsg.id)}).<br />
               <span style={{ fontFamily: 'var(--font-geist-mono), monospace', fontSize: 11 }}>{alarmMsg.query}</span>
             </div>
@@ -300,8 +293,8 @@ export default function FinOpsPage() {
 
       {/* ── CUSTO ── */}
       {tab === 'custo' && (
-        <div style={s.card}>
-          <div style={s.warn}>
+        <div className="surface">
+          <div className="wz-msg" style={s.warn}>
             <Warn />Estimativa por <strong>preço de lista</strong> (anual), <strong>linear</strong> (mesmo $/unidade em qualquer volume). O preço real contratado varia com committed use, descontos e blocos degressivos por volume (mais visível em Custom Metrics) — por isso os preços são <strong>editáveis</strong>. Ajuste-os aos do seu contrato. Fonte: <a href={PRICING_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>pricing/list</a>.
           </div>
           {logsIndexedGap && (
@@ -312,11 +305,11 @@ export default function FinOpsPage() {
           {!data ? (
             <div>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Carregue o consumo primeiro para calcular o custo.</p>
-              <button style={s.btnGhost} onClick={() => setTab('consumo')}>Ir para Consumo</button>
+              <button className="btn btn-ghost" onClick={() => setTab('consumo')}>Ir para Consumo</button>
             </div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-            <table style={s.table}>
+            <table className="data-table" style={s.table}>
               <thead>
                 <tr>
                   <th style={s.th}>Produto</th>

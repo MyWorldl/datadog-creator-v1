@@ -64,10 +64,6 @@ const PILLAR_ICON: Record<string, ReactNode> = {
 }
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.5rem' },
-  card: { background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', boxShadow: 'var(--card-shadow)' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '10px 20px', cursor: 'pointer' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))', alignItems: 'start', gap: 12, marginTop: 16 },
   dimDetail: { fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 },
@@ -96,17 +92,17 @@ export default function ScopeMaturityPage() {
 
   return (
     <div style={{ maxWidth: 820 }}>
-      <h1 style={s.h1}>ScopeMaturity</h1>
-      <p style={s.sub}>Score de maturidade do ambiente Datadog (0–100) por dimensões de governança e cobertura.</p>
+      <h1 className="page-h1">ScopeMaturity</h1>
+      <p className="page-sub">Score de maturidade do ambiente Datadog (0–100) por dimensões de governança e cobertura.</p>
 
       {!keysConfigured ? (
-        <div style={s.card}>
+        <div className="surface">
           <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
             Conecte-se ao Datadog em Configurações para calcular o score.
           </p>
         </div>
       ) : (
-        <div style={s.card}>
+        <div className="surface">
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             {data ? (
               <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
@@ -140,13 +136,13 @@ export default function ScopeMaturityPage() {
                   ? <>Score {data.score}/100 · média de {data.pillars.filter(p => p.measured).length} de {data.pillars.length} pilares · site {datadogSite}.</>
                   : <>Coleta feita no servidor, usando as chaves da sessão (site {datadogSite}).</>}
               </p>
-              <button style={s.btn} onClick={run} disabled={loading}>
+              <button className="btn btn-primary" onClick={run} disabled={loading}>
                 {loading ? 'Calculando…' : data ? 'Recalcular' : 'Calcular score'}
               </button>
             </div>
           </div>
 
-          {error && <div style={s.err}>{error}</div>}
+          {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
           {data && (
             <>
@@ -158,7 +154,7 @@ export default function ScopeMaturityPage() {
                   }} title={`Nível ${n}`} />
                 ))}
               </div>
-              <div style={s.grid}>
+              <div className="stagger" style={s.grid}>
                 {data.pillars.map(p => (
                   <CollapsibleCard
                     key={p.key}

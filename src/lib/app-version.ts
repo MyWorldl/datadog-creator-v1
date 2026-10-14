@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.67.0',
+    date: '2026-10-14',
+    title: 'Visual unificado nas demais páginas',
+    notes: [
+      'Mesma linguagem do wizard em Dashboard, Auditoria, Análise, FinOps, Bulk Rename, Configurações, Login e Redefinir senha: cartões, títulos, botões e abas padronizados',
+      'Hover/foco/pressionado nos botões, opções de tema em cartão, linhas de tabela e lista com hover, grades com entrada escalonada',
+      'Corrige margens perdidas e espaçamento da tela de Configurações',
+    ],
+  },
+  {
     version: '1.66.0',
     date: '2026-10-14',
     title: 'Visual do wizard',
