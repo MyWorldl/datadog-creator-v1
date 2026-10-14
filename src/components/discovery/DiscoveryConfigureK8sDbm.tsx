@@ -37,7 +37,7 @@ const s: Record<string, CSSProperties> = {
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
-  list: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
+  list: { maxHeight: 320, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
   row: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 6, cursor: 'pointer' },
   accHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' },
   pillRow: { display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 },
@@ -184,7 +184,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         {infra.hosts.length > 0 ? (
           <>
             <span style={s.counter}>{selectedHosts.length} host(s) selecionado(s) · mostrando {filteredHosts.length} de {infra.hosts.length}</span>
-            <div style={s.list}>
+            <div className="list-grid" style={s.list}>
               {filteredHosts.map(h => (
                 <label key={h.name} className="list-row" style={{ ...s.row, ...(infra.selected[h.name] ? { background: 'var(--accent-light)' } : {}) }}>
                   <input type="checkbox" checked={!!infra.selected[h.name]} onChange={() => toggleHost(h.name)} />
@@ -279,7 +279,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         {disc.services.length > 0 ? (
           <>
             <span style={s.counter}>{selectedNamespaces.length} namespace(s) selecionado(s) · mostrando {filteredNs.length} de {disc.services.length}</span>
-            <div style={s.list}>
+            <div className="list-grid" style={s.list}>
               {filteredNs.map(name => (
                 <label key={name} className="list-row" style={{ ...s.row, ...(disc.selected[name] ? { background: 'var(--accent-light)' } : {}) }}>
                   <input type="checkbox" checked={!!disc.selected[name]} onChange={() => toggleNamespace(name)} />

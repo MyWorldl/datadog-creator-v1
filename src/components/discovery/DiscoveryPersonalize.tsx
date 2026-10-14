@@ -14,7 +14,7 @@ const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_nam
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
 const s: Record<string, CSSProperties> = {
-  section: { display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 18, borderBottom: '0.5px solid var(--border)' },
+  section: { paddingBottom: 18, borderBottom: '0.5px solid var(--border)' },
   sectionHeading: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
@@ -147,8 +147,8 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
   }
 
   return (
-    <div style={last ? { ...s.section, borderBottom: 'none', paddingBottom: 0 } : s.section}>
-      {src.heading && <p style={s.sectionHeading}>{src.heading}</p>}
+    <div className="wz-cols" style={last ? { ...s.section, borderBottom: 'none', paddingBottom: 0 } : s.section}>
+      {src.heading && <p className="wz-wide" style={s.sectionHeading}>{src.heading}</p>}
 
       {/* Nome do monitor */}
       <div>
@@ -246,7 +246,7 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
       )}
 
       {/* Mensagens */}
-      <div>
+      <div className="wz-wide">
         <label style={s.label}>Mensagens dos monitores</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {enabled.map(t => (
@@ -330,7 +330,7 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
   }
 
   return (
-    <div style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
+    <div className="wz-cols" style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
       <div>
         <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
         <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setLog({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
@@ -374,7 +374,7 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
         </div>
       </div>
 
-      <div>
+      <div className="wz-wide">
         <label style={s.label}>Mensagens dos monitores</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {d.rules.map(r => (
@@ -424,7 +424,7 @@ function SloPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
   const enabledTypes = SLO_ALERT_TYPES.filter(t => d.alerts[t.key]?.enabled)
 
   return (
-    <div style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
+    <div className="wz-cols" style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
       <div>
         <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
         <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setSlo({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
@@ -459,7 +459,7 @@ function SloPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
         <input id={`${uid}-renotify`} className="focus-ring" style={{ ...s.input, width: 100 }} type="number" min="0" step="5" value={d.renotifyInterval ?? 0} onChange={e => setSlo({ renotifyInterval: Number(e.target.value) || 0 })} />
       </div>
 
-      <div>
+      <div className="wz-wide">
         <label style={s.label}>Mensagens dos monitores (uma por tipo de alerta)</label>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {enabledTypes.map(t => (

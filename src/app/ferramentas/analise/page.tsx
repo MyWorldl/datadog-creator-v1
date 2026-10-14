@@ -67,7 +67,6 @@ const PILLAR_ICON: Record<string, ReactNode> = {
 
 const s: Record<string, CSSProperties> = {
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))', alignItems: 'stretch', gap: 16, marginTop: 16 },
   dimDetail: { fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 },
 }
 
@@ -106,7 +105,7 @@ export default function ScopeMaturityPage() {
       ) : (
         <>
         <div className="surface">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div className="hero-grid">
             {data ? (
               <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
                 <ScoreRing value={data.score} color={scoreColor(data.score)} />
@@ -115,7 +114,7 @@ export default function ScopeMaturityPage() {
                 </span>
               </div>
             ) : null}
-            <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ minWidth: 0 }}>
               {data && (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
                   <span style={{ fontSize: 26, fontWeight: 800, color: scoreColor(data.score) }}>Nível {data.level}</span>
@@ -143,6 +142,24 @@ export default function ScopeMaturityPage() {
                 {loading ? 'Calculando…' : data ? 'Recalcular' : 'Calcular score'}
               </button>
             </div>
+            <aside className="hero-side" aria-label="Resumo dos pilares">
+              <p className="side-title">{data ? 'Pilares' : 'O que é avaliado'}</p>
+              {data
+                ? data.pillars.map(p => {
+                    const st = smStatus(p)
+                    const color = st === 'good' ? 'var(--success)' : st === 'warn' ? 'var(--warning)' : st === 'bad' ? 'var(--danger)' : 'var(--text-muted)'
+                    return (
+                      <div key={p.key} className="side-row">
+                        <span className="side-name" title={p.label}>{p.label}</span>
+                        <span className="side-track"><span className="side-fill" style={{ display: 'block', width: `${p.measured ? p.score : 0}%`, background: color }} /></span>
+                        <span className="side-val" style={{ color }}>{p.measured ? p.score : 'N/D'}</span>
+                      </div>
+                    )
+                  })
+                : ['Cobertura', 'Qualidade dos Monitores', 'Observabilidade', 'Processos', 'Governança'].map(n => (
+                    <div key={n} className="side-row"><span className="side-name">{n}</span><span className="side-track" /><span className="side-val" style={{ color: 'var(--text-muted)' }}>—</span></div>
+                  ))}
+            </aside>
           </div>
 
           {loading && progress && <ProgressBar className="is-block wz-msg" value={progress.value} label={progress.label} detail={progress.detail} />}
@@ -163,7 +180,7 @@ export default function ScopeMaturityPage() {
           )}
         </div>
         {data && (
-          <div className="stagger" style={s.grid}>
+          <div className="pillar-wrap"><div className="stagger pillar-grid">
             {data.pillars.map(p => (
               <PillarCard
                 key={p.key}
@@ -204,7 +221,7 @@ export default function ScopeMaturityPage() {
                 </div>
               </PillarCard>
             ))}
-          </div>
+          </div></div>
         )}
         </>
       )}

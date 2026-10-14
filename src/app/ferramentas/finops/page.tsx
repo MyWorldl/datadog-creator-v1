@@ -16,6 +16,9 @@ const Warn = () => <span aria-hidden="true" style={{ display: 'inline-flex', ver
 
 const s: Record<string, CSSProperties> = {
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
+  kpi: { background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' },
+  kpiNum: { fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' },
+  kpiLbl: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 },
   note: { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5 },
   warn: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', margin: '0 0 14px' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 13 },
@@ -126,7 +129,7 @@ export default function FinOpsPage() {
 
   if (!keysConfigured) {
     return (
-      <div style={{ maxWidth: 900 }}>
+      <div>
         <h1 className="page-h1">Datadog FinOps Insights</h1>
         <p className="page-sub">Consumo e custo do ambiente Datadog.</p>
         <div className="surface">
@@ -156,7 +159,7 @@ export default function FinOpsPage() {
   const missingExceptLogsIndexed = data ? data.missing.filter(k => k !== 'logsIndexed') : []
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div>
       <h1 className="page-h1">Datadog FinOps Insights</h1>
       <p className="page-sub">Consumo e custo do ambiente · coleta no servidor via {datadogSite}.</p>
 
@@ -190,6 +193,12 @@ export default function FinOpsPage() {
           {data?.warning && <div className="wz-msg" style={s.warn}><Warn />{data.warning}</div>}
           {data && (
             <>
+              <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, margin: '16px 0' }}>
+                <div className="tile" style={s.kpi}><div style={s.kpiNum}>{data.month}</div><div style={s.kpiLbl}>mês analisado</div></div>
+                <div className="tile" style={s.kpi}><div style={s.kpiNum}>{data.products.length}</div><div style={s.kpiLbl}>produtos medidos</div></div>
+                <div className="tile" style={s.kpi}><div style={{ ...s.kpiNum, color: data.missing.length ? 'var(--warning)' : 'var(--success)' }}>{data.missing.length}</div><div style={s.kpiLbl}>sem dados no período</div></div>
+                <div className="tile" style={s.kpi}><div style={{ ...s.kpiNum, fontSize: 16 }}>{data.source === 'usage_summary' ? 'Usage Metering' : 'Métricas estimadas'}</div><div style={s.kpiLbl}>fonte dos dados</div></div>
+              </div>
               <div style={{ overflowX: 'auto' }}>
                 <table className="data-table" style={s.table}>
                   <thead>

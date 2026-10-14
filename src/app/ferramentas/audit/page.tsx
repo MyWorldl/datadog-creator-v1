@@ -60,7 +60,7 @@ const s: Record<string, CSSProperties> = {
   ok: { fontSize: 12, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px', marginTop: 12 },
   statLbl: { fontSize: 11, color: 'var(--text-muted)' },
   groupTitle: { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4, margin: '18px 0 8px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))', gap: 10 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: 10 },
   covName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   suggestCard: { background: 'var(--bg-base)', marginTop: 16 },
   suggestHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' },
@@ -225,6 +225,19 @@ function CoverageTable<T extends { gapCount: number; metrics: Record<string, boo
   )
 }
 
+// Resumo por grupo do catálogo de cobertura (Infra, APM, K8s, DBM): quantas
+// métricas-chave do grupo já têm ao menos 1 monitor.
+function groupSummary(coverage: CoverageItem[]): { group: string; covered: number; total: number; pct: number }[] {
+  const by = new Map<string, { covered: number; total: number }>()
+  for (const c of coverage) {
+    const g = by.get(c.group) || { covered: 0, total: 0 }
+    g.total += 1
+    if (c.covered) g.covered += 1
+    by.set(c.group, g)
+  }
+  return [...by.entries()].map(([group, g]) => ({ group, ...g, pct: g.total ? Math.round((g.covered / g.total) * 100) : 0 }))
+}
+
 export default function AuditMonitorsPage() {
   const { keysConfigured, datadogSite, features } = useApp()
   const [loading, setLoading] = useState(false)
@@ -285,7 +298,7 @@ export default function AuditMonitorsPage() {
         </div>
       ) : (
         <div className="surface">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+          <div className="hero-grid">
             {data ? (
               <div style={{ position: 'relative', width: 120, height: 120, flexShrink: 0 }}>
                 <ScoreRing value={data.score} color={scoreColor(data.score)} />
@@ -295,7 +308,7 @@ export default function AuditMonitorsPage() {
                 </span>
               </div>
             ) : null}
-            <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ minWidth: 0 }}>
               {data && (
                 <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', marginBottom: 10 }}>
                   <div><div style={statStyle()}>{data.environment.hostCount}</div><div style={s.statLbl}>hosts</div></div>
@@ -327,6 +340,20 @@ export default function AuditMonitorsPage() {
                 {loading ? 'Auditando…' : data ? 'Reauditar' : 'Auditar ambiente'}
               </button>
             </div>
+            <aside className="hero-side" aria-label="Cobertura por grupo">
+              <p className="side-title">{data ? 'Cobertura por grupo' : 'O que é avaliado'}</p>
+              {data
+                ? groupSummary(data.coverage).map(g => (
+                    <div key={g.group} className="side-row">
+                      <span className="side-name" title={`${g.covered} de ${g.total} métricas com monitor`}>{g.group}</span>
+                      <span className="side-track"><span className="side-fill" style={{ display: 'block', width: `${g.pct}%`, background: scoreColor(g.pct) }} /></span>
+                      <span className="side-val" style={{ color: scoreColor(g.pct) }}>{g.covered}/{g.total}</span>
+                    </div>
+                  ))
+                : ['Infra', 'APM'].map(n => (
+                    <div key={n} className="side-row"><span className="side-name">{n}</span><span className="side-track" /><span className="side-val" style={{ color: 'var(--text-muted)' }}>—</span></div>
+                  ))}
+            </aside>
           </div>
 
           {loading && progress && <ProgressBar className="is-block wz-msg" value={progress.value} label={progress.label} detail={progress.detail} />}

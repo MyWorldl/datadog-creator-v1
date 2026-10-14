@@ -47,7 +47,7 @@ export default function MonitorPlanList({ plan, maxHeight = 420 }: MonitorPlanLi
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight, overflowY: 'auto' }}>
+    <div className="plan-grid" style={{ maxHeight, overflowY: 'auto' }}>
       {plan.map((m, i) => (
         <div key={i} className="plan-item" style={{ '--i': i } as CSSProperties}>
           <p style={s.name}>{m.name}</p>

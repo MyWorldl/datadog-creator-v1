@@ -749,3 +749,72 @@ input, select, textarea { transition: border-color 0.15s ease, box-shadow 0.15s 
 .wz-progress-meta { display: inline-flex; gap: var(--space-3); font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .wz-progress-meta strong { color: var(--accent); font-weight: 700; }
 .wz-progress.is-block { margin-top: var(--space-4); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Layout que preenche a largura (sem "vazio" em telas largas)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Cartão de resumo (ScopeMaturity/Auditoria): anel | detalhes | painel lateral.
+   Em tela média o painel desce; no celular tudo empilha. */
+.hero-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(300px, 0.8fr);
+  gap: var(--space-8);
+  align-items: center;
+}
+.hero-side {
+  align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; gap: var(--space-3);
+  padding-left: var(--space-8);
+  border-left: 1px solid var(--border);
+}
+@media (max-width: 1100px) {
+  .hero-grid { grid-template-columns: auto minmax(0, 1fr); }
+  .hero-side { grid-column: 1 / -1; padding: var(--space-4) 0 0; border-left: none; border-top: 1px solid var(--border); }
+}
+@media (max-width: 560px) {
+  .hero-grid { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); justify-items: start; }
+}
+.side-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); margin: 0; }
+.side-row { display: grid; grid-template-columns: minmax(90px, 1.2fr) 2fr auto; align-items: center; gap: var(--space-3); font-size: 13px; }
+.side-row .side-name { color: var(--text-primary); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-track { height: 8px; border-radius: 999px; background: var(--bg-surface-2); overflow: hidden; }
+.side-fill { height: 100%; border-radius: 999px; transition: width 0.6s var(--ease-out); }
+.side-val { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 2.2em; text-align: right; }
+
+/* Grade que preenche a linha: colunas flexíveis de largura mínima definida. */
+.fill-grid { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); align-items: start; }
+.fill-grid.is-stretch { align-items: stretch; }
+
+/* Seções do wizard em colunas: campos lado a lado, blocos largos ocupam a linha. */
+.wz-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: var(--space-5) var(--space-8); align-items: start; }
+.wz-cols > .wz-wide { grid-column: 1 / -1; }
+
+/* Listas rolantes (hosts, serviços, namespaces) em várias colunas. */
+.list-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-content: start; gap: 4px var(--space-3) !important; }
+
+/* Itens do plano em várias colunas quando há largura. */
+.plan-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: var(--space-3) !important; align-items: start; }
+
+/* Linha de passos/atalhos de ajuda ao lado de formulários. */
+.aside-card ul { margin: var(--space-2) 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.aside-card li code { font-size: 11.5px; background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+
+/* Grade dos 5 pilares: sempre fecha a linha, sem cartão sozinho com vazio ao lado.
+   Container queries: a largura que importa é a da área de conteúdo (a barra
+   lateral já tirou espaço da janela). */
+.pillar-wrap { container-type: inline-size; margin-top: var(--space-4); }
+.pillar-grid { display: grid; gap: var(--space-4); align-items: stretch; grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 560px) {
+  .pillar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pillar-grid > :last-child { grid-column: 1 / -1; }
+}
+@container (min-width: 900px) {
+  .pillar-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .pillar-grid > * { grid-column: span 2; }
+  .pillar-grid > :nth-child(n+4) { grid-column: span 3; }
+}
+@container (min-width: 1700px) {
+  .pillar-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .pillar-grid > *, .pillar-grid > :nth-child(n+4) { grid-column: span 1; }
+}

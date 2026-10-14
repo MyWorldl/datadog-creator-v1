@@ -137,10 +137,7 @@ export default function Home() {
       // DOBRADO, deixando o wizard espremido no celular).
       padding: 0,
     }}>
-      <main style={{
-        maxWidth: 640,
-        margin: '0 auto',
-      }}>
+      <main>
 
         {/* Cabeçalho */}
         <div style={{ marginBottom: 28 }}>
