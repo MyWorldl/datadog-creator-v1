@@ -32,9 +32,12 @@ const s: Record<string, CSSProperties> = {
   btnExport: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer', alignSelf: 'flex-start' },
 }
 
-type DiscoveryCreateProps = Omit<DiscoveryStepProps, 'setConfig' | 'onNext'>
+type DiscoveryCreateProps = Omit<DiscoveryStepProps, 'setConfig' | 'onNext'> & {
+  // Chamado depois de uma criação bem-sucedida (ex.: pra limpar o rascunho do wizard).
+  onCreated?: () => void
+}
 
-export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps) {
+export default function DiscoveryCreate({ config, onBack, onCreated }: DiscoveryCreateProps) {
   // resourceType 'k8sDbm' tem 2 fontes (k8sInfra + k8sDiscovery) que precisam
   // de 2 requisições (endpoints diferentes) — 'services'/'infra' seguem com
   // 1 fonte só, comportamento idêntico a antes.
@@ -74,6 +77,7 @@ export default function DiscoveryCreate({ config, onBack }: DiscoveryCreateProps
         total += data.total || 0
       }
       setResults({ created, skipped, total, results: merged })
+      if (created > 0) onCreated?.()
     } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
     finally { setCreating(false) }
   }
