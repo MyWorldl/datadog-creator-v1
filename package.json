@@ -1,6 +1,6 @@
 {
   "name": "datadog-creator",
-  "version": "1.64.0",
+  "version": "1.64.1",
   "private": true,
   "engines": {
     "node": "22.x"
@@ -18,7 +18,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@sentry/nextjs": "^10.70.0",
+    "@sentry/nextjs": "^11.6.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.110.1",
     "@vercel/analytics": "^2.0.1",

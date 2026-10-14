@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
-import { withSentryConfig } from '@sentry/nextjs'
+// Sentry 11: withSentryConfig saiu do pacote principal e vive em '@sentry/nextjs/config'.
+import { withSentryConfig } from '@sentry/nextjs/config'
 
 // Origem do Supabase: o browser fala DIRETO com ela pra login/sessão
 // (createBrowserClient em src/lib/supabase-browser.js) — precisa entrar em
