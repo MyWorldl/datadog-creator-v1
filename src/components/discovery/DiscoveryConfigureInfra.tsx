@@ -20,14 +20,11 @@ const SUB_STEPS = [
 ]
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   select: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
   // Sub-navegação (Hosts/Métricas)
   subNav: { display: 'flex', gap: 18, marginBottom: 2 },
@@ -160,7 +157,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
   }
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       <div style={s.subNav}>
         {SUB_STEPS.map((ss, i) => {
           const state: SubStepState = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
@@ -185,7 +182,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
               value={hostSearch}
               onChange={e => setHostSearch(e.target.value)}
             />
-            <button style={s.btnGhost} onClick={discover} disabled={loading}>
+            <button className="btn btn-ghost" onClick={discover} disabled={loading}>
               {loading ? 'Descobrindo…' : 'Descobrir hosts'}
             </button>
           </div>
@@ -204,7 +201,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                 {filtered.map(h => {
                   const on = !!d.selected[h.name]
                   return (
-                    <label key={h.name} style={{ ...s.hostRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                    <label key={h.name} className="list-row" style={{ ...s.hostRow, ...(on ? { background: 'var(--accent-light)' } : {}) }}>
                       <input type="checkbox" checked={on} onChange={() => toggleHost(h.name)} />
                       <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{h.name}</span>
                       <span style={statusTagStyle(h.up)}>{h.up ? 'up' : 'down'}</span>
@@ -236,7 +233,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
               const checkCfg = cfg as InfraCheckConfig
               return (
                 <div key={t.key} style={accStyle(on)}>
-                  <div style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
+                  <div className="acc-head" style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleMetric(t.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{t.label}</span>
                     {isOutlier && <span style={previewBadgeStyle}>Preview</span>}
@@ -377,13 +374,13 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
         </div>
       )}
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={goSubBack}>← Voltar</button>
+        <button className="btn btn-ghost" onClick={goSubBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
         {subStep < SUB_STEPS.length - 1
-          ? <button style={s.btn} onClick={goSubNext}>Próximo →</button>
-          : <button style={s.btn} onClick={handleNext}>Continuar →</button>}
+          ? <button className="btn btn-primary" onClick={goSubNext}>Próximo →</button>
+          : <button className="btn btn-primary" onClick={handleNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>}
       </div>
     </div>
   )

@@ -24,7 +24,6 @@ import type { DiscoveryStepProps } from './types'
 import { accStyle, chevStyle, winShort } from './styles'
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 20 },
   section: { display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 4, borderBottom: '0.5px solid var(--border)' },
   sectionHead: { display: 'flex', alignItems: 'center', gap: 8 },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' },
@@ -33,8 +32,6 @@ const s: Record<string, CSSProperties> = {
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   select: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
@@ -169,7 +166,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
   }
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       {/* Seção 1 — por HOST */}
       <div style={s.section}>
         <div style={s.sectionHead}>
@@ -179,7 +176,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
 
         <div style={s.toolbar}>
           <input aria-label="Filtrar hosts" className="focus-ring" style={s.search} placeholder="Filtrar hosts (vírgula = vários termos)" value={hostSearch} onChange={e => setHostSearch(e.target.value)} />
-          <button style={s.btnGhost} onClick={discoverHosts} disabled={loadingHosts}>{loadingHosts ? 'Descobrindo…' : 'Descobrir hosts'}</button>
+          <button className="btn btn-ghost" onClick={discoverHosts} disabled={loadingHosts}>{loadingHosts ? 'Descobrindo…' : 'Descobrir hosts'}</button>
         </div>
 
         {infra.hosts.length > 0 ? (
@@ -187,7 +184,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
             <span style={s.counter}>{selectedHosts.length} host(s) selecionado(s) · mostrando {filteredHosts.length} de {infra.hosts.length}</span>
             <div style={s.list}>
               {filteredHosts.map(h => (
-                <label key={h.name} style={{ ...s.row, background: infra.selected[h.name] ? 'var(--accent-light)' : 'transparent' }}>
+                <label key={h.name} className="list-row" style={{ ...s.row, ...(infra.selected[h.name] ? { background: 'var(--accent-light)' } : {}) }}>
                   <input type="checkbox" checked={!!infra.selected[h.name]} onChange={() => toggleHost(h.name)} />
                   <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1, wordBreak: 'break-all' }}>{h.name}</span>
                   {detectDbHosting(h) && <span style={s.hostBadge} title="Hospedagem detectada pelos dados do host">{hostingLabel(detectDbHosting(h))}</span>}
@@ -228,7 +225,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
             const open = openMetric === t.key
             return (
               <div key={t.key} style={accStyle(on)}>
-                <div style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
+                <div className="acc-head" style={s.accHead} onClick={() => setOpenMetric(open ? null : t.key)}>
                   <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleMetric(t.key)} />
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{t.label}</span>
                   <div style={s.pillRow}>
@@ -273,7 +270,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
 
         <div style={s.toolbar}>
           <input aria-label="Filtrar namespaces" className="focus-ring" style={s.search} placeholder="Filtrar namespaces (vírgula = vários termos)" value={nsSearch} onChange={e => setNsSearch(e.target.value)} />
-          <button style={s.btnGhost} onClick={discoverNamespaces} disabled={loadingNs}>{loadingNs ? 'Descobrindo…' : 'Descobrir namespaces'}</button>
+          <button className="btn btn-ghost" onClick={discoverNamespaces} disabled={loadingNs}>{loadingNs ? 'Descobrindo…' : 'Descobrir namespaces'}</button>
         </div>
 
         {disc.services.length > 0 ? (
@@ -281,7 +278,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
             <span style={s.counter}>{selectedNamespaces.length} namespace(s) selecionado(s) · mostrando {filteredNs.length} de {disc.services.length}</span>
             <div style={s.list}>
               {filteredNs.map(name => (
-                <label key={name} style={{ ...s.row, background: disc.selected[name] ? 'var(--accent-light)' : 'transparent' }}>
+                <label key={name} className="list-row" style={{ ...s.row, ...(disc.selected[name] ? { background: 'var(--accent-light)' } : {}) }}>
                   <input type="checkbox" checked={!!disc.selected[name]} onChange={() => toggleNamespace(name)} />
                   <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{name}</span>
                 </label>
@@ -299,7 +296,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         </div>
 
         <div style={accStyle(disc.podRestarts.enabled)}>
-          <div style={s.accHead}>
+          <div className="acc-head" style={s.accHead}>
             <input type="checkbox" checked={disc.podRestarts.enabled} onChange={togglePodRestarts} />
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Habilitar Pod Restarts</span>
             <div style={s.pillRow}>
@@ -331,7 +328,7 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         <p style={s.sectionSub}>{POD_PENDING_TYPE.hint}</p>
 
         <div style={accStyle(disc.podPending.enabled)}>
-          <div style={s.accHead}>
+          <div className="acc-head" style={s.accHead}>
             <input type="checkbox" checked={disc.podPending.enabled} onChange={togglePodPending} />
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Habilitar Pods pendentes</span>
             <div style={s.pillRow}>
@@ -354,11 +351,11 @@ export default function DiscoveryConfigureK8sDbm({ config, setConfig, onNext, on
         </div>
       </div>
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={handleNext}>Continuar →</button>
+        <button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
+        <button className="btn btn-primary" onClick={handleNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>
       </div>
     </div>
   )

@@ -12,18 +12,8 @@ import { useApp } from '@/context/AppContext'
 import ConnectKeysCard from '@/components/ConnectKeysCard'
 
 const s: Record<string, CSSProperties> = {
-  wrap: { display: 'flex', flexDirection: 'column', gap: 16 },
+  wrap: { display: 'flex', flexDirection: 'column', gap: 16, animation: 'wzStepIn 0.35s var(--ease-out) both' },
   actions: { display: 'flex', justifyContent: 'flex-end', paddingTop: 4 },
-  btnPrimary: {
-    fontSize: 13, fontWeight: 600, color: '#fff',
-    background: 'var(--accent)', border: 'none', borderRadius: 8,
-    padding: '9px 20px', cursor: 'pointer',
-  },
-  btnDisabled: {
-    fontSize: 13, fontWeight: 600, color: '#fff',
-    background: 'var(--text-muted)', border: 'none', borderRadius: 8,
-    padding: '9px 20px', cursor: 'not-allowed',
-  },
   note: { fontSize: 12, color: 'var(--text-muted)', margin: 0 },
 }
 
@@ -41,12 +31,8 @@ export default function StepConnect({ onNext }: { onNext: () => void }) {
       )}
 
       <div style={s.actions}>
-        <button
-          style={keysConfigured ? s.btnPrimary : s.btnDisabled}
-          onClick={keysConfigured ? onNext : undefined}
-          disabled={!keysConfigured}
-        >
-          Continuar
+        <button className="btn btn-primary" onClick={onNext} disabled={!keysConfigured}>
+          Continuar <span className="btn-arrow" aria-hidden="true">→</span>
         </button>
       </div>
     </div>

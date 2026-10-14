@@ -33,6 +33,7 @@ export default function Stepper({ steps, current }: StepperProps) {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
               <div
                 aria-current={isActive ? 'step' : undefined}
+                className={`stepper-dot${isActive ? ' is-active' : ''}${isDone ? ' is-done' : ''}`}
                 style={{
                   width: 28,
                   height: 28,
@@ -58,17 +59,17 @@ export default function Stepper({ steps, current }: StepperProps) {
                     : isActive
                     ? '#ffffff'
                     : 'var(--text-muted)',
-                  transition: 'all 0.2s',
-                  boxShadow: isActive ? '0 0 0 4px var(--accent-light)' : 'none',
+                  transition: 'all 0.3s ease',
                 }}
               >
-                {isDone ? '✓' : i + 1}
+                <span>{isDone ? '✓' : i + 1}</span>
               </div>
               <span className={`stepper-label${isActive ? ' is-active' : ''}`} style={{
                 fontSize: 11,
                 whiteSpace: 'nowrap',
                 color: isActive ? 'var(--accent)' : isDone ? 'var(--success)' : 'var(--text-muted)',
-                fontWeight: isActive ? 500 : 400,
+                fontWeight: isActive ? 600 : 400,
+                transition: 'color 0.3s ease',
               }}>
                 {label}
               </span>
@@ -76,15 +77,14 @@ export default function Stepper({ steps, current }: StepperProps) {
 
             {/* Linha conectora */}
             {i < steps.length - 1 && (
-              <div className="stepper-line" style={{
+              <div className={`stepper-line${i < current ? ' is-done' : ''}`} style={{
                 flex: 1,
-                height: 1,
-                background: i < current ? 'var(--success)' : 'var(--border)',
-                marginTop: 14, // metade do círculo (28px)
+                height: 2,
+                borderRadius: 2,
+                marginTop: 13, // centro do círculo (28px)
                 marginLeft: 4,
                 marginRight: 4,
                 minWidth: 16,
-                transition: 'background 0.2s',
               }} />
             )}
           </div>

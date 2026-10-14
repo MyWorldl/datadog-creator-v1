@@ -13,15 +13,12 @@ import { SLO_ALERT_TYPES, validateSloAlerts, type SloInfo, type SloAlertConfig }
 import type { DiscoveryStepProps } from './types'
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   num: { width: 90, fontSize: 13, padding: '7px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   select: { fontSize: 12, padding: '7px 8px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   link: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
@@ -30,11 +27,6 @@ const s: Record<string, CSSProperties> = {
   pill: { fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontFamily: 'var(--font-geist-mono), monospace' },
   alertBox: { border: '0.5px solid var(--border)', borderRadius: 10, padding: '10px 12px', background: 'var(--bg-surface-2)', display: 'flex', flexDirection: 'column', gap: 8 },
 }
-
-const rowStyle = (on: boolean): CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer',
-  border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`, background: on ? 'var(--accent-light)' : 'var(--bg-surface-2)',
-})
 
 export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const d = config.sloMonitors
@@ -93,7 +85,7 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
   }
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       <div>
         <label style={s.label}>SLOs</label>
         <p style={s.hint}>
@@ -101,10 +93,10 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
         </p>
       </div>
 
-      {loadError && <div style={s.err}>{loadError} <button style={s.link} onClick={load}>Tentar de novo</button></div>}
+      {loadError && <div className="wz-msg" style={s.err}>{loadError} <button style={s.link} onClick={load}>Tentar de novo</button></div>}
 
       {!loadError && d.slos.length === 0 && (
-        <p style={s.empty}>{loading ? 'Carregando SLOs…' : 'Nenhum SLO encontrado neste org. Crie um SLO no Datadog e recarregue.'}</p>
+        <p className="wz-msg" style={s.empty}>{loading ? 'Carregando SLOs…' : 'Nenhum SLO encontrado neste org. Crie um SLO no Datadog e recarregue.'}</p>
       )}
 
       {d.slos.length > 0 && (
@@ -117,7 +109,7 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
           </div>
           <div style={s.list}>
             {visible.map(x => (
-              <label key={x.id} style={rowStyle(!!d.selected[x.id])}>
+              <label key={x.id} className={`row-select${d.selected[x.id] ? ' is-on' : ''}`}>
                 <input type="checkbox" checked={!!d.selected[x.id]} onChange={() => toggle(x.id)} />
                 <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{x.name}</span>
                 <span style={s.pill}>{x.type || 'slo'}</span>
@@ -125,7 +117,7 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
                 {x.target != null && <span style={s.pill}>meta {x.target}%</span>}
               </label>
             ))}
-            {visible.length === 0 && <p style={s.empty}>Nenhum SLO com esse nome.</p>}
+            {visible.length === 0 && <p className="wz-msg" style={s.empty}>Nenhum SLO com esse nome.</p>}
           </div>
           <p style={s.hint}>{selectedCount} de {d.slos.length} selecionado(s).</p>
         </>
@@ -164,11 +156,11 @@ export default function DiscoveryConfigureSlo({ config, setConfig, onNext, onBac
         </div>
       </div>
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={handleNext}>Continuar →</button>
+        <button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
+        <button className="btn btn-primary" onClick={handleNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>
       </div>
     </div>
   )

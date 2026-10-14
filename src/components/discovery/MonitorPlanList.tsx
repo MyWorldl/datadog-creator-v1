@@ -11,7 +11,6 @@
 import { useState, type CSSProperties } from 'react'
 
 const s: Record<string, CSSProperties> = {
-  item: { border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--bg-surface-2)' },
   name: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px' },
   qLabel: { fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 2px' },
   query: { fontFamily: 'var(--font-geist-mono), monospace', fontSize: 11, color: 'var(--accent)', background: 'var(--accent-light)', border: '0.5px solid var(--accent)', borderRadius: 6, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: '0 0 6px' },
@@ -50,11 +49,11 @@ export default function MonitorPlanList({ plan, maxHeight = 420 }: MonitorPlanLi
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight, overflowY: 'auto' }}>
       {plan.map((m, i) => (
-        <div key={i} style={s.item}>
+        <div key={i} className="plan-item" style={{ '--i': i } as CSSProperties}>
           <p style={s.name}>{m.name}</p>
           <div style={s.qHead}>
             <p style={{ ...s.qLabel, margin: 0 }}>Query</p>
-            <button type="button" style={s.copyBtn} onClick={() => copyQuery(i, m.query)} aria-label={`Copiar query de ${m.name}`}>
+            <button type="button" className="copy-btn" style={s.copyBtn} onClick={() => copyQuery(i, m.query)} aria-label={`Copiar query de ${m.name}`}>
               {copied === i ? 'Copiado ✓' : 'Copiar'}
             </button>
           </div>
