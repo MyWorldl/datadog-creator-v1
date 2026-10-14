@@ -11,10 +11,7 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom, ddGet } from '@/lib/datadog-server'
 import { envQuerySchema, firstIssueMessage } from '@/lib/schemas'
-
-interface ApmServicesResponse {
-  data?: { id?: string; attributes?: { services?: string[] } }[] | { attributes?: { services?: string[] } }
-}
+import { parseApmServices } from '@/lib/apm-services'
 
 export async function GET(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
@@ -38,7 +35,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const env = parsedEnv.data
 
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const r = await ddGet<ApmServicesResponse>(ctx, `/api/v2/apm/services?filter[env]=${encodeURIComponent(env)}`)
+  const r = await ddGet(ctx, `/api/v2/apm/services?filter[env]=${encodeURIComponent(env)}`)
 
   if (!r.ok) {
     // Falha de rede (sem status HTTP do Datadog)
@@ -59,19 +56,11 @@ export async function GET(request: NextRequest): Promise<Response> {
     )
   }
 
-  // A resposta traz data.attributes.services (lista de nomes).
-  // Fazemos parsing defensivo para tolerar variações de formato.
-  let services: string[] = []
-  const data = r.json?.data
-  if (Array.isArray(data)) {
-    services = data
-      .map(d => d?.attributes?.services || d?.id)
-      .flat()
-      .filter(Boolean) as string[]
-  } else if (data?.attributes?.services) {
-    services = data.attributes.services
-  }
-  services = [...new Set(services)].sort()
+  // A resposta traz attributes.services + attributes.metadata (isTraced/isUsm).
+  // `services` devolve só os COM TRACE (os que têm métricas trace.* pra um
+  // monitor de APM funcionar); os só-USM vêm à parte em `usmOnly` pra UI
+  // avisar — ver lib/apm-services.ts.
+  const { traced: services, usmOnly } = parseApmServices(r.json)
 
-  return Response.json({ env, count: services.length, services })
+  return Response.json({ env, count: services.length, services, usmOnly, usmOnlyCount: usmOnly.length })
 }

@@ -504,6 +504,7 @@ export interface DiscoveredHost {
   muted?: boolean
   lastReportedAt?: number | null
   tags?: string[]
+  sources?: string[]
 }
 
 // Chaves de tag do HOST que replicamos pro monitor, quando existirem —
@@ -530,9 +531,40 @@ export function inheritedHostTags(hostTags: string[] | undefined): string[] {
   return out
 }
 
+// ── Hospedagem do banco (DBM): vira a tag db_type:<valor> nos monitores de
+// banco (dbConnections/dbReplication/dbQueryHealth). Detectada dos próprios
+// dados do host — sem chamada extra à API — e sobrescrevível pelo usuário.
+// Evidência (org real): instâncias RDS aparecem na lista de hosts só com
+// sources:['aws'], nome *.rds.amazonaws.com e tags dbinstanceidentifier:/
+// dbinstanceclass:/engine:. Cloud SQL/Azure NÃO são auto-detectados (não
+// confirmei como aparecem na lista de hosts) — ficam como escolha manual.
+export type DbHosting = 'rds' | 'self-managed' | 'cloud-sql' | 'azure' | 'other'
+export type DbHostingChoice = DbHosting | 'auto'
+
+export const DB_HOSTING_OPTIONS: { value: DbHosting; label: string }[] = [
+  { value: 'rds', label: 'AWS RDS' },
+  { value: 'self-managed', label: 'Self-managed (Agent no host)' },
+  { value: 'cloud-sql', label: 'Google Cloud SQL' },
+  { value: 'azure', label: 'Azure Database' },
+  { value: 'other', label: 'Outro' },
+]
+
+export function detectDbHosting(host: Pick<DiscoveredHost, 'name' | 'tags' | 'sources'> | undefined): DbHosting | null {
+  if (!host) return null
+  const tags = (host.tags || []).map(t => t.toLowerCase())
+  const name = (host.name || '').toLowerCase()
+  if (tags.some(t => t.startsWith('dbinstanceidentifier:') || t.startsWith('dbinstanceclass:')) || /\.rds\.amazonaws\.com(\.cn)?$/.test(name)) return 'rds'
+  // Agent instalado na própria máquina e nenhum sinal de serviço gerenciado.
+  if ((host.sources || []).includes('agent')) return 'self-managed'
+  return null
+}
+
 export interface InfraDiscoveryState {
   hosts: DiscoveredHost[]
   selected: Record<string, boolean>
+  // 'auto' (padrão) = detectDbHosting por host; outro valor = vale pra TODOS os
+  // hosts selecionados. Só afeta os tipos de banco (requiresEngine).
+  dbHosting?: DbHostingChoice
   metrics: Record<string, InfraConfig>
   groupBy: string[]
   messages: Record<string, string>
@@ -545,6 +577,7 @@ export function initialInfraDiscovery(): InfraDiscoveryState {
   return {
     hosts: [],       // nomes descobertos
     selected: {},    // { host: true }  (seleção simples, sem operations)
+    dbHosting: 'auto',
     metrics: Object.fromEntries(
       INFRA_TYPES.map(t => {
         if (t.kind === 'check') {
@@ -723,7 +756,12 @@ function buildMetricInfraMonitorPayload({ kind, host, extraTags, groupBy, mode, 
         ? { critical: 1.0 }
         : {
             critical: thresholds.critical,
-            warning: thresholds.warning,
+            // warning só entra quando está do lado certo do critical (o Datadog
+            // recusa warning >= critical com ">" e warning <= critical com "<"
+            // — achado validando os payloads contra POST /monitor/validate:
+            // k8sNodeReady tem critical=warning=0 e falhava na criação com 400).
+            ...(Number.isFinite(thresholds.warning) && (t.thresholdDirection === 'below' ? thresholds.warning > thresholds.critical : thresholds.warning < thresholds.critical)
+              ? { warning: thresholds.warning } : {}),
             // Recovery threshold (hysteresis): só entra no payload se o
             // usuário definiu um valor — omitido, o monitor mantém o
             // comportamento padrão (recupera ao cruzar de volta o próprio
@@ -838,11 +876,17 @@ export interface InfraPlanItem {
 // por host normal e é tratado à parte, antes dele.
 export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): InfraPlanItem[] {
   const d = infraDiscovery || {}
-  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '', hosts: discoveredHosts = [] } = d
+  const { selected = {}, metrics = {}, groupBy = DEFAULT_INFRA_GROUP_BY, tags = [], namePrefix = '[MonitorsCreator]', messages = {}, notifyTarget = '', hosts: discoveredHosts = [], dbHosting = 'auto' } = d
   const hosts = Object.keys(selected).filter(h => selected[h])
   // Lookup pras tags do host descoberto (cloud_provider/aws_account/
   // kube_namespace, quando existirem — ver inheritedHostTags).
   const hostTagsByName: Record<string, string[] | undefined> = Object.fromEntries(discoveredHosts.map(h => [h.name, h.tags]))
+  const discoveredByName = Object.fromEntries(discoveredHosts.map(h => [h.name, h]))
+  // db_type:<hospedagem> — escolha manual vale pra todos; 'auto' detecta por host.
+  const dbTypeTag = (host: string): string[] => {
+    const v = dbHosting !== 'auto' ? dbHosting : detectDbHosting(discoveredByName[host])
+    return v ? [`db_type:${v}`] : []
+  }
 
   const plan: InfraPlanItem[] = []
 
@@ -853,7 +897,7 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
       const cfg = metrics[t.key]
       if (!cfg?.enabled || cfg.mode !== 'outlier') continue
       // União das tags herdadas de TODOS os hosts do grupo (1 monitor só).
-      const groupHostTags = [...new Set(hosts.flatMap(h => inheritedHostTags(hostTagsByName[h])))]
+      const groupHostTags = [...new Set(hosts.flatMap(h => [...inheritedHostTags(hostTagsByName[h]), ...((t as InfraMetricType).requiresEngine ? dbTypeTag(h) : [])]))]
       const payload = buildInfraMonitorPayload({
         kind: t.key, host: hosts, groupBy, tags: [...tags, ...groupHostTags], namePrefix, message: messages[t.key], notifyTarget,
         mode: 'outlier',
@@ -875,16 +919,17 @@ export function planInfraPreview(infraDiscovery: Partial<InfraDiscoveryState>): 
     for (const t of INFRA_TYPES) {
       const cfg = metrics[t.key]
       if (!cfg?.enabled || cfg.mode === 'outlier') continue // outlier já tratado acima, em grupo
+      const tagsForType = (t as InfraMetricType).requiresEngine ? [...hostTags, ...dbTypeTag(host)] : hostTags
 
       const payload = cfg.mode === 'check'
         ? buildInfraMonitorPayload({
-            kind: t.key, host, tags: hostTags, namePrefix, message: messages[t.key], notifyTarget,
+            kind: t.key, host, tags: tagsForType, namePrefix, message: messages[t.key], notifyTarget,
             counts: cfg.counts || (t as InfraCheckType).defCounts,
             window: cfg.window || (t as InfraCheckType).defWindow,
             priority: cfg.priority,
           })
         : buildInfraMonitorPayload({
-            kind: t.key, host, groupBy, tags: hostTags, namePrefix, message: messages[t.key], notifyTarget,
+            kind: t.key, host, groupBy, tags: tagsForType, namePrefix, message: messages[t.key], notifyTarget,
             mode: cfg.mode || 'threshold',
             thresholds: cfg.thresholds || (t as InfraMetricType).defThresholds,
             deviations: cfg.deviations || (t as InfraMetricType).defDeviations,

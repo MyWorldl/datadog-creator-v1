@@ -1,7 +1,7 @@
 // tests/log-monitors.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLogCountQuery, buildLogMonitorPayload, planLogPreview, initialLogMonitors, newLogMonitorRule, LOG_WINDOW_OPTIONS, DEFAULT_LOG_INDEX, tagsFromLogFilter } from '../src/lib/log-monitors.ts'
+import { buildLogCountQuery, buildLogMonitorPayload, planLogPreview, initialLogMonitors, newLogMonitorRule, LOG_WINDOW_OPTIONS, DEFAULT_LOG_INDEX, tagsFromLogFilter, buildLogQuery, sanitizeLogGroupBy, normalizeLogMeasure, defaultLogMessage, validateLogRule, MAX_LOG_GROUPS } from '../src/lib/log-monitors.ts'
 
 test('buildLogCountQuery: monta logs(query).index(idx).rollup("count").last(window) > threshold', () => {
   const q = buildLogCountQuery({ queryFilter: 'service:checkout status:error', index: 'main', window: '15m', threshold: 50 })
@@ -140,4 +140,65 @@ test('buildLogMonitorPayload: tag manual repetida do filtro não duplica (dedupe
   const payload = buildLogMonitorPayload({ label: 'x', queryFilter: 'source:nginx', window: '15m', threshold: 1, tags: ['source:nginx', 'team:payments'] })
   assert.equal(payload.tags.filter(t => t === 'source:nginx').length, 1)
   assert.ok(payload.tags.includes('team:payments'))
+})
+
+// ── v2: agregação, atributo, agrupamento, operador (sintaxe confirmada via /validate) ──
+
+test('buildLogQuery: avg com atributo e operador', () => {
+  assert.equal(
+    buildLogQuery({ queryFilter: 'service:x', window: '15m', threshold: 100, rollup: 'avg', measure: '@duration', operator: '>=' }),
+    'logs("service:x").index("*").rollup("avg", "@duration").last("15m") >= 100',
+  )
+})
+
+test('buildLogQuery: atributo sem @ ganha o @; espaços/vírgulas/aspas são removidos', () => {
+  assert.equal(normalizeLogMeasure('duration'), '@duration')
+  assert.equal(normalizeLogMeasure(' @a, b"c '), '@abc')
+  assert.equal(normalizeLogMeasure(''), '')
+})
+
+test('buildLogQuery: .by() entra DEPOIS do rollup e ANTES do last, com os facets separados por vírgula', () => {
+  assert.equal(
+    buildLogQuery({ queryFilter: 'status:error', window: '5m', threshold: 10, groupBy: ['service', '@http.status_code'] }),
+    'logs("status:error").index("*").rollup("count").by("service,@http.status_code").last("5m") > 10',
+  )
+})
+
+test('sanitizeLogGroupBy: limpa vazios/duplicados e corta em 4 (limite do Datadog)', () => {
+  assert.deepEqual(sanitizeLogGroupBy([' service ', '', 'service', 'host', 'env', '@a', '@b', '@c']), ['service', 'host', 'env', '@a'])
+  assert.equal(MAX_LOG_GROUPS, 4)
+  assert.deepEqual(sanitizeLogGroupBy(undefined), [])
+})
+
+test('buildLogQuery: sem os campos novos continua idêntico ao v1 (compatibilidade)', () => {
+  assert.equal(
+    buildLogQuery({ queryFilter: 'a', window: '15m', threshold: 1 }),
+    buildLogCountQuery({ queryFilter: 'a', window: '15m', threshold: 1 }),
+  )
+})
+
+test('validateLogRule: agregação != count exige atributo; warning precisa estar do lado certo do operador', () => {
+  assert.deepEqual(validateLogRule({ rollup: 'count', threshold: 10, warningThreshold: 5 }), [])
+  assert.equal(validateLogRule({ rollup: 'avg', measure: '', threshold: 10, warningThreshold: null }).length, 1)
+  assert.deepEqual(validateLogRule({ rollup: 'avg', measure: '@d', threshold: 10, warningThreshold: null }), [])
+  assert.equal(validateLogRule({ operator: '>', threshold: 100, warningThreshold: 150 }).length, 1)
+  assert.equal(validateLogRule({ operator: '<', threshold: 10, warningThreshold: 5 }).length, 1)
+  assert.deepEqual(validateLogRule({ operator: '<', threshold: 10, warningThreshold: 20 }), [])
+  assert.equal(validateLogRule({ groupBy: ['a', 'b', 'c', 'd', 'e'], threshold: 1, warningThreshold: null }).length, 1)
+})
+
+test('defaultLogMessage: menciona o agrupamento (variável de grupo certa) e a agregação', () => {
+  const m = defaultLogMessage({ rollup: 'avg', measure: 'duration', groupBy: ['service', '@http.status_code'], operator: '<' })
+  assert.ok(m.includes('{{service.name}}'))
+  assert.ok(m.includes('{{[@http.status_code].name}}'))
+  assert.ok(m.includes('avg(@duration)'))
+  assert.ok(m.includes('mínimo'))
+  assert.ok(m.endsWith('@equipe-ops'))
+})
+
+test('planLogPreview: regra v2 chega até a query do plano', () => {
+  const state = initialLogMonitors()
+  state.rules = [{ ...newLogMonitorRule('r1'), label: 'Lento', queryFilter: 'service:api', rollup: 'pc95', measure: '@duration', groupBy: ['service'], operator: '>', threshold: 500 }]
+  const plan = planLogPreview(state)
+  assert.equal(plan[0].query, 'logs("service:api").index("*").rollup("pc95", "@duration").by("service").last("15m") > 500')
 })

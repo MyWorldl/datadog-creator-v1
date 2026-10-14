@@ -1,7 +1,7 @@
 // tests/infra.test.js — runner nativo do Node (node --test), sem deps.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { initialInfraDiscovery, planInfraPreview, buildInfraQuery, buildInfraMonitorPayload, INFRA_TYPES, inheritedHostTags } from '../src/lib/infra.ts'
+import { initialInfraDiscovery, planInfraPreview, buildInfraQuery, buildInfraMonitorPayload, INFRA_TYPES, inheritedHostTags, detectDbHosting } from '../src/lib/infra.ts'
 
 test('threshold: query traz aritmética, group-by e o valor de critical', () => {
   const q = buildInfraQuery({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
@@ -439,4 +439,72 @@ test('db_engine: entra como tag só nos tipos com engine configurável, com o va
 test('db_engine: NÃO entra em tipos sem engine (ex.: cpu)', () => {
   const q = buildInfraMonitorPayload({ kind: 'cpu', host: 'web-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
   assert.ok(!q.tags.some(t => t.startsWith('db_engine:')))
+})
+
+// ── Hospedagem do banco (db_type) ──
+
+test('detectDbHosting: RDS por tag dbinstanceidentifier/dbinstanceclass ou nome *.rds.amazonaws.com', () => {
+  assert.equal(detectDbHosting({ name: 'x', tags: ['dbinstanceidentifier:foo'], sources: ['aws'] }), 'rds')
+  assert.equal(detectDbHosting({ name: 'x', tags: ['DBInstanceClass:db.t4g.small'] }), 'rds')
+  assert.equal(detectDbHosting({ name: 'pg-prd.ciknbdtfbnky.sa-east-1.rds.amazonaws.com', tags: [], sources: ['aws'] }), 'rds')
+})
+
+test('detectDbHosting: Agent instalado e sem sinal de serviço gerenciado = self-managed', () => {
+  assert.equal(detectDbHosting({ name: 'db-vm-01', tags: ['env:prd'], sources: ['agent'] }), 'self-managed')
+})
+
+test('detectDbHosting: RDS vence o Agent (host RDS monitorado por Agent remoto); sem sinal = null', () => {
+  assert.equal(detectDbHosting({ name: 'a.rds.amazonaws.com', tags: [], sources: ['agent', 'aws'] }), 'rds')
+  assert.equal(detectDbHosting({ name: 'mistério', tags: [], sources: ['aws'] }), null)
+  assert.equal(detectDbHosting({ name: 'sem-sources', tags: [] }), null)
+  assert.equal(detectDbHosting(undefined), null)
+})
+
+function dbPlan(dbHosting, hosts) {
+  const d = initialInfraDiscovery()
+  d.hosts = hosts
+  d.selected = Object.fromEntries(hosts.map(h => [h.name, true]))
+  if (dbHosting) d.dbHosting = dbHosting
+  for (const t of INFRA_TYPES) d.metrics[t.key].enabled = false
+  d.metrics.dbConnections.enabled = true
+  d.metrics.cpu.enabled = true
+  return planInfraPreview(d)
+}
+
+test('db_type: auto detecta por host e só entra nos monitores de banco (não em CPU)', () => {
+  const plan = dbPlan(undefined, [
+    { name: 'a.rds.amazonaws.com', up: true, tags: [], sources: ['aws'] },
+    { name: 'vm-1', up: true, tags: [], sources: ['agent'] },
+  ])
+  const dbA = plan.find(m => m.kind === 'dbConnections' && m.service === 'a.rds.amazonaws.com')
+  const dbV = plan.find(m => m.kind === 'dbConnections' && m.service === 'vm-1')
+  assert.ok(dbA.payload.tags.includes('db_type:rds'))
+  assert.ok(dbV.payload.tags.includes('db_type:self-managed'))
+  const cpu = plan.find(m => m.kind === 'cpu' && m.service === 'vm-1')
+  assert.ok(!cpu.payload.tags.some(t => t.startsWith('db_type:')))
+})
+
+test('db_type: escolha manual vale pra todos os hosts e sobrescreve a detecção', () => {
+  const plan = dbPlan('cloud-sql', [{ name: 'a.rds.amazonaws.com', up: true, tags: [], sources: ['aws'] }])
+  const db = plan.find(m => m.kind === 'dbConnections')
+  assert.ok(db.payload.tags.includes('db_type:cloud-sql'))
+  assert.ok(!db.payload.tags.includes('db_type:rds'))
+})
+
+test('db_type: sem detecção e em auto, a tag simplesmente não entra', () => {
+  const plan = dbPlan(undefined, [{ name: 'desconhecido', up: true, tags: [], sources: [] }])
+  assert.ok(!plan.find(m => m.kind === 'dbConnections').payload.tags.some(t => t.startsWith('db_type:')))
+})
+
+test('thresholds: warning só entra quando fica do lado certo do critical (Datadog recusa warning == critical)', () => {
+  // k8sNodeReady tem critical=0 e warning=0 por padrão — payload antigo falhava com 400 na criação.
+  const node = buildInfraMonitorPayload({ kind: 'k8sNodeReady', host: 'n-1', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 0, warning: 0 } })
+  assert.equal(node.options.thresholds.warning, undefined)
+  assert.equal(node.options.thresholds.critical, 0)
+  // caso normal (cpu 90/80) continua com warning
+  const cpu = buildInfraMonitorPayload({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 90, warning: 80 } })
+  assert.equal(cpu.options.thresholds.warning, 80)
+  // warning do lado errado também é omitido
+  const bad = buildInfraMonitorPayload({ kind: 'cpu', host: 'web', groupBy: ['host'], mode: 'threshold', thresholds: { critical: 80, warning: 90 } })
+  assert.equal(bad.options.thresholds.warning, undefined)
 })

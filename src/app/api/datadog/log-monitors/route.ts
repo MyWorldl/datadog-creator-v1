@@ -8,13 +8,13 @@
 // ainda). Idempotência + retry em 429: mesmo createPlanIdempotent de
 // infra/apm-monitors.
 //
-// Atrás da feature flag logMonitors (desligada por padrão — v1 cobre só
-// rollup "count", ver comentário no topo de lib/log-monitors.ts).
+// Atrás da feature flag logMonitors (desligada por padrão). Agregações,
+// atributo, agrupamento e operador: ver lib/log-monitors.ts.
 
 import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
-import { planLogPreview, type LogMonitorsState } from '@/lib/log-monitors'
+import { planLogPreview, validateLogRule, type LogMonitorRule, type LogMonitorsState } from '@/lib/log-monitors'
 import { ctxFrom } from '@/lib/datadog-server'
 import { createPlanIdempotent } from '@/lib/monitor-create-server'
 import { logMonitorsBodySchema, firstIssueMessage } from '@/lib/schemas'
@@ -40,6 +40,14 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   const parsed = logMonitorsBodySchema.safeParse(body?.logMonitors || body)
   if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
+
+  // Regras que o Datadog recusaria (atributo faltando, warning do lado errado...)
+  // viram 400 claro aqui, em vez de falhar no meio da criação em lote.
+  for (const r of (parsed.data.rules || []) as unknown as LogMonitorRule[]) {
+    if (!r.label?.trim()) continue
+    const problems = validateLogRule(r)
+    if (problems.length) return Response.json({ error: `Regra "${r.label}": ${problems.join('; ')}.` }, { status: 400 })
+  }
 
   // Cast igual ao usado em infra-monitors/service-monitors: o schema faz uma
   // validação leve e genérica (campos passthrough), a forma real é

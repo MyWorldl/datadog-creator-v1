@@ -7,7 +7,7 @@
    (?tab=k8sDbm, usado pelo link do AuditMonitors), um sistema externo ao
    componente — mesmo padrão de Sidebar.tsx/AppContext.tsx, não é loop de render. */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
@@ -16,6 +16,7 @@ import { useApp } from '@/context/AppContext'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import type { ResourceType, WizardConfig } from '@/components/discovery/types'
+import { DRAFT_KEY, isDraftMeaningful, parseDraft, serializeDraft, type WizardDraft } from '@/lib/wizard-draft'
 import { IconAnalytics, IconServer, IconCluster, IconLogs } from '@/components/Icons'
 
 // Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
@@ -78,6 +79,50 @@ export default function Home() {
     }
   }, [features.k8sDbmCoverage])
 
+  // ── Rascunho (localStorage) ──
+  // Lido DEPOIS da montagem (nunca no render inicial: SSR/hidratação precisam
+  // do mesmo estado) e só oferecido como banner — não restaura sozinho.
+  const [draft, setDraft] = useState<WizardDraft<WizardConfig> | null>(null)
+  // Config (por identidade) que acabou de ser CRIADA: não vira rascunho de novo
+  // só porque o usuário navegou entre etapas depois — só se ele mexer nela.
+  const createdConfigRef = useRef<WizardConfig | null>(null)
+  const [draftReady, setDraftReady] = useState(false) // só salva depois de decidir o que fazer com o rascunho antigo
+  useEffect(() => {
+    try {
+      setDraft(parseDraft(localStorage.getItem(DRAFT_KEY), INITIAL_CONFIG as unknown as Record<string, unknown>) as WizardDraft<WizardConfig> | null)
+    } catch { /* storage bloqueado (modo privado etc.): segue sem rascunho */ }
+    setDraftReady(true)
+  }, [])
+
+  // Salva (debounce) a cada mudança — só quando há algo pra retomar, e nunca
+  // enquanto o banner do rascunho antigo ainda está na tela (senão o estado
+  // inicial vazio sobrescreveria o rascunho que o usuário ainda não escolheu).
+  useEffect(() => {
+    if (!draftReady || draft || createdConfigRef.current === config) return
+    const t = setTimeout(() => {
+      try {
+        if (!isDraftMeaningful(config as unknown as Record<string, unknown>)) { localStorage.removeItem(DRAFT_KEY); return }
+        const json = serializeDraft(step, config)
+        if (json) localStorage.setItem(DRAFT_KEY, json)
+      } catch { /* cota cheia / bloqueado: ignora */ }
+    }, 600)
+    return () => clearTimeout(t)
+  }, [config, step, draft, draftReady])
+
+  function resumeDraft() {
+    if (!draft) return
+    const c = draft.config
+    // resourceType de uma aba cuja flag foi desligada volta pro padrão.
+    const blocked = (c.resourceType === 'k8sDbm' && !features.k8sDbmCoverage) || (c.resourceType === 'logs' && !features.logMonitors)
+    setConfig(blocked ? { ...c, resourceType: 'services' } : c)
+    setStep(Math.max(1, draft.step)) // conexão já existe se há rascunho; nunca volta pra "Conectar"
+    setDraft(null)
+  }
+  function discardDraft() {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignora */ }
+    setDraft(null)
+  }
+
   function goNext() { setStep(s => Math.min(s + 1, STEPS.length - 1)) }
   function goBack() { setStep(s => Math.max(s - 1, 0)) }
 
@@ -115,6 +160,16 @@ export default function Home() {
             Datadog · Criação de Monitores
           </h1>
         </div>
+
+        {draft && (
+          <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 10, padding: '10px 14px', marginBottom: 18 }}>
+            <span style={{ flex: 1, minWidth: 200, fontSize: 13, color: 'var(--text-primary)' }}>
+              Você tem um rascunho salvo em <strong>{new Date(draft.savedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong> (etapa {Math.max(1, draft.step) + 1} de {STEPS.length}).
+            </span>
+            <button onClick={resumeDraft} style={{ fontSize: 12.5, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' }}>Retomar</button>
+            <button onClick={discardDraft} style={{ fontSize: 12.5, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' }}>Descartar</button>
+          </div>
+        )}
 
         {/* Stepper */}
         <Stepper steps={STEPS} current={step} />
@@ -210,6 +265,7 @@ export default function Home() {
           <DiscoveryCreate
             config={config}
             onBack={goBack}
+            onCreated={() => { createdConfigRef.current = config; try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignora */ } }}
           />
         )}
 
