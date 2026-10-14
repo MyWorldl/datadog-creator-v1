@@ -10,9 +10,11 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planSloPreview, validateSloAlerts, type SloMonitorsState } from '@/lib/slo-monitors'
 import { ctxFrom } from '@/lib/datadog-server'
-import { createPlanIdempotent } from '@/lib/monitor-create-server'
+import { createPlanIdempotent, selectBatch, CREATE_MAX_DURATION } from '@/lib/monitor-create-server'
 import { sloMonitorsBodySchema, firstIssueMessage } from '@/lib/schemas'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+
+export const maxDuration = CREATE_MAX_DURATION
 
 export async function POST(request: NextRequest): Promise<Response> {
   if (!isFeatureEnabled('sloAlerts')) {
@@ -43,6 +45,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Nada a criar: escolha ao menos um SLO e um tipo de alerta.' }, { status: 400 })
   }
 
-  const result = await createPlanIdempotent(ctxFrom({ apiKey, appKey, site }), plan)
+  const sel = selectBatch(body?.batch, plan)
+  if (!sel.ok) return Response.json({ error: sel.error }, { status: 400 })
+
+  const result = await createPlanIdempotent(ctxFrom({ apiKey, appKey, site }), sel.plan, sel.options)
   return Response.json(result)
 }

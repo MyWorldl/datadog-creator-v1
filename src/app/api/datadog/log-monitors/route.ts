@@ -16,9 +16,11 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planLogPreview, validateLogRule, type LogMonitorRule, type LogMonitorsState } from '@/lib/log-monitors'
 import { ctxFrom } from '@/lib/datadog-server'
-import { createPlanIdempotent } from '@/lib/monitor-create-server'
+import { createPlanIdempotent, selectBatch, CREATE_MAX_DURATION } from '@/lib/monitor-create-server'
 import { logMonitorsBodySchema, firstIssueMessage } from '@/lib/schemas'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+
+export const maxDuration = CREATE_MAX_DURATION
 
 export async function POST(request: NextRequest): Promise<Response> {
   if (!isFeatureEnabled('logMonitors')) {
@@ -57,7 +59,10 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Nada a criar: adicione ao menos uma regra com nome.' }, { status: 400 })
   }
 
+  const sel = selectBatch(body?.batch, plan)
+  if (!sel.ok) return Response.json({ error: sel.error }, { status: 400 })
+
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const result = await createPlanIdempotent(ctx, plan)
+  const result = await createPlanIdempotent(ctx, sel.plan, sel.options)
   return Response.json(result)
 }

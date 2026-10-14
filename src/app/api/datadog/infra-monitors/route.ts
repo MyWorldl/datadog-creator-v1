@@ -14,9 +14,11 @@ import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { planInfraPreview, INFRA_TYPES, type InfraDiscoveryState } from '@/lib/infra'
 import { ctxFrom } from '@/lib/datadog-server'
-import { createPlanIdempotent } from '@/lib/monitor-create-server'
+import { createPlanIdempotent, selectBatch, CREATE_MAX_DURATION, type MonitorPlanEntry } from '@/lib/monitor-create-server'
 import { planSchema, discoveryBodySchema, firstIssueMessage } from '@/lib/schemas'
 import { isFeatureEnabled } from '@/lib/feature-flags'
+
+export const maxDuration = CREATE_MAX_DURATION
 
 export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   // pelos dois formatos de body abaixo (plan pronto E discovery bruto).
   const flaggedKinds = new Set<string>(INFRA_TYPES.filter(t => t.flag).map(t => t.key))
 
-  let plan
+  let plan: MonitorPlanEntry[]
   if (Array.isArray(body?.plan)) {
     const parsed = planSchema.safeParse(body.plan)
     if (!parsed.success) return Response.json({ error: firstIssueMessage(parsed.error) }, { status: 400 })
@@ -83,7 +85,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ error: 'Nada a criar: selecione host(s) e métrica(s) de infra.' }, { status: 400 })
   }
 
+  // Lote do wizard (batch.only): cria só essas posições do plano, sem relistar.
+  const sel = selectBatch(body?.batch, plan)
+  if (!sel.ok) return Response.json({ error: sel.error }, { status: 400 })
+
   const ctx = ctxFrom({ apiKey, appKey, site })
-  const result = await createPlanIdempotent(ctx, plan)
+  const result = await createPlanIdempotent(ctx, sel.plan, sel.options)
   return Response.json(result)
 }
