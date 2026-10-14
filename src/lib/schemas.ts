@@ -176,3 +176,30 @@ export const bulkRenameApplySchema = z.object({
     name: z.string().trim().min(1, 'Nome do monitor não pode ficar vazio.').max(300, 'Nome muito longo.'),
   })).min(1, 'Nenhum monitor selecionado.').max(500, 'Limite de 500 monitores por vez.'),
 })
+
+// SLO Alert (lib/slo-monitors.ts): o cliente manda os SLOs já descobertos +
+// escolha/alertas; planSloPreview reconstrói tudo. Validação leve (passthrough),
+// só o essencial pro plano não quebrar.
+export const sloInfoSchema = z.object({
+  id: z.string().trim().min(1).max(100),
+  name: z.string().trim().min(1).max(300),
+  type: z.string().optional().default(''),
+  timeframe: z.string().trim().regex(/^\d{1,3}d$/, 'Janela do SLO inválida.').optional().default('7d'),
+  target: z.number().nullable().optional(),
+}).passthrough()
+
+export const sloMonitorsBodySchema = z.object({
+  slos: z.array(sloInfoSchema).max(1000).optional().default([]),
+  selected: z.record(z.string(), z.boolean()).optional().default({}),
+  alerts: z.record(z.string(), z.object({
+    enabled: z.boolean(),
+    threshold: z.number(),
+    priority: z.number().int().min(1).max(5).nullable().optional(),
+  }).passthrough()).optional().default({}),
+  tags: z.array(z.string()).optional(),
+  namePrefix: z.string().optional(),
+  notifyTarget: z.string().optional(),
+  renotifyInterval: z.number().optional(),
+  messages: z.record(z.string(), z.string()).optional(),
+}).passthrough()
+export type SloMonitorsBody = z.infer<typeof sloMonitorsBodySchema>

@@ -31,7 +31,7 @@ export function isDraftMeaningful(config: AnyConfig): boolean {
     return st?.selected ? Object.values(st.selected).filter(Boolean).length : 0
   }
   const rules = (config.logMonitors as { rules?: unknown[] } | undefined)?.rules
-  return ['discovery', 'infra', 'k8sInfra', 'k8sDiscovery'].some(k => selectedCount(k) > 0) || (Array.isArray(rules) && rules.length > 0)
+  return ['discovery', 'infra', 'k8sInfra', 'k8sDiscovery', 'sloMonitors'].some(k => selectedCount(k) > 0) || (Array.isArray(rules) && rules.length > 0)
 }
 
 export function serializeDraft<C>(step: number, config: C, now: number = Date.now()): string | null {

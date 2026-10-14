@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react'
 import { planPreview, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraDiscoveryState } from '@/lib/infra'
 import { planLogPreview, type LogMonitorsState } from '@/lib/log-monitors'
+import { planSloPreview, type SloMonitorsState } from '@/lib/slo-monitors'
 import MonitorPlanList from './MonitorPlanList'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
@@ -27,6 +28,7 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
   const plan = sources.flatMap(src => {
     if (src.dataKind === 'infra') return planInfraPreview(config[src.stateKey] as InfraDiscoveryState)
     if (src.dataKind === 'log') return planLogPreview(config[src.stateKey] as LogMonitorsState)
+    if (src.dataKind === 'slo') return planSloPreview(config[src.stateKey] as SloMonitorsState)
     return planPreview(config[src.stateKey] as DiscoveryState)
   })
 
@@ -41,6 +43,10 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
         const count = (state as LogMonitorsState).rules.length
         return count > 0 ? `${count} regra(s)` : null
       }
+      if (src.dataKind === 'slo') {
+        const count = Object.values((state as SloMonitorsState).selected).filter(Boolean).length
+        return count > 0 ? `${count} SLO(s)` : null
+      }
       const disc = state as DiscoveryState
       const count = Object.keys(disc.selected).length
       const label = disc.scopeType === 'namespace' ? 'namespace(s)' : 'serviço(s)'
@@ -53,8 +59,8 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
   return (
     <div style={s.card}>
       <p style={s.summary}>
-        Serão criados <strong>{plan.length}</strong> monitor(es){entityParts.length > 0 && <> para <strong>{entityParts.join(', ')}</strong></>},
-        agrupados por <strong>{groupByAll.join(', ') || '—'}</strong>.
+        Serão criados <strong>{plan.length}</strong> monitor(es){entityParts.length > 0 && <> para <strong>{entityParts.join(', ')}</strong></>}
+        {groupByAll.length > 0 ? <>, agrupados por <strong>{groupByAll.join(', ')}</strong>. </> : '. '}
         Nada é criado até a Etapa 5.
       </p>
 

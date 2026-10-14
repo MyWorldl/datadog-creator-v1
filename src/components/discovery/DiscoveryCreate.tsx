@@ -5,11 +5,12 @@ import { useState, type CSSProperties } from 'react'
 import { planPreview, type PlanItem, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraPlanItem, type InfraDiscoveryState } from '@/lib/infra'
 import { planLogPreview, type LogMonitorPlanItem, type LogMonitorsState } from '@/lib/log-monitors'
+import { planSloPreview, type SloPlanItem, type SloMonitorsState } from '@/lib/slo-monitors'
 import { downloadResultsExcel as downloadResultsExcelShared } from '@/lib/monitor-excel'
 import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
-type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem
+type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem | SloPlanItem
 
 // Monta e baixa o Excel (só monitores CRIADOS agora — não os que já existiam
 // e foram pulados, já que esses não têm id novo). Builder compartilhado com
@@ -48,6 +49,9 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
     }
     if (src.dataKind === 'log') {
       return { state, plan: planLogPreview(state as LogMonitorsState) as PlanEntry[], endpoint: '/api/datadog/log-monitors', bodyKey: 'logMonitors' }
+    }
+    if (src.dataKind === 'slo') {
+      return { state, plan: planSloPreview(state as SloMonitorsState) as PlanEntry[], endpoint: '/api/datadog/slo-monitors', bodyKey: 'sloMonitors' }
     }
     return { state, plan: planPreview(state as DiscoveryState) as PlanEntry[], endpoint: '/api/datadog/service-monitors', bodyKey: 'discovery' }
   })

@@ -24,7 +24,7 @@
 // flag sem env var definida é FALSE por padrão (fail-closed — feature nova
 // começa desligada até alguém ligar de propósito).
 
-export type FeatureFlag = 'outlierDetection' | 'k8sDbmCoverage' | 'logMonitors'
+export type FeatureFlag = 'outlierDetection' | 'k8sDbmCoverage' | 'logMonitors' | 'sloAlerts'
 
 const FLAG_ENV: Record<FeatureFlag, string> = {
   // Outlier Detection no MonitorsCreator (monitor que detecta host/container
@@ -33,10 +33,12 @@ const FLAG_ENV: Record<FeatureFlag, string> = {
   // Cobertura de Kubernetes e Database Monitoring no AuditMonitors (novos
   // grupos no AUDIT_CATALOG — ver backlog).
   k8sDbmCoverage: 'FEATURE_K8S_DBM_COVERAGE',
-  // Log Monitor no MonitorsCreator (contagem de logs por filtro — ver
-  // lib/log-monitors.ts). Desligado por padrão: v1 cobre só rollup "count",
-  // sem measure/groupBy (sintaxe ainda não confirmada pra esses dois).
+  // Log Monitor no MonitorsCreator (contagem/agregação de logs por filtro,
+  // com agrupamento — ver lib/log-monitors.ts). Desligado por padrão.
   logMonitors: 'FEATURE_LOG_MONITORS',
+  // SLO Alert no MonitorsCreator (burn rate / error budget sobre SLOs já existentes
+  // — ver lib/slo-monitors.ts).
+  sloAlerts: 'FEATURE_SLO_ALERTS',
 }
 
 export function isFeatureEnabled(flag: FeatureFlag): boolean {
