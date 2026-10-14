@@ -19,10 +19,11 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { ddPost } from '../src/lib/datadog-server.ts'
+import { ddGet, ddPost } from '../src/lib/datadog-server.ts'
 import { initialDiscovery, planPreview } from '../src/lib/discovery.ts'
 import { initialInfraDiscovery, planInfraPreview, INFRA_TYPES } from '../src/lib/infra.ts'
 import { buildLogMonitorPayload } from '../src/lib/log-monitors.ts'
+import { initialSloMonitors, planSloPreview } from '../src/lib/slo-monitors.ts'
 
 const envPath = join(dirname(fileURLToPath(import.meta.url)), '..', '.env.datadog.local')
 if (!existsSync(envPath)) { console.error(`Arquivo não encontrado: ${envPath}\nCrie com DD_API_KEY / DD_APP_KEY / DD_SITE.`); process.exit(1) }
@@ -77,6 +78,24 @@ for (const [label, extra] of [
   ['< com warning', { operator: '<', threshold: 10, warningThreshold: 20 }],
   ['> com warning', { threshold: 100, warningThreshold: 50 }],
 ]) items.push(['LOG', label, buildLogMonitorPayload({ ...logBase, ...extra })])
+
+// SLO Alert — usa SLOs REAIS do org (o validador recusa slo_id inexistente).
+// Sem SLO cadastrado, esse grupo é pulado (e avisado).
+{
+  const r = await ddGet(ctx, '/api/v1/slo?limit=50')
+  const slos = (r.ok && Array.isArray(r.json?.data) ? r.json.data : []).filter(s => s.id && s.name)
+    .slice(0, 3).map(s => ({ id: s.id, name: s.name, type: s.type || '', timeframe: s.thresholds?.[0]?.timeframe || '7d', target: s.thresholds?.[0]?.target ?? null }))
+  if (slos.length === 0) console.warn('AVISO: nenhum SLO no org — grupo SLO pulado.')
+  else {
+    const st = initialSloMonitors()
+    st.slos = slos
+    st.selected = Object.fromEntries(slos.map(s => [s.id, true]))
+    for (const k of Object.keys(st.alerts)) st.alerts[k].enabled = true
+    st.notifyTarget = '@equipe-teste'
+    st.tags = ['team:teste']
+    add('SLO', planSloPreview(st))
+  }
+}
 
 let ok = 0, bad = 0
 for (const [group, label, payload] of items) {

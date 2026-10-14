@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.64.0',
+    date: '2026-10-14',
+    title: 'SLO Alert (burn rate e error budget)',
+    notes: [
+      'Nova aba SLO no MonitorsCreator (atrás da flag FEATURE_SLO_ALERTS): lista os SLOs do org e cria monitores \'slo alert\' de burn rate rápido (1h/5m), lento (6h/30m) e error budget consumido',
+      'Rotas /api/datadog/slos e /api/datadog/slo-monitors; sintaxe validada contra o Datadog real',
+      'validate:monitors agora cobre SLO (77 payloads)',
+    ],
+  },
+  {
     version: '1.63.0',
     date: '2026-10-14',
     title: 'Serviços só-USM, hospedagem do DBM, Log Monitor v2, rascunho e manutenção',

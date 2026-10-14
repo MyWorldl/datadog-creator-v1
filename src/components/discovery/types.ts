@@ -9,8 +9,9 @@ import type { Dispatch, SetStateAction } from 'react'
 import type { DiscoveryState } from '@/lib/discovery'
 import type { InfraDiscoveryState } from '@/lib/infra'
 import type { LogMonitorsState } from '@/lib/log-monitors'
+import type { SloMonitorsState } from '@/lib/slo-monitors'
 
-export type ResourceType = 'services' | 'infra' | 'k8sDbm' | 'logs'
+export type ResourceType = 'services' | 'infra' | 'k8sDbm' | 'logs' | 'slo'
 
 export interface WizardConfig {
   mode: 'discovery'
@@ -29,6 +30,10 @@ export interface WizardConfig {
   // é o monitor inteiro (filtro + índice + janela + limite). Ver
   // lib/log-monitors.ts.
   logMonitors: LogMonitorsState
+  // Aba "SLO" (atrás da flag sloAlerts) — também shape próprio: o usuário
+  // escolhe SLOs já existentes e os alertas (burn rate / error budget) de cada
+  // um. Ver lib/slo-monitors.ts.
+  sloMonitors: SloMonitorsState
 }
 
 export type SetWizardConfig = Dispatch<SetStateAction<WizardConfig>>
@@ -47,8 +52,8 @@ export interface DiscoveryStepProps {
 // like) que entram juntas no plano/criação, cada uma com sua própria seção
 // de personalização.
 export interface PersonalizeSource {
-  stateKey: 'discovery' | 'infra' | 'k8sInfra' | 'k8sDiscovery' | 'logMonitors'
-  dataKind: 'infra' | 'discovery' | 'log'
+  stateKey: 'discovery' | 'infra' | 'k8sInfra' | 'k8sDiscovery' | 'logMonitors' | 'sloMonitors'
+  dataKind: 'infra' | 'discovery' | 'log' | 'slo'
   heading?: string
 }
 
@@ -59,5 +64,6 @@ export function sourcesFor(resourceType: ResourceType): PersonalizeSource[] {
     { stateKey: 'k8sDiscovery', dataKind: 'discovery', heading: 'Namespace / Global — Pod Restarts / Pod Pending' },
   ]
   if (resourceType === 'logs') return [{ stateKey: 'logMonitors', dataKind: 'log' }]
+  if (resourceType === 'slo') return [{ stateKey: 'sloMonitors', dataKind: 'slo' }]
   return [{ stateKey: 'discovery', dataKind: 'discovery' }]
 }

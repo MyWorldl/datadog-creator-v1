@@ -108,6 +108,10 @@ export const IconDatabase = ({ size = 18 }: IconProps) => (
 export const IconLogs = ({ size = 18 }: IconProps) => (
   <svg {...base(size)}><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>
 )
+// SLO Alert (aba SLO do MonitorsCreator, atrás da flag sloAlerts) — alvo.
+export const IconTarget = ({ size = 18 }: IconProps) => (
+  <svg {...base(size)}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+)
 // Busca / paleta de comandos (Ctrl/Cmd+K).
 export const IconSearch = ({ size = 18 }: IconProps) => (
   <svg {...base(size)}><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>

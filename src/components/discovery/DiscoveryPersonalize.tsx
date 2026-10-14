@@ -5,6 +5,7 @@ import { useId, useState, type CSSProperties } from 'react'
 import { ALERT_TYPES, ALERT_BY_KEY, POD_RESTARTS_TYPE, POD_PENDING_TYPE, type DiscoveryState } from '@/lib/discovery'
 import { INFRA_TYPES, INFRA_BY_KEY, type InfraDiscoveryState } from '@/lib/infra'
 import type { LogMonitorsState } from '@/lib/log-monitors'
+import { SLO_ALERT_TYPES, type SloMonitorsState } from '@/lib/slo-monitors'
 import { sourcesFor, type DiscoveryStepProps, type PersonalizeSource } from './types'
 import { useNamingSuggestion, suggestionNote } from './useNamingSuggestion'
 import { DEFAULT_NAME_PREFIX } from '@/lib/naming-convention'
@@ -397,6 +398,91 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
   )
 }
 
+// Seção da fonte 'sloMonitors' — mesmo esqueleto da de Logs, mas as mensagens
+// são por TIPO de alerta (burn rápido/lento/budget), não por regra: o nome do
+// SLO entra via {{slo_name}} (trocado ao montar o plano).
+function SloPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
+  const d = config.sloMonitors
+  const setSlo = (patch: Partial<SloMonitorsState>) => setConfig(c => ({ ...c, sloMonitors: { ...c.sloMonitors, ...patch } }))
+  const [tagInput, setTagInput] = useState('')
+  const uid = useId()
+  const nameSuggestion = useNamingSuggestion({
+    prefix: d.namePrefix,
+    hints: [],
+    apply: suggested => setConfig(c => (c.sloMonitors.namePrefix === DEFAULT_NAME_PREFIX ? { ...c, sloMonitors: { ...c.sloMonitors, namePrefix: suggested } } : c)),
+  })
+
+  function addTag() {
+    const v = tagInput.trim()
+    if (!v) return
+    if (!d.tags.includes(v)) setSlo({ tags: [...d.tags, v] })
+    setTagInput('')
+  }
+  function removeTag(t: string) { setSlo({ tags: d.tags.filter(x => x !== t) }) }
+  function setMessage(kind: string, value: string) { setSlo({ messages: { ...d.messages, [kind]: value } }) }
+  function resetMessage(kind: string) {
+    const { [kind]: _omit, ...rest } = d.messages
+    void _omit
+    setSlo({ messages: rest })
+  }
+  const enabledTypes = SLO_ALERT_TYPES.filter(t => d.alerts[t.key]?.enabled)
+
+  return (
+    <div style={{ ...s.section, borderBottom: 'none', paddingBottom: 0 }}>
+      <div>
+        <label style={s.label} htmlFor={`${uid}-prefix`}>Nome do monitor (prefixo)</label>
+        <input id={`${uid}-prefix`} className="focus-ring" style={s.input} value={d.namePrefix} onChange={e => setSlo({ namePrefix: e.target.value })} placeholder="[MonitorsCreator]" />
+        <p style={s.hint}>Cada monitor recebe: <strong>{(d.namePrefix || '[MonitorsCreator]')} &lt;nome do SLO&gt; · &lt;tipo do alerta&gt;</strong>.</p>
+        {nameSuggestion && d.namePrefix === nameSuggestion.prefix && (
+          <p style={{ ...s.hint, color: 'var(--accent)' }}>{suggestionNote(nameSuggestion)} Edite se preferir outro.</p>
+        )}
+      </div>
+
+      <div>
+        <label style={s.label} htmlFor={`${uid}-tag`}>Tags (aplicadas a todos os monitores desta seção)</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input id={`${uid}-tag`} className="focus-ring" style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} placeholder="team:payments" />
+          <button style={s.addBtn} onClick={addTag}>+ Adicionar</button>
+        </div>
+        {d.tags.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            {d.tags.map(t => <span key={t} style={s.tag}>{t}<button style={s.tagX} onClick={() => removeTag(t)}>×</button></span>)}
+          </div>
+        )}
+        <p style={s.hint}>Além destas, cada monitor recebe created_by:monitorscreator, monitor_kind:slo, slo_id:&lt;id&gt; e slo_alert:&lt;tipo&gt;.</p>
+      </div>
+
+      <div>
+        <label style={s.label} htmlFor={`${uid}-notify`}>Notificação padrão (opcional)</label>
+        <input id={`${uid}-notify`} className="focus-ring" style={s.input} value={d.notifyTarget || ''} onChange={e => setSlo({ notifyTarget: e.target.value })} placeholder="@equipe-ops" />
+        <p style={s.hint}>Substitui @equipe-ops em TODAS as mensagens desta seção. Em branco, mantém o padrão.</p>
+      </div>
+
+      <div>
+        <label style={s.label} htmlFor={`${uid}-renotify`}>Reforçar notificação a cada (min, 0 = nunca)</label>
+        <input id={`${uid}-renotify`} className="focus-ring" style={{ ...s.input, width: 100 }} type="number" min="0" step="5" value={d.renotifyInterval ?? 0} onChange={e => setSlo({ renotifyInterval: Number(e.target.value) || 0 })} />
+      </div>
+
+      <div>
+        <label style={s.label}>Mensagens dos monitores (uma por tipo de alerta)</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {enabledTypes.map(t => (
+            <div key={t.key}>
+              <div style={s.msgHead}>
+                <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>{t.label}</span>
+                {d.messages[t.key] != null && <button style={s.reset} onClick={() => resetMessage(t.key)}>restaurar padrão</button>}
+              </div>
+              <textarea className="focus-ring" style={s.textarea} value={d.messages[t.key] ?? ''} onChange={e => setMessage(t.key, e.target.value)} placeholder="Deixe em branco para usar a mensagem padrão (já cita o nome do SLO)." aria-label={`Mensagem do alerta ${t.label}`} />
+            </div>
+          ))}
+          {enabledTypes.length === 0 && <p style={s.hint}>Nenhum tipo de alerta habilitado na etapa anterior.</p>}
+        </div>
+        <p style={s.hint}>Variáveis: {'{{value}}'}, {'{{threshold}}'}, {'{{slo_name}}'} (nome do SLO). Use @ para notificar (ex.: @slack-canal).</p>
+      </div>
+    </div>
+  )
+}
+
 export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack }: DiscoveryStepProps) {
   const sources = sourcesFor(config.resourceType)
 
@@ -405,7 +491,9 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
       {sources.map((src, i) => (
         src.dataKind === 'log'
           ? <LogPersonalizeSection key={src.stateKey} config={config} setConfig={setConfig} />
-          : <PersonalizeSection key={src.stateKey} src={src} config={config} setConfig={setConfig} last={i === sources.length - 1} />
+          : src.dataKind === 'slo'
+            ? <SloPersonalizeSection key={src.stateKey} config={config} setConfig={setConfig} />
+            : <PersonalizeSection key={src.stateKey} src={src} config={config} setConfig={setConfig} last={i === sources.length - 1} />
       ))}
 
       <div style={s.actions}>

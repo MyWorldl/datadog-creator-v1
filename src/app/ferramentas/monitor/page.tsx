@@ -12,12 +12,13 @@ import dynamic from 'next/dynamic'
 import { initialDiscovery } from '@/lib/discovery'
 import { initialInfraDiscovery } from '@/lib/infra'
 import { initialLogMonitors } from '@/lib/log-monitors'
+import { initialSloMonitors } from '@/lib/slo-monitors'
 import { useApp } from '@/context/AppContext'
 import Stepper from '@/components/Stepper'
 import StepConnect from '@/components/StepConnect'
 import type { ResourceType, WizardConfig } from '@/components/discovery/types'
 import { DRAFT_KEY, isDraftMeaningful, parseDraft, serializeDraft, type WizardDraft } from '@/lib/wizard-draft'
-import { IconAnalytics, IconServer, IconCluster, IconLogs } from '@/components/Icons'
+import { IconAnalytics, IconServer, IconCluster, IconLogs, IconTarget } from '@/components/Icons'
 
 // Carregados sob demanda: o wizard mostra 1 step por vez (StepConnect é o
 // primeiro, por isso fica com import estático — os demais só entram no bundle
@@ -26,6 +27,7 @@ const DiscoveryConfigure = dynamic(() => import('@/components/discovery/Discover
 const DiscoveryConfigureInfra = dynamic(() => import('@/components/discovery/DiscoveryConfigureInfra'))
 const DiscoveryConfigureK8sDbm = dynamic(() => import('@/components/discovery/DiscoveryConfigureK8sDbm'))
 const DiscoveryConfigureLogs = dynamic(() => import('@/components/discovery/DiscoveryConfigureLogs'))
+const DiscoveryConfigureSlo = dynamic(() => import('@/components/discovery/DiscoveryConfigureSlo'))
 const DiscoveryPersonalize = dynamic(() => import('@/components/discovery/DiscoveryPersonalize'))
 const DiscoveryReview = dynamic(() => import('@/components/discovery/DiscoveryReview'))
 const DiscoveryCreate = dynamic(() => import('@/components/discovery/DiscoveryCreate'))
@@ -54,13 +56,14 @@ const INITIAL_CONFIG: WizardConfig = {
   mode: 'discovery',
   // 'services' (APM, por serviço/operação), 'infra' (por host: CPU/Memória/
   // Disco), 'k8sDbm' (Kubernetes/DBM, atrás de k8sDbmCoverage) ou 'logs'
-  // (Log Monitor, atrás de logMonitors).
+  // (Log Monitor, atrás de logMonitors) ou 'slo' (SLO Alert, atrás de sloAlerts).
   resourceType: 'services',
   discovery: initialDiscovery(),
   infra: initialInfraDiscovery(),
   k8sInfra: initialInfraDiscovery(),
   k8sDiscovery: initialK8sDiscovery(),
   logMonitors: initialLogMonitors(),
+  sloMonitors: initialSloMonitors(),
 }
 
 export default function Home() {
@@ -113,7 +116,7 @@ export default function Home() {
     if (!draft) return
     const c = draft.config
     // resourceType de uma aba cuja flag foi desligada volta pro padrão.
-    const blocked = (c.resourceType === 'k8sDbm' && !features.k8sDbmCoverage) || (c.resourceType === 'logs' && !features.logMonitors)
+    const blocked = (c.resourceType === 'k8sDbm' && !features.k8sDbmCoverage) || (c.resourceType === 'logs' && !features.logMonitors) || (c.resourceType === 'slo' && !features.sloAlerts)
     setConfig(blocked ? { ...c, resourceType: 'services' } : c)
     setStep(Math.max(1, draft.step)) // conexão já existe se há rascunho; nunca volta pra "Conectar"
     setDraft(null)
@@ -191,6 +194,8 @@ export default function Home() {
                 ...(features.k8sDbmCoverage ? [{ key: 'k8sDbm', label: 'APM e Infraestrutura (K8s/DBM)', Icon: IconCluster }] : []),
                 // Aba Logs — mesmo padrão, atrás de logMonitors.
                 ...(features.logMonitors ? [{ key: 'logs', label: 'Logs', Icon: IconLogs }] : []),
+                // Aba SLO — alertas de burn rate / error budget, atrás de sloAlerts.
+                ...(features.sloAlerts ? [{ key: 'slo', label: 'SLO', Icon: IconTarget }] : []),
               ] as { key: ResourceType; label: string; Icon: typeof IconServer }[]).map(opt => {
                 const on = config.resourceType === opt.key
                 return (
@@ -228,6 +233,13 @@ export default function Home() {
               />
             ) : config.resourceType === 'logs' ? (
               <DiscoveryConfigureLogs
+                config={config}
+                setConfig={setConfig}
+                onNext={goNext}
+                onBack={goBack}
+              />
+            ) : config.resourceType === 'slo' ? (
+              <DiscoveryConfigureSlo
                 config={config}
                 setConfig={setConfig}
                 onNext={goNext}
