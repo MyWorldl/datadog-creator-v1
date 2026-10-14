@@ -67,7 +67,7 @@ const s: Record<string, CSSProperties> = {
   heroMeta: { fontSize: 12.5, color: 'var(--text-secondary)', margin: '3px 0 0', lineHeight: 1.5 },
   heroLink: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', marginTop: 'auto', paddingTop: 4 },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 },
   card: { display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', textDecoration: 'none', boxShadow: 'var(--card-shadow)' },
   icon: { width: 38, height: 38, borderRadius: 10, background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   cTitle: { fontSize: 14.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 },

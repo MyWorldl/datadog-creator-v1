@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.70.0',
+    date: '2026-10-14',
+    title: 'Layout que preenche a tela',
+    notes: [
+      'Análise e Auditoria: cartão principal em largura total com painel lateral (pilares / cobertura por grupo); pilares em grade que sempre fecha a linha',
+      'Wizard em largura total: listas de hosts/serviços e itens do plano em várias colunas, Personalizar em colunas, Conectar com painel de permissões',
+      'Configurações, Sobre e FinOps sem limite de largura; FinOps com resumo do consumo; grades de cartões esticam para preencher a linha',
+    ],
+  },
+  {
     version: '1.69.0',
     date: '2026-10-14',
     title: 'Progresso em porcentagem',

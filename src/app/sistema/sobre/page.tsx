@@ -20,8 +20,6 @@ const FEATURES: Feature[] = [
 ]
 
 const s: Record<string, CSSProperties> = {
-  h1: { fontSize: 20, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 1.25rem' },
   hero: { background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)', borderRadius: 14, padding: '1.5rem 1.5rem', color: '#fff', marginBottom: 18, boxShadow: 'var(--card-shadow)' },
   heroTop: { display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 },
   heroName: { fontSize: 20, fontWeight: 800, letterSpacing: '-0.01em' },
@@ -29,7 +27,7 @@ const s: Record<string, CSSProperties> = {
   heroText: { fontSize: 13.5, lineHeight: 1.65, margin: 0, color: 'rgba(255,255,255,0.92)' },
   commit: { fontSize: 12, color: 'rgba(255,255,255,0.75)', fontFamily: 'var(--font-geist-mono), monospace' },
   sectionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 12px' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12, marginBottom: 22 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: 12, marginBottom: 22 },
   feat: { display: 'flex', gap: 12, background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 12, padding: '1rem', boxShadow: 'var(--card-shadow)' },
   featIcon: { color: 'var(--accent)', flexShrink: 0, marginTop: 2 },
   featName: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 3px' },
@@ -46,9 +44,9 @@ const s: Record<string, CSSProperties> = {
 
 export default function SobrePage() {
   return (
-    <div style={{ maxWidth: 720 }}>
-      <h1 style={s.h1}>Sobre</h1>
-      <p style={s.sub}>O que é o Datadog Creator, para que serve e o histórico de versões.</p>
+    <div>
+      <h1 className="page-h1">Sobre</h1>
+      <p className="page-sub">O que é o Datadog Creator, para que serve e o histórico de versões.</p>
 
       <div style={s.hero}>
         <div style={s.heroTop}>
@@ -79,7 +77,7 @@ export default function SobrePage() {
       </div>
 
       <p style={s.sectionTitle}>Histórico</p>
-      <div>
+      <div className="fill-grid" style={{ gap: '0 32px' }}>
         {VERSION_HISTORY.map((entry, i) => (
           <div key={`${entry.version}-${i}`} style={{ ...s.item, borderLeft: i === VERSION_HISTORY.length - 1 ? '2px solid transparent' : s.item.borderLeft }}>
             <span style={s.dot} />

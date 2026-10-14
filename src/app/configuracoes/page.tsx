@@ -13,10 +13,10 @@ export default function ConfiguracoesPage() {
   const { theme, setTheme } = useApp();
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div>
       <h1 className="page-h1">Configurações</h1>
       <p className="page-sub">Tema e conexões com o Datadog (múltiplas orgs).</p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="fill-grid">
 
       {/* ── TEMA ── */}
       <div className="surface">

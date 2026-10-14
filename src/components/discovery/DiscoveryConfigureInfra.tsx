@@ -32,7 +32,7 @@ const s: Record<string, CSSProperties> = {
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
-  hostList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
+  hostList: { maxHeight: 320, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
   hostRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 6, cursor: 'pointer' },
   accHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' },
   pillRow: { display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 },
@@ -199,7 +199,7 @@ export default function DiscoveryConfigureInfra({ config, setConfig, onNext, onB
                 <span style={s.counter}>{selectedNames.length} host(s) selecionado(s)</span>
               </div>
 
-              <div style={s.hostList}>
+              <div className="list-grid" style={s.hostList}>
                 {filtered.map(h => {
                   const on = !!d.selected[h.name]
                   return (

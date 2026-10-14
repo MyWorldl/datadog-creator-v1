@@ -86,7 +86,7 @@ const s: Record<string, CSSProperties> = {
   toolbar: { display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 },
   search: { flex: 1, minWidth: 180, fontSize: 13, padding: '8px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none' },
   counter: { fontSize: 12, color: 'var(--text-muted)' },
-  svcList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 260, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
+  svcList: { maxHeight: 320, overflowY: 'auto', border: '0.5px solid var(--border)', borderRadius: 8, padding: 8 },
   svcRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '7px 8px', borderRadius: 6, cursor: 'pointer' },
   selBox: { border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', padding: '10px 12px' },
   // Accordion de alertas
@@ -335,7 +335,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                   <span style={s.counter}>{selectedNames.length} selecionado(s) · mostrando {filtered.length} de {d.services.length}</span>
                 </div>
 
-                <div style={s.svcList}>
+                <div className="list-grid" style={s.svcList}>
                   {filtered.map(name => {
                     const on = !!d.selected[name]
                     return (
