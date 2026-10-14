@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.65.0',
+    date: '2026-10-14',
+    title: 'Criação em lotes + planilha do plano',
+    notes: [
+      'Corrige \'The string did not match the expected pattern\' ao criar muitos monitores: a criação agora é em lotes de 25 (antes era 1 requisição só e estourava o timeout)',
+      'Etapa Criar baixa a planilha do plano ANTES de criar; mostra progresso, permite cancelar e continuar (pula os já criados)',
+      'Servidor cria com concorrência 4 e retry em 429; respostas não-JSON viram mensagem clara',
+    ],
+  },
+  {
     version: '1.64.1',
     date: '2026-10-14',
     title: 'Sentry 11',

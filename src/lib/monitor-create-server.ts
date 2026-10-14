@@ -63,35 +63,83 @@ export interface CreatePlanResult {
   results: PlanResultItem[]
 }
 
-export async function createPlanIdempotent(ctx: DatadogCtx, plan: MonitorPlanEntry[]): Promise<CreatePlanResult> {
-  // Idempotência: nomes de monitores já existentes criados pelo app. Falha na
-  // listagem não bloqueia a criação — só desativa a checagem (melhor criar
-  // com risco de duplicar do que travar o usuário).
-  const existingR = await listMonitors(ctx)
-  const existingNames = new Set(
-    existingR.ok
-      ? (existingR.json as { tags?: string[]; name?: string }[])
-          .filter(m => Array.isArray(m.tags) && m.tags.includes(MONITORSCREATOR_TAG))
-          .map(m => m.name)
-      : []
+// Nomes dos monitores já criados pelo app (tag created_by:monitorscreator).
+// null = não deu pra listar (a checagem de duplicados fica desligada — melhor
+// criar com risco de duplicar do que travar o usuário).
+export async function listExistingMonitorNames(ctx: DatadogCtx): Promise<Set<string> | null> {
+  const r = await listMonitors(ctx)
+  if (!r.ok) return null
+  return new Set(
+    (r.json as { tags?: string[]; name?: string }[])
+      .filter(m => Array.isArray(m.tags) && m.tags.includes(MONITORSCREATOR_TAG) && typeof m.name === 'string')
+      .map(m => m.name as string)
   )
+}
 
-  const results: PlanResultItem[] = []
-  for (const item of plan) {
-    if (existingNames.has(item.payload.name)) {
-      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, skipped: true, name: item.payload.name })
-      continue
-    }
-    const r = await createWithRetry(ctx, item.payload)
-    if (!r.ok) {
-      const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
-      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: false, error: errMsg, query: item.query })
-    } else {
-      results.push({ kind: item.kind, service: item.service, operation: item.operation, ok: true, id: r.json?.id, name: item.payload.name })
+// Criações simultâneas por requisição: acelera lotes grandes sem estourar o
+// rate limit (429 ainda é retentado em createWithRetry).
+const CREATE_CONCURRENCY = 4
+
+export interface CreatePlanOptions {
+  // Se informado, é usado no lugar de listar os monitores existentes (o wizard
+  // lista UMA vez e manda os lotes já filtrados — listar a cada lote de 25
+  // seria desperdício em orgs com milhares de monitores).
+  existingNames?: Set<string> | null
+}
+
+export async function createPlanIdempotent(ctx: DatadogCtx, plan: MonitorPlanEntry[], opts: CreatePlanOptions = {}): Promise<CreatePlanResult> {
+  const existingNames = opts.existingNames !== undefined ? opts.existingNames : await listExistingMonitorNames(ctx)
+
+  // Resultado por ÍNDICE: a ordem de saída é sempre a do plano, mesmo com
+  // criações em paralelo (o cliente alinha plan[i] <-> results[i]).
+  const results: PlanResultItem[] = new Array(plan.length)
+  let next = 0
+  async function worker() {
+    while (next < plan.length) {
+      const i = next++
+      const item = plan[i]
+      if (existingNames?.has(item.payload.name)) {
+        results[i] = { kind: item.kind, service: item.service, operation: item.operation, ok: true, skipped: true, name: item.payload.name }
+        continue
+      }
+      const r = await createWithRetry(ctx, item.payload)
+      if (!r.ok) {
+        const errMsg = (r.json?.errors && r.json.errors.join('; ')) || (r.status ? `HTTP ${r.status}` : r.error)
+        results[i] = { kind: item.kind, service: item.service, operation: item.operation, ok: false, error: errMsg, query: item.query }
+      } else {
+        results[i] = { kind: item.kind, service: item.service, operation: item.operation, ok: true, id: r.json?.id, name: item.payload.name }
+      }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(CREATE_CONCURRENCY, plan.length) }, worker))
 
   const created = results.filter(r => r.ok && !r.skipped).length
   const skipped = results.filter(r => r.skipped).length
   return { created, skipped, total: results.length, results }
 }
+
+// Criação em LOTES (wizard): o cliente manda o mesmo estado de sempre mais
+// batch = { only: [índices do plano] } e a rota cria só essas posições, sem
+// listar os monitores existentes (o cliente já filtrou os duplicados). Sem
+// `batch`, comportamento antigo: plano inteiro + checagem de duplicados.
+// Plano calculado no servidor a partir do estado continua sendo a fonte da
+// verdade (validação e feature flags das rotas seguem valendo).
+export const MAX_BATCH = 50
+
+export type BatchSelection<T> =
+  | { ok: true; plan: T[]; options: CreatePlanOptions }
+  | { ok: false; error: string }
+
+export function selectBatch<T>(batch: unknown, plan: T[]): BatchSelection<T> {
+  if (batch === undefined || batch === null) return { ok: true, plan, options: {} }
+  const only = (batch as { only?: unknown })?.only
+  if (!Array.isArray(only) || only.length === 0 || only.length > MAX_BATCH
+    || !only.every(i => Number.isInteger(i) && i >= 0 && i < plan.length)) {
+    return { ok: false, error: `Lote inválido (até ${MAX_BATCH} itens, dentro do plano).` }
+  }
+  return { ok: true, plan: (only as number[]).map(i => plan[i]), options: { existingNames: new Set<string>() } }
+}
+
+// maxDuration das rotas de criação: lote de 25 com concorrência 4 leva poucos
+// segundos; 60s dá folga pra 429 com backoff.
+export const CREATE_MAX_DURATION = 60

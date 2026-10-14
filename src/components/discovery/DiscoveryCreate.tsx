@@ -1,13 +1,14 @@
 // src/components/discovery/DiscoveryCreate.tsx
 'use client'
 
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { planPreview, type PlanItem, type DiscoveryState } from '@/lib/discovery'
 import { planInfraPreview, type InfraPlanItem, type InfraDiscoveryState } from '@/lib/infra'
 import { planLogPreview, type LogMonitorPlanItem, type LogMonitorsState } from '@/lib/log-monitors'
 import { planSloPreview, type SloPlanItem, type SloMonitorsState } from '@/lib/slo-monitors'
-import { downloadResultsExcel as downloadResultsExcelShared } from '@/lib/monitor-excel'
-import type { CreatePlanResult, PlanResultItem } from '@/lib/monitor-create-server'
+import { downloadResultsExcel as downloadResultsExcelShared, downloadPlanExcel, type ExcelResultEntry } from '@/lib/monitor-excel'
+import type { PlanResultItem } from '@/lib/monitor-create-server'
+import { planBatches, readJsonSafe } from '@/lib/create-batches'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
 type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem | SloPlanItem
@@ -17,7 +18,7 @@ type PlanEntry = PlanItem | InfraPlanItem | LogMonitorPlanItem | SloPlanItem
 // AuditMonitors em lib/monitor-excel.ts (mesma lógica, extraída de propósito
 // pra não duplicar o boilerplate do ExcelJS — ver comentário sobre a
 // vulnerabilidade MODERADA transitiva mantida de propósito lá).
-async function downloadResultsExcel(plan: PlanEntry[], resultsList: PlanResultItem[]) {
+async function downloadResultsExcel(plan: PlanEntry[], resultsList: ExcelResultEntry[]) {
   await downloadResultsExcelShared(plan, resultsList, `monitores-datadog-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }
 
@@ -30,6 +31,10 @@ const s: Record<string, CSSProperties> = {
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
   btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' },
   btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
+  progressWrap: { display: 'flex', flexDirection: 'column', gap: 6 },
+  progressTrack: { height: 8, borderRadius: 999, background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', overflow: 'hidden' },
+  progressBar: { height: '100%', background: 'var(--accent)', transition: 'width 0.25s ease' },
+  warnBox: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' },
   btnExport: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer', alignSelf: 'flex-start' },
 }
 
@@ -56,65 +61,151 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
     return { state, plan: planPreview(state as DiscoveryState) as PlanEntry[], endpoint: '/api/datadog/service-monitors', bodyKey: 'discovery' }
   })
   const plan: PlanEntry[] = sources.flatMap(src => src.plan)
-  const [creating, setCreating] = useState(false)
+  const [phase, setPhase] = useState<'idle' | 'sheet' | 'creating'>('idle')
+  const [progress, setProgress] = useState({ done: 0, total: 0 })
   const [error, setError] = useState('')
-  const [results, setResults] = useState<CreatePlanResult | null>(null)
+  // items[i] <-> plan[i]; undefined = ainda não processado (cancelado/erro no meio).
+  const [outcome, setOutcome] = useState<{ items: (PlanResultItem | undefined)[]; aborted: boolean } | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [sheetBusy, setSheetBusy] = useState(false)
+  const cancelRef = useRef(false)
+  const sheetSavedRef = useRef(false) // a planilha do plano baixa uma vez por visita a esta etapa
+  const busy = phase !== 'idle'
 
+  const planSheetName = () => `plano-monitores-${new Date().toISOString().slice(0, 10)}.xlsx`
+
+  async function downloadPlanSheet() {
+    setSheetBusy(true); setError('')
+    try { await downloadPlanExcel(plan, planSheetName()); sheetSavedRef.current = true }
+    catch (e) { setError('Não foi possível gerar a planilha do plano: ' + (e as Error).message) }
+    finally { setSheetBusy(false) }
+  }
+
+  // Ordem: (1) planilha do plano baixa ANTES de qualquer criação; (2) lista os
+  // monitores que já existem (1 vez); (3) cria em lotes pequenos — uma única
+  // requisição com centenas/milhares de monitores estourava o timeout da função
+  // e voltava uma resposta que não era JSON.
   async function create() {
-    setError(''); setResults(null); setCreating(true)
+    setError(''); setOutcome(null); cancelRef.current = false
+    const items: (PlanResultItem | undefined)[] = new Array(plan.length)
+    let aborted = false
     try {
-      const merged: PlanResultItem[] = []
-      let created = 0, skipped = 0, total = 0
-      for (const src of sources) {
-        if (src.plan.length === 0) continue
-        const r = await fetch(src.endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [src.bodyKey]: src.state }),
-        })
-        const data = await r.json()
-        if (!r.ok) { setError(data.error || 'Falha ao criar.'); return }
-        merged.push(...(data.results || []))
-        created += data.created || 0
-        skipped += data.skipped || 0
-        total += data.total || 0
+      if (!sheetSavedRef.current) {
+        setPhase('sheet')
+        try { await downloadPlanExcel(plan, planSheetName()); sheetSavedRef.current = true }
+        catch (e) { setError('Não foi possível gerar a planilha do plano, então nada foi criado: ' + (e as Error).message); return }
       }
-      setResults({ created, skipped, total, results: merged })
-      if (created > 0) onCreated?.()
-    } catch (e) { setError('Falha de rede: ' + (e as Error).message) }
-    finally { setCreating(false) }
+
+      setPhase('creating')
+      setProgress({ done: 0, total: plan.length })
+      const er = await fetch('/api/datadog/existing-monitors')
+      const ed = await readJsonSafe(er)
+      if (!er.ok) { setError(String(ed.error || 'Falha ao listar os monitores existentes.')); return }
+      const existing = new Set<string>(Array.isArray(ed.names) ? (ed.names as string[]) : [])
+
+      const jobs: { src: (typeof sources)[number]; base: number; batch: number[] }[] = []
+      let base = 0, done = 0
+      for (const src of sources) {
+        const { skipped, batches } = planBatches(src.plan.map(p => p.name), existing)
+        for (const i of skipped) {
+          const p = src.plan[i]
+          items[base + i] = { kind: p.kind, service: p.service, operation: p.operation, ok: true, skipped: true, name: p.name }
+        }
+        done += skipped.length
+        for (const batch of batches) jobs.push({ src, base, batch })
+        base += src.plan.length
+      }
+      setProgress({ done, total: plan.length })
+
+      try {
+        for (const job of jobs) {
+          if (cancelRef.current) { aborted = true; break }
+          const r = await fetch(job.src.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [job.src.bodyKey]: job.src.state, batch: { only: job.batch } }),
+          })
+          const data = await readJsonSafe(r)
+          if (!r.ok) { setError(String(data.error || 'Falha ao criar.')); aborted = true; break }
+          const rs = (Array.isArray(data.results) ? data.results : []) as PlanResultItem[]
+          job.batch.forEach((localIdx, k) => { items[job.base + localIdx] = rs[k] })
+          done += job.batch.length
+          setProgress({ done, total: plan.length })
+        }
+      } catch (e) { setError('Falha de rede: ' + (e as Error).message); aborted = true }
+      setOutcome({ items, aborted })
+      // Só limpa o rascunho do wizard se terminou: parou no meio = dá pra retomar.
+      if (!aborted && items.some(x => x?.ok && !x.skipped)) onCreated?.()
+    } catch (e) {
+      setError('Falha de rede: ' + (e as Error).message)
+      if (items.some(Boolean)) setOutcome({ items, aborted: true })
+    } finally { setPhase('idle') }
   }
 
   async function exportExcel() {
     setExporting(true)
     try {
-      await downloadResultsExcel(plan, results!.results)
+      await downloadResultsExcel(plan, (outcome?.items || []) as ExcelResultEntry[])
     } finally {
       setExporting(false)
     }
   }
 
-  const createdCount = results?.results?.filter(r => r.ok && !r.skipped).length || 0
+  const done = outcome?.items.filter((x): x is PlanResultItem => !!x) || []
+  const createdCount = done.filter(r => r.ok && !r.skipped).length
+  const skippedCount = done.filter(r => r.skipped).length
+  const failedItems = done.filter(r => !r.ok)
+  const pendingCount = outcome ? outcome.items.length - done.length : 0
+  const allOk = !!outcome && failedItems.length === 0 && pendingCount === 0
+  // Com milhares de monitores, listar todos os ✓ trava a tela: mostra só o que falhou.
+  const LIST_LIMIT = 200
+  const listed = done.length > LIST_LIMIT ? failedItems : done
+  const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
     <div style={s.card}>
-      {!results && (
-        <p style={s.summary}>
-          Pronto para criar <strong>{plan.length}</strong> monitor(es). Clique abaixo para enviar ao Datadog.
-        </p>
+      {!outcome && !busy && (
+        <>
+          <p style={s.summary}>
+            Pronto para criar <strong>{plan.length}</strong> monitor(es). Ao clicar em criar, a <strong>planilha do plano</strong> é
+            baixada primeiro e, em seguida, os monitores são enviados ao Datadog em lotes.
+          </p>
+          <button style={s.btnExport} onClick={downloadPlanSheet} disabled={sheetBusy}>
+            {sheetBusy ? 'Gerando…' : '📊 Baixar só a planilha do plano'}
+          </button>
+        </>
+      )}
+
+      {busy && (
+        <div style={s.progressWrap} role="status" aria-live="polite">
+          <p style={s.summary}>
+            {phase === 'sheet'
+              ? 'Gerando a planilha do plano…'
+              : <>Criando… <strong>{progress.done}</strong> de <strong>{progress.total}</strong> ({pct}%)</>}
+          </p>
+          <div style={s.progressTrack} aria-hidden="true"><div style={{ ...s.progressBar, width: `${phase === 'sheet' ? 0 : pct}%` }} /></div>
+          <p style={{ ...s.summary, fontSize: 11.5 }}>Mantenha esta aba aberta. Se precisar parar, os já criados são pulados na próxima vez.</p>
+        </div>
       )}
 
       {error && <div style={s.err}>{error}</div>}
 
-      {results && (
+      {outcome && (
         <>
-          <div style={results.results.every(r => r.ok) ? s.okBox : s.err}>
-            {results.created} de {results.total} monitor(es) criado(s)
-            {typeof results.skipped === 'number' && results.skipped > 0 ? ` · ${results.skipped} já existia(m) (pulado)` : ''}.
+          <div style={allOk ? s.okBox : s.err}>
+            {createdCount} de {outcome.items.length} monitor(es) criado(s)
+            {skippedCount > 0 ? ` · ${skippedCount} já existia(m) (pulado)` : ''}
+            {failedItems.length > 0 ? ` · ${failedItems.length} com erro` : ''}
+            {pendingCount > 0 ? ` · ${pendingCount} não processado(s)` : ''}.
           </div>
+          {pendingCount > 0 && <div style={s.warnBox}>A criação foi interrompida. Clique em &quot;Continuar&quot; para criar o que faltou — o que já foi criado é pulado.</div>}
+          {done.length > LIST_LIMIT && (
+            <div style={s.warnBox}>
+              Lista longa: mostrando só os {failedItems.length} com erro. Os demais {done.length - failedItems.length} deram certo ou já existiam — a planilha de resultados traz os criados.
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
-            {results.results.map((r, i) => (
+            {listed.map((r, i) => (
               <div key={i} style={{ ...s.resItem, color: r.ok ? (r.skipped ? 'var(--text-muted)' : 'var(--success)') : 'var(--danger)', borderColor: r.ok ? (r.skipped ? 'var(--border)' : 'var(--success)') : 'var(--danger)' }}>
                 {r.ok ? (r.skipped ? '↷' : '✓') : '✗'} {String(r.service)} · {String(r.operation)} · {String(r.kind)}
                 {r.id ? ` · id ${r.id}` : ''}{r.skipped ? ' · já existia' : ''}{r.error ? ` · ${r.error}` : ''}
@@ -123,17 +214,19 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
           </div>
           {createdCount > 0 && (
             <button style={s.btnExport} onClick={exportExcel} disabled={exporting}>
-              {exporting ? 'Gerando…' : `📊 Baixar Excel (${createdCount} monitor(es))`}
+              {exporting ? 'Gerando…' : `📊 Baixar Excel dos criados (${createdCount} monitor(es))`}
             </button>
           )}
         </>
       )}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack} disabled={creating}>← Voltar</button>
-        {!results && (
-          <button style={s.btn} onClick={create} disabled={creating}>
-            {creating ? 'Criando…' : `Criar ${plan.length} monitor(es)`}
+        <button style={s.btnGhost} onClick={onBack} disabled={busy}>← Voltar</button>
+        {busy ? (
+          <button style={s.btnGhost} onClick={() => { cancelRef.current = true }} disabled={phase === 'sheet'}>Cancelar</button>
+        ) : (!outcome || !allOk) && (
+          <button style={s.btn} onClick={create}>
+            {outcome ? 'Continuar (pula os já criados)' : `Criar ${plan.length} monitor(es)`}
           </button>
         )}
       </div>
