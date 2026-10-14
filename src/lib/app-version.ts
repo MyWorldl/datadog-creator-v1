@@ -27,6 +27,15 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.64.1',
+    date: '2026-10-14',
+    title: 'Sentry 11',
+    notes: [
+      '@sentry/nextjs 10 → 11: withSentryConfig agora é importado de @sentry/nextjs/config no next.config.mjs',
+      'Mantém a integração opcional (sem DSN o Sentry continua desligado)',
+    ],
+  },
+  {
     version: '1.64.0',
     date: '2026-10-14',
     title: 'SLO Alert (burn rate e error budget)',
