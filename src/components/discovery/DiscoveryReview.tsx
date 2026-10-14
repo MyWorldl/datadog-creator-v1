@@ -10,11 +10,8 @@ import MonitorPlanList from './MonitorPlanList'
 import { sourcesFor, type DiscoveryStepProps } from './types'
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
   summary: { fontSize: 13, color: 'var(--text-secondary)' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
 }
 
 type DiscoveryReviewProps = Omit<DiscoveryStepProps, 'setConfig'>
@@ -57,7 +54,7 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
   const groupByAll = [...new Set(sources.flatMap(src => (config[src.stateKey] as { groupBy: string[] }).groupBy || []))]
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       <p style={s.summary}>
         Serão criados <strong>{plan.length}</strong> monitor(es){entityParts.length > 0 && <> para <strong>{entityParts.join(', ')}</strong></>}
         {groupByAll.length > 0 ? <>, agrupados por <strong>{groupByAll.join(', ')}</strong>. </> : '. '}
@@ -67,8 +64,8 @@ export default function DiscoveryReview({ config, onNext, onBack }: DiscoveryRev
       <MonitorPlanList plan={plan} />
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={onNext}>Continuar →</button>
+        <button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
+        <button className="btn btn-primary" onClick={onNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>
       </div>
     </div>
   )

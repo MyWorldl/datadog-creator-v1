@@ -14,16 +14,11 @@ import type { DiscoveryStepProps } from './types'
 import { accStyle, chevStyle } from './styles'
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   select: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  addBtn: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--accent)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', alignSelf: 'flex-start' },
-  removeBtn: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', background: 'none', border: '0.5px solid var(--danger)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
   accHead: { display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', cursor: 'pointer' },
   pillRow: { display: 'flex', gap: 5, flexWrap: 'wrap', flex: 1 },
   pill: { fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)', background: 'var(--bg-surface)', border: '0.5px solid var(--border)', borderRadius: 999, padding: '2px 8px', fontFamily: 'var(--font-geist-mono), monospace' },
@@ -73,7 +68,7 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
   }
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       <div>
         <label style={s.label}>Regras de Log Monitor</label>
         <p style={s.hint}>
@@ -82,14 +77,14 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
         </p>
       </div>
 
-      {d.rules.length === 0 && <p style={s.empty}>Nenhuma regra ainda. Clique em &quot;+ Adicionar regra&quot; para começar.</p>}
+      {d.rules.length === 0 && <p className="wz-msg" style={s.empty}>Nenhuma regra ainda. Clique em &quot;+ Adicionar regra&quot; para começar.</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {d.rules.map(rule => {
           const open = openId === rule.id
           return (
             <div key={rule.id} style={accStyle(true)}>
-              <div style={s.accHead} onClick={() => setOpenId(open ? null : rule.id)}>
+              <div className="acc-head" style={s.accHead} onClick={() => setOpenId(open ? null : rule.id)}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                   {rule.label.trim() || 'Nova regra'}
                 </span>
@@ -175,7 +170,7 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
                     </label>
                   </div>
                   <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end' }}>
-                    <button style={s.removeBtn} onClick={() => removeRule(rule.id)}>Remover regra</button>
+                    <button className="btn btn-danger btn-sm" onClick={() => removeRule(rule.id)}>Remover regra</button>
                   </div>
                 </div>
               )}
@@ -184,13 +179,13 @@ export default function DiscoveryConfigureLogs({ config, setConfig, onNext, onBa
         })}
       </div>
 
-      <button style={s.addBtn} onClick={addRule}>+ Adicionar regra</button>
+      <button className="btn btn-outline" style={{ alignSelf: 'flex-start' }} onClick={addRule}>+ Adicionar regra</button>
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={handleNext}>Continuar →</button>
+        <button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
+        <button className="btn btn-primary" onClick={handleNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>
       </div>
     </div>
   )

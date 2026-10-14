@@ -27,6 +27,16 @@ export interface VersionEntry {
 
 export const VERSION_HISTORY: VersionEntry[] = [
   {
+    version: '1.66.0',
+    date: '2026-10-14',
+    title: 'Visual do wizard',
+    notes: [
+      'Camada de design do wizard: escala de espaçamento de 4px, cartões com sombra/raio, botões (primário/secundário/contorno/perigo) com hover, foco e pressionado',
+      'Micro-animações: entrada de etapa, stepper com linha que preenche e pulso na etapa ativa, setas que andam no hover, itens do plano escalonados, barra de progresso animada',
+      'Abas de tipo rolam na horizontal no celular; tema claro e escuro via tokens; respeita prefers-reduced-motion',
+    ],
+  },
+  {
     version: '1.65.1',
     date: '2026-10-14',
     title: 'Correção do build da criação em lotes',

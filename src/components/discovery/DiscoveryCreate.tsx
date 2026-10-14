@@ -23,19 +23,13 @@ async function downloadResultsExcel(plan: PlanEntry[], resultsList: ExcelResultE
 }
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 14 },
   summary: { fontSize: 13, color: 'var(--text-secondary)' },
   err: { fontSize: 12, color: 'var(--danger)', background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8, padding: '8px 12px' },
   okBox: { fontSize: 13, color: 'var(--success)', background: 'var(--success-bg)', border: '1px solid var(--success)', borderRadius: 8, padding: '10px 12px' },
   resItem: { fontSize: 12, padding: '8px 10px', borderRadius: 6, border: '0.5px solid var(--border)', fontFamily: 'var(--font-geist-mono), monospace', wordBreak: 'break-all' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   progressWrap: { display: 'flex', flexDirection: 'column', gap: 6 },
-  progressTrack: { height: 8, borderRadius: 999, background: 'var(--bg-surface-2)', border: '0.5px solid var(--border)', overflow: 'hidden' },
-  progressBar: { height: '100%', background: 'var(--accent)', transition: 'width 0.25s ease' },
   warnBox: { fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' },
-  btnExport: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer', alignSelf: 'flex-start' },
 }
 
 type DiscoveryCreateProps = Omit<DiscoveryStepProps, 'setConfig' | 'onNext'> & {
@@ -163,14 +157,14 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       {!outcome && !busy && (
         <>
           <p style={s.summary}>
             Pronto para criar <strong>{plan.length}</strong> monitor(es). Ao clicar em criar, a <strong>planilha do plano</strong> é
             baixada primeiro e, em seguida, os monitores são enviados ao Datadog em lotes.
           </p>
-          <button style={s.btnExport} onClick={downloadPlanSheet} disabled={sheetBusy}>
+          <button className="btn btn-soft" style={{ alignSelf: 'flex-start' }} onClick={downloadPlanSheet} disabled={sheetBusy}>
             {sheetBusy ? 'Gerando…' : '📊 Baixar só a planilha do plano'}
           </button>
         </>
@@ -183,12 +177,14 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
               ? 'Gerando a planilha do plano…'
               : <>Criando… <strong>{progress.done}</strong> de <strong>{progress.total}</strong> ({pct}%)</>}
           </p>
-          <div style={s.progressTrack} aria-hidden="true"><div style={{ ...s.progressBar, width: `${phase === 'sheet' ? 0 : pct}%` }} /></div>
+          <div className="wz-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={phase === 'sheet' ? 0 : pct} aria-label="Progresso da criação">
+            <div className="wz-progress-bar is-active" style={{ width: `${phase === 'sheet' ? 4 : Math.max(pct, 2)}%` }} />
+          </div>
           <p style={{ ...s.summary, fontSize: 11.5 }}>Mantenha esta aba aberta. Se precisar parar, os já criados são pulados na próxima vez.</p>
         </div>
       )}
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       {outcome && (
         <>
@@ -198,22 +194,22 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
             {failedItems.length > 0 ? ` · ${failedItems.length} com erro` : ''}
             {pendingCount > 0 ? ` · ${pendingCount} não processado(s)` : ''}.
           </div>
-          {pendingCount > 0 && <div style={s.warnBox}>A criação foi interrompida. Clique em &quot;Continuar&quot; para criar o que faltou — o que já foi criado é pulado.</div>}
+          {pendingCount > 0 && <div className="wz-msg" style={s.warnBox}>A criação foi interrompida. Clique em &quot;Continuar&quot; para criar o que faltou — o que já foi criado é pulado.</div>}
           {done.length > LIST_LIMIT && (
-            <div style={s.warnBox}>
+            <div className="wz-msg" style={s.warnBox}>
               Lista longa: mostrando só os {failedItems.length} com erro. Os demais {done.length - failedItems.length} deram certo ou já existiam — a planilha de resultados traz os criados.
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto' }}>
             {listed.map((r, i) => (
-              <div key={i} style={{ ...s.resItem, color: r.ok ? (r.skipped ? 'var(--text-muted)' : 'var(--success)') : 'var(--danger)', borderColor: r.ok ? (r.skipped ? 'var(--border)' : 'var(--success)') : 'var(--danger)' }}>
+              <div key={i} className="res-item" style={{ ...s.resItem, color: r.ok ? (r.skipped ? 'var(--text-muted)' : 'var(--success)') : 'var(--danger)', borderColor: r.ok ? (r.skipped ? 'var(--border)' : 'var(--success)') : 'var(--danger)' }}>
                 {r.ok ? (r.skipped ? '↷' : '✓') : '✗'} {String(r.service)} · {String(r.operation)} · {String(r.kind)}
                 {r.id ? ` · id ${r.id}` : ''}{r.skipped ? ' · já existia' : ''}{r.error ? ` · ${r.error}` : ''}
               </div>
             ))}
           </div>
           {createdCount > 0 && (
-            <button style={s.btnExport} onClick={exportExcel} disabled={exporting}>
+            <button className="btn btn-soft" style={{ alignSelf: 'flex-start' }} onClick={exportExcel} disabled={exporting}>
               {exporting ? 'Gerando…' : `📊 Baixar Excel dos criados (${createdCount} monitor(es))`}
             </button>
           )}
@@ -221,11 +217,11 @@ export default function DiscoveryCreate({ config, onBack, onCreated }: Discovery
       )}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack} disabled={busy}>← Voltar</button>
+        <button className="btn btn-ghost" onClick={onBack} disabled={busy}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
         {busy ? (
-          <button style={s.btnGhost} onClick={() => { cancelRef.current = true }} disabled={phase === 'sheet'}>Cancelar</button>
+          <button className="btn btn-ghost" onClick={() => { cancelRef.current = true }} disabled={phase === 'sheet'}>Cancelar</button>
         ) : (!outcome || !allOk) && (
-          <button style={s.btn} onClick={create}>
+          <button className="btn btn-primary" onClick={create}>
             {outcome ? 'Continuar (pula os já criados)' : `Criar ${plan.length} monitor(es)`}
           </button>
         )}

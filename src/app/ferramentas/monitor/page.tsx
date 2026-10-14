@@ -165,12 +165,12 @@ export default function Home() {
         </div>
 
         {draft && (
-          <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 10, padding: '10px 14px', marginBottom: 18 }}>
+          <div role="status" className="wz-banner" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'var(--accent-light)', border: '1px solid var(--accent)', borderRadius: 12, padding: '12px 16px', marginBottom: 20, boxShadow: 'var(--card-shadow)' }}>
             <span style={{ flex: 1, minWidth: 200, fontSize: 13, color: 'var(--text-primary)' }}>
               Você tem um rascunho salvo em <strong>{new Date(draft.savedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong> (etapa {Math.max(1, draft.step) + 1} de {STEPS.length}).
             </span>
-            <button onClick={resumeDraft} style={{ fontSize: 12.5, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' }}>Retomar</button>
-            <button onClick={discardDraft} style={{ fontSize: 12.5, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer' }}>Descartar</button>
+            <button onClick={resumeDraft} className="btn btn-primary btn-sm">Retomar</button>
+            <button onClick={discardDraft} className="btn btn-ghost btn-sm">Descartar</button>
           </div>
         )}
 
@@ -184,7 +184,7 @@ export default function Home() {
 
         {step === 1 && (
           <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <div className="wz-tabs" role="tablist" aria-label="Tipo de monitor">
               {([
                 { key: 'services', label: 'APM', Icon: IconAnalytics },
                 { key: 'infra', label: 'Infraestrutura (Hosts)', Icon: IconServer },
@@ -201,14 +201,10 @@ export default function Home() {
                 return (
                   <button
                     key={opt.key}
+                    role="tab"
+                    aria-selected={on}
+                    className="wz-tab"
                     onClick={() => setConfig(c => ({ ...c, resourceType: opt.key }))}
-                    style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                      fontSize: 13, fontWeight: 600, padding: '9px 14px', borderRadius: 8, cursor: 'pointer',
-                      border: `1px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
-                      background: on ? 'var(--accent-light)' : 'var(--bg-surface)',
-                      color: on ? 'var(--accent)' : 'var(--text-secondary)',
-                    }}
                   >
                     <opt.Icon size={15} />
                     {opt.label}

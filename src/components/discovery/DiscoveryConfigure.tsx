@@ -73,16 +73,12 @@ const SUB_STEPS = [
 ]
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 16 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 500 },
   miniLabel: { display: 'block', fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.03em' },
   hint: { fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   input: { width: '100%', fontSize: 13, padding: '9px 12px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface-2)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
   select: { width: '100%', fontSize: 13, padding: '8px 10px', border: '0.5px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
   smallBtn: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer' },
-  addBtn: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--accent)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer' },
   // Sub-navegação (Entidades/Operações/Alertas)
   subNav: { display: 'flex', gap: 18, marginBottom: 2 },
   // Serviços/Namespaces
@@ -281,17 +277,17 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
 
   if (!keysConfigured) {
     return (
-      <div style={s.card}>
+      <div className="wz-card">
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
           Conecte-se ao Datadog (Etapa 1 ou em Configurações) para descobrir {cfg.entityNoun}s.
         </p>
-        <div><button style={s.btnGhost} onClick={onBack}>← Voltar</button></div>
+        <div><button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button></div>
       </div>
     )
   }
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       <div style={s.subNav}>
         {SUB_STEPS.map((ss, i) => {
           const state: SubStepState = i < subStep ? 'done' : i === subStep ? 'active' : 'pending'
@@ -322,7 +318,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
             <label style={s.label}>{cfg.listLabel}</label>
             <div style={s.toolbar}>
               <input aria-label={cfg.searchPlaceholder} className="focus-ring" style={s.search} value={search} onChange={e => setSearch(e.target.value)} placeholder={cfg.searchPlaceholder} />
-              <button style={s.btnGhost} onClick={discover} disabled={loading}>
+              <button className="btn btn-ghost" onClick={discover} disabled={loading}>
                 {loading ? 'Descobrindo…' : cfg.discoverLabel}
               </button>
             </div>
@@ -341,7 +337,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                   {filtered.map(name => {
                     const on = !!d.selected[name]
                     return (
-                      <label key={name} style={{ ...s.svcRow, background: on ? 'var(--accent-light)' : 'transparent' }}>
+                      <label key={name} className="list-row" style={{ ...s.svcRow, ...(on ? { background: 'var(--accent-light)' } : {}) }}>
                         <input type="checkbox" checked={on} onChange={() => toggleEntity(name)} />
                         <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{name}</span>
                       </label>
@@ -372,7 +368,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addManual() } }}
                   placeholder={cfg.manualPlaceholder}
                 />
-                <button style={s.addBtn} onClick={addManual}>+ Adicionar</button>
+                <button className="btn btn-outline" onClick={addManual}>+ Adicionar</button>
               </div>
             )}
           </div>
@@ -383,7 +379,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <label style={{ ...s.label, marginBottom: 0 }}>{cfg.opsLabel}</label>
-            <button style={s.btnGhost} onClick={analyze} disabled={analyzing}>
+            <button className="btn btn-ghost" onClick={analyze} disabled={analyzing}>
               {analyzing ? `Identificando…${progress ? ` (${progress.done}/${progress.total})` : ''}` : 'Identificar operações'}
             </button>
           </div>
@@ -437,7 +433,7 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
               const open = openAlert === a.key
               return (
                 <div key={a.key} style={accStyle(on)}>
-                  <div style={s.accHead} onClick={() => setOpenAlert(open ? null : a.key)}>
+                  <div className="acc-head" style={s.accHead} onClick={() => setOpenAlert(open ? null : a.key)}>
                     <input type="checkbox" checked={on} onClick={e => e.stopPropagation()} onChange={() => toggleAlert(a.key)} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{a.label}</span>
                     <div style={s.pillRow}>
@@ -493,13 +489,13 @@ export default function DiscoveryConfigure({ config, setConfig, onNext, onBack }
         </div>
       )}
 
-      {error && <div style={s.err}>{error}</div>}
+      {error && <div className="wz-msg" style={s.err}>{error}</div>}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={goSubBack}>← Voltar</button>
+        <button className="btn btn-ghost" onClick={goSubBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
         {subStep < SUB_STEPS.length - 1
-          ? <button style={s.btn} onClick={goSubNext}>Próximo →</button>
-          : <button style={s.btn} onClick={handleNext}>Continuar →</button>}
+          ? <button className="btn btn-primary" onClick={goSubNext}>Próximo →</button>
+          : <button className="btn btn-primary" onClick={handleNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>}
       </div>
     </div>
   )

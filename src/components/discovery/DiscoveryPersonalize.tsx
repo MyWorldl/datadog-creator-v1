@@ -14,7 +14,6 @@ const COMMON_GROUP_BY = ['service', 'resource_name', 'env', 'version', 'kube_nam
 const COMMON_INFRA_GROUP_BY = ['host', 'device', 'availability-zone']
 
 const s: Record<string, CSSProperties> = {
-  card: { border: '0.5px solid var(--border)', borderRadius: 12, padding: '1.25rem', background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column', gap: 18 },
   section: { display: 'flex', flexDirection: 'column', gap: 18, paddingBottom: 18, borderBottom: '0.5px solid var(--border)' },
   sectionHeading: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   label: { display: 'block', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600 },
@@ -26,9 +25,6 @@ const s: Record<string, CSSProperties> = {
   msgHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6, flexWrap: 'wrap', gap: 8 },
   prioritySelect: { fontSize: 12, padding: '4px 8px', border: '0.5px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface-2)', color: 'var(--text-secondary)', outline: 'none' },
   reset: { fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' },
-  btn: { fontSize: 13, fontWeight: 600, color: '#fff', background: 'var(--accent)', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  btnGhost: { fontSize: 13, color: 'var(--text-secondary)', background: 'none', border: '0.5px solid var(--border)', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' },
-  addBtn: { fontSize: 13, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '0.5px solid var(--accent)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer' },
   actions: { display: 'flex', justifyContent: 'space-between', paddingTop: 4 },
 }
 
@@ -179,7 +175,7 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
             placeholder="team:payments"
           />
-          <button style={s.addBtn} onClick={addTag}>+ Adicionar</button>
+          <button className="btn btn-outline" onClick={addTag}>+ Adicionar</button>
         </div>
         {(d.tags || []).length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
@@ -238,7 +234,7 @@ function PersonalizeSection({ src, config, setConfig, last }: SectionProps) {
           <label style={s.label}>Group By (dimensões do monitor)</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {[...new Set([...groupByOptions, ...d.groupBy])].map(tag => (
-              <button key={tag} style={chipStyle(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
+              <button key={tag} className="chip" style={chipStyle(d.groupBy.includes(tag))} onClick={() => toggleGroup(tag)}>{tag}</button>
             ))}
           </div>
           <p style={s.hint}>
@@ -348,7 +344,7 @@ function LogPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
         <label style={s.label} htmlFor={`${uid}-tag`}>Tags (aplicadas a todos os monitores desta seção)</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input id={`${uid}-tag`} className="focus-ring" style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} placeholder="team:payments" />
-          <button style={s.addBtn} onClick={addTag}>+ Adicionar</button>
+          <button className="btn btn-outline" onClick={addTag}>+ Adicionar</button>
         </div>
         {d.tags.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
@@ -442,7 +438,7 @@ function SloPersonalizeSection({ config, setConfig }: LogPersonalizeProps) {
         <label style={s.label} htmlFor={`${uid}-tag`}>Tags (aplicadas a todos os monitores desta seção)</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <input id={`${uid}-tag`} className="focus-ring" style={s.input} value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }} placeholder="team:payments" />
-          <button style={s.addBtn} onClick={addTag}>+ Adicionar</button>
+          <button className="btn btn-outline" onClick={addTag}>+ Adicionar</button>
         </div>
         {d.tags.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
@@ -487,7 +483,7 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
   const sources = sourcesFor(config.resourceType)
 
   return (
-    <div style={s.card}>
+    <div className="wz-card">
       {sources.map((src, i) => (
         src.dataKind === 'log'
           ? <LogPersonalizeSection key={src.stateKey} config={config} setConfig={setConfig} />
@@ -497,8 +493,8 @@ export default function DiscoveryPersonalize({ config, setConfig, onNext, onBack
       ))}
 
       <div style={s.actions}>
-        <button style={s.btnGhost} onClick={onBack}>← Voltar</button>
-        <button style={s.btn} onClick={onNext}>Continuar →</button>
+        <button className="btn btn-ghost" onClick={onBack}><span className="btn-arrow-back" aria-hidden="true">←</span> Voltar</button>
+        <button className="btn btn-primary" onClick={onNext}>Continuar <span className="btn-arrow" aria-hidden="true">→</span></button>
       </div>
     </div>
   )
