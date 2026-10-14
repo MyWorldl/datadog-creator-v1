@@ -15,10 +15,10 @@ import type { NextRequest } from 'next/server'
 import { getServerUser } from '@/lib/supabase-server'
 import { readSessionKeys } from '@/lib/session-keys'
 import { ctxFrom } from '@/lib/datadog-server'
-import { createPlanIdempotent, CREATE_MAX_DURATION } from '@/lib/monitor-create-server'
+import { createPlanIdempotent } from '@/lib/monitor-create-server'
 import { planSchema, firstIssueMessage } from '@/lib/schemas'
 
-export const maxDuration = CREATE_MAX_DURATION
+export const maxDuration = 60 // literal (o Next não aceita constante importada); lote de 25 leva poucos segundos
 
 export async function POST(request: NextRequest): Promise<Response> {
   const user = await getServerUser()
